@@ -105,22 +105,30 @@ public class Carryable : MonoBehaviour
     // Damping fixes exactly that, without touching mass or the WeightClass
     // boundaries it drives: it bleeds off velocity picked up from a
     // collision every physics step, so contact can still nudge something
-    // but can no longer walk it anywhere. Small stays at zero - "no
-    // problem" was the explicit ask - Heavy gets enough to feel like
-    // furniture, Massive enough to feel bolted down.
+    // but can no longer walk it anywhere.
+    //
+    // SET EQUAL TO MASS, on request, after "very hard to push anything" -
+    // heavier items already resist proportionally more with no separate
+    // tuning table to keep in sync as loot masses change. A 6kg crate gets
+    // 6 damping, a 140kg vending machine gets 140 - the number IS the
+    // resistance, not a lookup keyed off it.
     // --------------------------------------------------------------------
 
     void ApplyPushResistance()
     {
-        (float linear, float angular) = Weight switch
-        {
-            WeightClass.Small => (0f, 0.05f),
-            WeightClass.Heavy => (4f, 4f),
-            _                 => (10f, 10f),   // Massive
-        };
+        body.linearDamping = body.mass;
+        body.angularDamping = body.mass;
 
-        body.linearDamping = linear;
-        body.angularDamping = angular;
+        // Caps how fast PhysX is allowed to shove two overlapping bodies
+        // apart in one step. A held item's colliders are OFF (see PickUp
+        // below) so it can pass through walls and the player while you
+        // carry it - if you then drop it while it happens to be clipped
+        // into a doorframe, colliders switch back on into that overlap and
+        // an uncapped solver resolves it with a single explosive impulse,
+        // which is the "item goes flying" report. Capped here, the same
+        // overlap still gets pushed out, just over a few gentle frames
+        // instead of one violent one.
+        body.maxDepenetrationVelocity = 3f;
     }
 
     // --------------------------------------------------------------------

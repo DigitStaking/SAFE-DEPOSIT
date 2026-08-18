@@ -56,8 +56,10 @@ public class Elevator : MonoBehaviour
     public float fastSpeed = 8f;
 
     [Header("Doors")]
-    [Tooltip("Which of the four sides faces the room. Step 11 sets this per " +
-             "floor; until then every floor uses the same side.")]
+    [Tooltip("Which side currently faces the room. DERIVED on arrival from " +
+             "the level's own rotation in the shaft - shown here so you can " +
+             "see it, not so you can set it. Only used as a fallback at the " +
+             "surface, where there is no room to face.")]
     public string activeSide = "Side_East";
 
     [Tooltip("How far a shutter has rolled, in metres, when fully open.")]
@@ -101,13 +103,21 @@ public class Elevator : MonoBehaviour
         // which is a lovely idea and a completely different system.
         rb.isKinematic = true;
         rb.useGravity = false;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+        // Interpolation OFF, deliberately - see the ordering note in
+        // FixedUpdate. The car is teleported rather than swept, and
+        // interpolating a teleport just smears it.
+        rb.interpolation = RigidbodyInterpolation.None;
 
         MeasureRideVolume();
-        CollectShutters();
 
+        // Work out which floor we were placed on BEFORE collecting shutters -
+        // CollectShutters picks the door to open, and it can only do that
+        // once it knows where the car is.
         CurrentFloor = TargetFloor = FloorAt(rb.position.y);
         SnapToFloor(CurrentFloor);
+
+        CollectShutters();
     }
 
     /// <summary>
@@ -154,11 +164,63 @@ public class Elevator : MonoBehaviour
             s.openPos = new Vector3(s.closedPos.x, top - shutterRoll * 0.5f, s.closedPos.z);
 
             shutters.Add(s);
-            if (side.name == activeSide) active = s;
         }
 
-        if (active == null)
-            Debug.LogWarning($"[Elevator] No side named '{activeSide}'. No door will open.");
+        UpdateActiveSide();
+    }
+
+    // ------------------------------------------------------------------
+    // WHICH SIDE FACES THE ROOM
+    //
+    // GrayboxBuilder always cuts a level's doorway in that level's LOCAL +X,
+    // then rotates the whole level - 0, 90, 180, 270 - so which way the door
+    // actually faces changes floor by floor. That is the design: arriving
+    // somewhere should mean orienting yourself.
+    //
+    // The car does not turn. A different shutter opens instead.
+    //
+    // Read the level's rotation out of the scene rather than restating
+    // GrayboxBuilder's table here. A copy of that array in this file would be
+    // wrong the first time anyone edited the other one, and the failure -
+    // opening onto a blank wall - gives no hint which copy lied. This way the
+    // shaft is the single source of truth and Step 11 can rearrange floors
+    // freely without touching the elevator at all.
+    // ------------------------------------------------------------------
+
+    void UpdateActiveSide()
+    {
+        if (shutters.Count == 0) return;
+
+        var shaft = GameObject.Find("SHAFT");
+        var level = shaft != null
+            ? shaft.transform.Find($"Level_{CurrentFloor:00}")
+            : null;
+
+        if (level == null)
+        {
+            // Floor 0 is the surface and has no room. Fall back to the
+            // inspector's side so the doors still open rather than sealing
+            // the crew in a box with no explanation.
+            active = shutters.Find(s => s.t.parent.name == activeSide);
+            return;
+        }
+
+        // The doorway's outward direction in world space.
+        Vector3 doorDir = level.rotation * Vector3.right;
+
+        // Each Side_ group was authored facing +Z and placed by a yaw, so its
+        // forward IS its outward normal - no lookup table needed.
+        Shutter best = null;
+        float bestDot = -2f;
+
+        foreach (var s in shutters)
+        {
+            float d = Vector3.Dot(s.t.parent.forward, doorDir);
+            if (d > bestDot) { bestDot = d; best = s; }
+        }
+
+        active = best;
+        if (best != null) activeSide = best.t.parent.name;
     }
 
     // ------------------------------------------------------------------
@@ -230,19 +292,42 @@ public class Elevator : MonoBehaviour
         // dropping away from has already been left behind by a frame.
         GatherRiders();
 
-        rb.MovePosition(to);
+        // ==============================================================
+        // THE CAR AND ITS RIDERS MUST MOVE IN THE SAME INSTANT.
+        //
+        // This was rb.MovePosition(to) and it caused two bugs that looked
+        // unrelated: violent vibration going down, and a phantom jump
+        // animation going up.
+        //
+        // MovePosition on a kinematic body is DEFERRED - it is applied during
+        // the physics step. Assigning .position on a rider is IMMEDIATE. So
+        // inside one FixedUpdate the rider moved and the floor had not yet:
+        //
+        //   going DOWN  the rider teleported 4cm INTO the floor, the solver
+        //               shoved it back out, and only then did the car move.
+        //               An upward kick every single frame.
+        //
+        //   going UP    the rider teleported 4cm ABOVE the floor and fell,
+        //               then the car arrived underneath. That momentary
+        //               airborne frame with upward velocity is exactly what
+        //               PlayerAnimatorDriver watches for, so it fired the
+        //               Jump trigger over and over.
+        //
+        // Rigidbody.position teleports without sweeping. Car and riders both
+        // move immediately, by the same delta, so their relative positions
+        // never change and no penetration is ever created for the solver to
+        // argue with. Nothing pushes anybody.
+        // ==============================================================
+        rb.position = to;
 
         foreach (var r in riders)
         {
             if (r == null) continue;
 
-            // Assigning .position rather than MovePosition, deliberately.
-            // MovePosition on a dynamic body derives a velocity from the
-            // move, which would fight PlayerMotor's own acceleration budget
-            // and fling the player. Setting position is a teleport: the
-            // rider keeps its own velocity and simply arrives where the floor
-            // put it. The step is at most 0.16m at full speed, far too small
-            // to tunnel through anything.
+            // Teleport, not MovePosition: the rider keeps its own velocity
+            // and simply arrives where the floor put it, so you can still
+            // walk and jump normally on a moving lift. At most 0.16m a step,
+            // far too small to tunnel through anything.
             r.position += delta;
         }
 
@@ -251,6 +336,7 @@ public class Elevator : MonoBehaviour
             IsMoving = false;
             useFast = false;
             CurrentFloor = TargetFloor;
+            UpdateActiveSide();
         }
     }
 
@@ -334,9 +420,11 @@ public class Elevator : MonoBehaviour
 
         var hint = new GUIStyle(GUI.skin.label) { fontSize = 13 };
         hint.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
-        GUI.Label(new Rect(24f, Screen.height - 52f, 520f, 22f),
+        string side = activeSide.StartsWith("Side_") ? activeSide.Substring(5) : activeSide;
+
+        GUI.Label(new Rect(24f, Screen.height - 52f, 640f, 22f),
                   $"PageUp  go up          PageDown  go down          " +
-                  $"doors {(DoorsLocked ? "LOCKED" : "open")}", hint);
+                  $"doors {(DoorsLocked ? "LOCKED" : "open " + side.ToUpper())}", hint);
     }
 
     void OnDrawGizmosSelected()

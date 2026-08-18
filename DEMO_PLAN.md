@@ -201,6 +201,16 @@ departure vote correctly names the person still in a room. **Two players first.*
 **One floor finished to shippable quality.** Final art, final audio, no
 placeholders. This is the milestone that tells you the truth.
 
+- [ ] **First-person arms.** Decided 18 Aug 2026 and deferred to here.
+      `FirstPersonHands` currently uses IK to drag the character's own hands
+      to a point in front of the camera. That works for the person looking
+      through it and looks wrong to everybody else — one skeleton cannot be
+      posed for two viewpoints at once, and no weight or offset fixes it.
+      We Were Here Together, the reference for this game, uses a **separate
+      arms mesh parented to the camera on its own render layer with its own
+      FOV**, driven by the same Animator parameters as the body — so a wave
+      plays on your gloves *and* on your body. Build that here, with the art.
+      `handWeight` is at 0.4 in the meantime so the body animates normally.
 - [ ] Art pass: food-tier loot props, PEAK flat shading, colour grade
 - [ ] **Audio pass** — cable creak under load, breathing that worsens with
       weight, the demolition approaching, survivors screaming through concrete,

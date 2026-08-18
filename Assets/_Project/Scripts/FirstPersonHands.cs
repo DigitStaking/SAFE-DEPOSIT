@@ -29,7 +29,34 @@
 //      replaced. It needs no clips at all, and the arms automatically follow
 //      wherever you look, because the target is defined in camera space.
 //
-// WHY THE WEIGHT STAYS AT 1
+// ========================================================================
+// DECISION, 18 Aug 2026: THIS SYSTEM IS AN INTERIM. IT IS REPLACED IN BLOCK 8.
+//
+// Option 1 above was rejected too early. We Were Here Together - the actual
+// reference for this game - DOES use a separate first-person arms mesh, and
+// the objection recorded above ("the other three players cannot see what
+// your hands are doing") is only true of a bad implementation. They drive
+// the FP arms and the third-person body from the SAME state, so a wave
+// plays on your gloves and on your body at once.
+//
+// The cost of one skeleton is unavoidable and is visible in play: IK pins
+// the character's REAL hands 30cm from its own face, so from the outside a
+// teammate sees someone walking around clutching at their own head. There
+// is no weight or offset that fixes that - it is what one skeleton doing
+// two jobs looks like.
+//
+// So handWeight is turned DOWN for now. The body animates normally, which
+// is what matters while there are graybox rooms to build, and the real
+// answer lands in Block 8 with the art pass:
+//
+//   arms mesh parented to the camera, own render layer, own FOV, own
+//   Animator fed by the same parameters as the body.
+//
+// Do not spend more time tuning the numbers below. They are a holding
+// pattern, not a design.
+// ========================================================================
+//
+// WHY THE WEIGHT USED TO STAY AT 1
 //
 // It is tempting to set the IK weight below 1 so some of the walk clip's arm
 // swing shows through and the hands look less rigid. That is wrong here, and
@@ -104,10 +131,13 @@ public class FirstPersonHands : MonoBehaviour
     public Vector3 rightHand = new Vector3( 0.26f, -0.24f, 0.32f);
 
     [Header("Visibility")]
-    [Tooltip("LEAVE AT 1. Anything lower blends the hands back toward the walk " +
-             "clip's arm position and drops them off the bottom of the screen. " +
-             "Read the header comment before touching this.")]
-    [Range(0f, 1f)] public float handWeight = 1f;
+    [Tooltip("INTERIM VALUE - see the decision note at the top of this file.\n\n" +
+             "0.4, not 1. At 1 the IK pins the character's real hands to its " +
+             "own face, which looks wrong to everyone except you. Lower lets " +
+             "the body animate normally at the cost of the hands often sitting " +
+             "out of frame. Proper first-person arms replace this in Block 8, " +
+             "so do not spend time tuning it.")]
+    [Range(0f, 1f)] public float handWeight = 0.4f;
 
     [Tooltip("Hard clamp that pins the hands inside the screen no matter what " +
              "offsets or FOV are in use. Safety net - leave on.")]

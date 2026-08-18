@@ -624,7 +624,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 0}
   leftHand: {x: -0.26, y: -0.24, z: 0.32}
   rightHand: {x: 0.26, y: -0.24, z: 0.32}
-  handWeight: 1
+  handWeight: 0.4
   keepInFrame: 1
   frameMargin: 0.06
   freeArmsDuringActions: 0

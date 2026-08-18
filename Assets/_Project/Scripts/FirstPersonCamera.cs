@@ -28,13 +28,13 @@ public class FirstPersonCamera : MonoBehaviour
     [Header("Target")]
     public Transform target;
 
-    [Tooltip("Offset from the player's pivot (at the feet) to eye height.\n\n" +
-             "1.55, not 1.65. This also sets where the hands land: " +
-             "FirstPersonHands places them relative to the EYE, so a high eye " +
-             "puts the hand targets level with the shoulder and the IK reaches " +
-             "straight out instead of letting the arms hang. Raise this and " +
-             "the arms come up with it.")]
-    public Vector3 eyeOffset = new Vector3(0f, 1.55f, 0.12f);
+    [Tooltip("Offset from the player's pivot (at the feet) to eye height. " +
+             "1.60 on a 1.8m character is about right.\n\n" +
+             "This was briefly dropped to chase the hand IK, which placed its " +
+             "targets relative to the eye. That is no longer a reason to move " +
+             "it - the hands are parked until Block 8 - so set this by what " +
+             "the WORLD should look like from standing height, nothing else.")]
+    public Vector3 eyeOffset = new Vector3(0f, 1.60f, 0.12f);
 
     [Header("Look")]
     [Tooltip("Mouse: degrees per pixel. NOT scaled by delta time - mouse input " +

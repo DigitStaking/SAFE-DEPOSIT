@@ -219,7 +219,11 @@ public static class PlayerFbxSetupTool
     // Old graybox capsule/arms must not fight the real FBX silhouette.
     static void HideLegacyGraybody(Transform root)
     {
-        string[] hide = { "Body", "Cube", "ChestPivot", "Arm_L", "Arm_R" };
+        // "Head" belongs on this list and was missing, which is why a grey
+        // cube floated at eye height in every screenshot: LocalFirstPersonBodyCull
+        // only ever touches SkinnedMeshRenderers, and the graybox head is a
+        // plain MeshRenderer, so nothing was hiding it.
+        string[] hide = { "Body", "Head", "Cube", "ChestPivot", "Arm_L", "Arm_R" };
         foreach (var n in hide)
         {
             var t = root.Find(n);

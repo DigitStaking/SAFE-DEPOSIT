@@ -161,7 +161,12 @@ public class PlayerHeadlamp : MonoBehaviour
 
         // Single-player lookup, same caveat as everywhere else in this file
         // set: Phase C replaces this with a player registry.
-        if (anim == null) anim = Object.FindFirstObjectByType<Animator>();
+        //
+        // UnityEngine.Object, qualified in full - this file also has
+        // `using System;` for StringComparison, and System.Object is a real
+        // type too, so a bare "Object" is genuinely ambiguous between the
+        // two the moment both namespaces are in scope.
+        if (anim == null) anim = UnityEngine.Object.FindFirstObjectByType<Animator>();
 
         if (anim != null && anim.isHuman)
             headBone = anim.GetBoneTransform(HumanBodyBones.Head);
@@ -252,6 +257,13 @@ public class PlayerHeadlamp : MonoBehaviour
 
     void Apply()
     {
+        // Reads the IsOn field, not a parameter - Apply() applies whatever
+        // state was last set by SetOn(), it does not receive one. The first
+        // version of this method referenced a local named `on` that only
+        // ever existed inside SetOn()'s own scope; it should never have
+        // compiled as written, and didn't.
+        bool on = IsOn;
+
         // The whole rig, not just the Light. spot.enabled alone would leave
         // the LightShaft's cone mesh sitting there fully visible - it is a
         // separately built MeshRenderer, not something LightShaft repaints

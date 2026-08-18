@@ -45,6 +45,7 @@
 // ========================================================================
 
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -132,8 +133,15 @@ public class PlayerHeadlamp : MonoBehaviour
     Light spot;
     LightShaft shaft;
 
+    // EVERY submesh whose material matches, not just the first. The model
+    // reuses "M_Player_Light" on more than one part - the helmet bump, and
+    // trim bands on the chest / wrist / boots - and a MaterialPropertyBlock
+    // override is keyed by (renderer, submesh index), never by material. The
+    // first version stopped at the first match and called it done, which is
+    // why toggling off only ever turned off whichever one happened to be
+    // first in the list and left the rest glowing regardless of state.
     Renderer bumpRenderer;
-    int bumpSlot = -1;
+    readonly List<int> bumpSlots = new List<int>();
     MaterialPropertyBlock bumpBlock;
 
     static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -213,11 +221,12 @@ public class PlayerHeadlamp : MonoBehaviour
     }
 
     /// <summary>
-    /// Find which submesh of the character's own renderer is the lamp bump,
-    /// so it can be dimmed with a MaterialPropertyBlock rather than editing
-    /// the shared material - PlayerSkin uses the identical technique for
-    /// crew colours, for the identical reason: touching .material clones it
-    /// per instance, and a MaterialPropertyBlock does not.
+    /// Find EVERY submesh of the character's renderer that uses the lamp
+    /// material - the helmet bump AND any trim bands sharing the same asset -
+    /// so all of them can be dimmed with a MaterialPropertyBlock rather than
+    /// editing the shared material. PlayerSkin uses the identical technique
+    /// for crew colours, for the identical reason: touching .material clones
+    /// it per instance, and a MaterialPropertyBlock does not.
     /// </summary>
     void FindBumpSlot()
     {
@@ -227,6 +236,8 @@ public class PlayerHeadlamp : MonoBehaviour
         if (bumpRenderer == null) return;
 
         var mats = bumpRenderer.sharedMaterials;
+        bool gotEmission = false;
+
         for (int i = 0; i < mats.Length; i++)
         {
             if (mats[i] == null) continue;
@@ -240,19 +251,29 @@ public class PlayerHeadlamp : MonoBehaviour
             // this slot.
             if (n.IndexOf("anti", StringComparison.OrdinalIgnoreCase) >= 0) continue;
 
-            if (n.IndexOf(bumpMaterialKey, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (n.IndexOf(bumpMaterialKey, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+            // NOT a `return` - the model puts this same material on more than
+            // one submesh (helmet bump, chest / wrist / boot trim), and a
+            // property block override only ever affects ONE (renderer,
+            // index) pair. Stopping at the first match was the actual bug:
+            // toggling off only ever silenced whichever slot happened to
+            // come first, and every other glowing part on the body ignored
+            // the light entirely because nothing had ever told IT to turn
+            // off.
+            bumpSlots.Add(i);
+
+            // Read ON straight from the asset - PlayerFbxSetupTool bakes it
+            // bright already, so this script does not carry a second copy of
+            // that colour to go stale against it. Whatever you paint the
+            // base colour as in the Inspector, THIS is what ON reproduces -
+            // nothing here touches base colour at all. Read once, from the
+            // first match - every slot shares the one material asset, so
+            // they already agree.
+            if (!gotEmission && mats[i].HasProperty(EmissionColorId))
             {
-                bumpSlot = i;
-
-                // Read ON straight from the asset - PlayerFbxSetupTool bakes
-                // it bright already, so this script does not carry a second
-                // copy of that colour to go stale against it. Whatever you
-                // paint the base colour as in the Inspector, THIS is what ON
-                // reproduces - nothing here touches base colour at all.
-                if (mats[i].HasProperty(EmissionColorId))
-                    bumpOnEmission = mats[i].GetColor(EmissionColorId);
-
-                return;
+                bumpOnEmission = mats[i].GetColor(EmissionColorId);
+                gotEmission = true;
             }
         }
     }
@@ -287,21 +308,28 @@ public class PlayerHeadlamp : MonoBehaviour
         // Deactivating the parent takes both with it in one call.
         if (rig != null) rig.SetActive(on);
 
-        if (tintHelmetBump && bumpRenderer != null && bumpSlot >= 0)
+        if (tintHelmetBump && bumpRenderer != null)
         {
             if (bumpBlock == null) bumpBlock = new MaterialPropertyBlock();
-            bumpRenderer.GetPropertyBlock(bumpBlock, bumpSlot);
+            Color emission = on ? bumpOnEmission : Color.black;
 
-            // EMISSION ONLY. Written every time, on AND off, not just on - a
-            // MaterialPropertyBlock override holds whatever was last set
-            // until something sets it again, so writing only the ON case
-            // would leave the bump permanently lit the first time it was
-            // ever switched on. Base colour is never touched here at all;
-            // whatever the material's own _BaseColor is stays exactly that,
-            // lit or not.
-            bumpBlock.SetColor(EmissionColorId, on ? bumpOnEmission : Color.black);
-
-            bumpRenderer.SetPropertyBlock(bumpBlock, bumpSlot);
+            // EVERY matching submesh, not just one - see FindBumpSlot(). A
+            // property block override is keyed by (renderer, submesh index),
+            // so the chest band and the boot trim each need their own
+            // Get/Set pair even though they share one material asset.
+            //
+            // EMISSION ONLY, written every time, on AND off, not just on - an
+            // override holds whatever was last set until something sets it
+            // again, so writing only the ON case would leave every one of
+            // these permanently lit the first time it was ever switched on.
+            // Base colour is never touched here at all; whatever the
+            // material's own _BaseColor is stays exactly that, lit or not.
+            foreach (int slot in bumpSlots)
+            {
+                bumpRenderer.GetPropertyBlock(bumpBlock, slot);
+                bumpBlock.SetColor(EmissionColorId, emission);
+                bumpRenderer.SetPropertyBlock(bumpBlock, slot);
+            }
         }
     }
 

@@ -81,6 +81,46 @@ public class Carryable : MonoBehaviour
         renderers = GetComponentsInChildren<Renderer>();
 
         lootLayer = LayerMask.NameToLayer("Loot");
+
+        ApplyPushResistance();
+    }
+
+    // --------------------------------------------------------------------
+    // WHY DRAG, AND NOT MORE MASS
+    //
+    // Mass already has a job here: it drives Weight, SpeedMultiplier,
+    // backpack eligibility, and the whole $/kg density table in
+    // ECONOMY_AND_CAMPAIGN.md. Inflating it just to make a Heavy item feel
+    // properly heavy to shove would silently reclassify it - a filing
+    // cabinet bumped up to "feel Massive" starts BEING Massive, with a
+    // different speed penalty and a different price tier nobody asked for.
+    //
+    // The actual bug was not the mass ratio - a 34kg cabinet against a 70kg
+    // player is realistically push-able even at correct masses, the same
+    // way a person can shove real furniture. It was that NOTHING resisted
+    // a SUSTAINED push: zero drag meant a collision's velocity persisted
+    // and kept accumulating every frame you stayed in contact, so walking
+    // into anything, however light, eventually walked it across the room.
+    //
+    // Damping fixes exactly that, without touching mass or the WeightClass
+    // boundaries it drives: it bleeds off velocity picked up from a
+    // collision every physics step, so contact can still nudge something
+    // but can no longer walk it anywhere. Small stays at zero - "no
+    // problem" was the explicit ask - Heavy gets enough to feel like
+    // furniture, Massive enough to feel bolted down.
+    // --------------------------------------------------------------------
+
+    void ApplyPushResistance()
+    {
+        (float linear, float angular) = Weight switch
+        {
+            WeightClass.Small => (0f, 0.05f),
+            WeightClass.Heavy => (4f, 4f),
+            _                 => (10f, 10f),   // Massive
+        };
+
+        body.linearDamping = linear;
+        body.angularDamping = angular;
     }
 
     // --------------------------------------------------------------------

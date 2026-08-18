@@ -73,3 +73,9 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# SAFE DEPOSIT - oversized source exports.
+# GitHub hard-rejects any single file over 100 MB, which blocks the whole push.
+# Keep raw/unreduced .glb exports out of the repo; commit the reduced .fbx instead.
+Assets/_Project/Prefabs/Untitled.glb
+Assets/_Project/Prefabs/Untitled.glb.meta

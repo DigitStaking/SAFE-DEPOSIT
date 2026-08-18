@@ -162,7 +162,6 @@ public static class FirstPersonFixer
         hands.handWeight            = 1f;
         hands.keepInFrame           = true;
         hands.frameMargin           = 0.06f;
-        hands.overrideWhileClimbing = false;
         hands.freeArmsDuringActions = false;
         hands.rotationWeight        = 0.7f;
         hands.followSpeed           = 16f;
@@ -192,12 +191,8 @@ public static class FirstPersonFixer
         }
 
         // ---- retire the placeholder capsule arms ---------------------
-        var arms = root.GetComponent<PlayerArms>();
-        if (arms != null && arms.enabled)
-        {
-            arms.enabled = false;
-            log.AppendLine("  disabled PlayerArms");
-        }
+        // PlayerArms itself is gone; the leftover objects may still be in
+        // older prefabs, so keep hiding them.
         foreach (var n in new[] { "Arm_L", "Arm_R" })
         {
             var t = FindDeep(root.transform, n);
@@ -213,13 +208,6 @@ public static class FirstPersonFixer
         if (drv == null) drv = root.AddComponent<PlayerAnimatorDriver>();
         drv.animator = anim;
         drv.enabled = true;
-
-        var proc = root.GetComponent<PlayerProceduralAnim>();
-        if (proc != null && proc.enabled)
-        {
-            proc.enabled = false;
-            log.AppendLine("  disabled PlayerProceduralAnim (real clips are playing)");
-        }
     }
 
     static Transform FindDeep(Transform root, string name)

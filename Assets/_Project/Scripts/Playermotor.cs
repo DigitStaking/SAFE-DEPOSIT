@@ -69,23 +69,8 @@ public class PlayerMotor : MonoBehaviour
 
     // Scales top speed. Other systems write here rather than changing
     // moveSpeed, so the tuned Inspector value always stays the real one.
-    // PlayerTether drops it while you are cut loose; PlayerCarry drops it
-    // further when you are carrying something heavy.
+    // Carry weight and injury will drive this.
     [HideInInspector] public float speedMultiplier = 1f;
-
-    /// <summary>
-    /// Set by PlayerTether when you have too much line out to control
-    /// yourself in mid-air.
-    ///
-    /// Hanging on ten metres of slack you have nothing to push against - you
-    /// are limp on the end of a long line, spinning. Swinging takes a SHORT
-    /// line, because that is the only way you get leverage.
-    ///
-    /// Blocking air control rather than slowing it is deliberate: half
-    /// control would just feel unresponsive and broken. No control reads as
-    /// a state, and the prompt tells you the one key that ends it.
-    /// </summary>
-    [HideInInspector] public bool airControlBlocked;
 
     [Tooltip("Seconds after leaving the ground during which you still count as " +
              "grounded. Classic 'coyote time' - it makes jumping off a ledge " +
@@ -112,7 +97,6 @@ public class PlayerMotor : MonoBehaviour
     Rigidbody rb;
     CapsuleCollider capsule;
     PlayerInput playerInput;
-    PlayerTether tether;
     PlayerCarry carry;
     Transform cam;
 
@@ -126,7 +110,6 @@ public class PlayerMotor : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         capsule = GetComponent<CapsuleCollider>();
         playerInput = GetComponent<PlayerInput>();
-        tether = GetComponent<PlayerTether>();
         carry = GetComponent<PlayerCarry>();
 
         rb.isKinematic = false;
@@ -167,22 +150,13 @@ public class PlayerMotor : MonoBehaviour
     {
         if (!value.isPressed) return;
 
-        // Stand down while clipped to the rope - PlayerTether turns Space into
-        // a leap instead.
-        //
-        // Without this, standing in a doorway while clipped meant the first
-        // Space was eaten as a normal jump and only the SECOND one leapt you
-        // off the rope. One button should have one meaning.
-        if (tether != null && tether.IsAttached) return;
-
         // Anything that needs two hands stops you jumping. You can shuffle it
-        // around and you can clip it to the rope, but you cannot hop about
-        // with a marble bust - and without this check you could, because the
-        // weight rules only ever applied to the rope.
+        // around and you can set it down on the deck, but you cannot hop about
+        // with a marble bust.
         //
         // This is what makes heavy loot a real decision instead of a speed
         // penalty: pick up something big and you are committed to walking it
-        // to the rope.
+        // back to the elevator.
         if (carry != null && !carry.CanJump) return;
 
         // Queued, not acted on immediately. Input arrives on the render frame
@@ -240,11 +214,6 @@ public class PlayerMotor : MonoBehaviour
         //    never fights gravity or a jump.
         Vector3 velocity = rb.linearVelocity;
         Vector3 currentHorizontal = new Vector3(velocity.x, 0f, velocity.z);
-
-        // Too much line out to control yourself. You keep whatever momentum
-        // you already had - you are still a physics object swinging on a rope,
-        // you just cannot steer.
-        if (!grounded && airControlBlocked) return;
 
         // 3. the difference, clamped to what we are allowed to spend
         Vector3 delta = targetVelocity - currentHorizontal;

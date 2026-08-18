@@ -65,8 +65,6 @@ public static class AnimatorBuilder
         new Slot { Key="Land",      Match=new[]{"hard landing","falling to landing","landing","land"} },
 
         // ---- base layer, rope ----
-        new Slot { Key="ClimbUp",   Match=new[]{"climbing a rope","rope climbing","climbing","climb"} },
-        new Slot { Key="Hang",      Match=new[]{"hanging idle","braced hang","hanging","hang"} },
 
         // ---- base layer, states ----
         // "Downed", not "Death". Your call, and it is the better one - see the
@@ -292,9 +290,6 @@ public static class AnimatorBuilder
         P(ac, "Speed",      AnimatorControllerParameterType.Float);
         P(ac, "Grounded",   AnimatorControllerParameterType.Bool, true);
         P(ac, "Jump",       AnimatorControllerParameterType.Trigger);
-        P(ac, "Climbing",   AnimatorControllerParameterType.Bool);
-        P(ac, "ClimbSpeed", AnimatorControllerParameterType.Float);
-        P(ac, "ClimbDir",   AnimatorControllerParameterType.Float);
         P(ac, "Carry",      AnimatorControllerParameterType.Int);
         P(ac, "DoPickUp",   AnimatorControllerParameterType.Trigger);
         P(ac, "DoStow",     AnimatorControllerParameterType.Trigger);
@@ -398,32 +393,6 @@ public static class AnimatorBuilder
             t.duration = 0.1f; t.hasExitTime = false;
         }
         if (land != null) Exit(land, loco, 0.75f, 0.15f);
-
-        // ---- Climb ----
-        //
-        // 1D blend on ClimbSpeed: hanging still at 0, climbing at 1.
-        // The state's PLAYBACK SPEED is driven by ClimbDir, so setting it to
-        // -1 plays the same clip backwards and you get climbing down for free.
-        if (c.ContainsKey("ClimbUp") || c.ContainsKey("Hang"))
-        {
-            var climb = ac.CreateBlendTreeInController("Climb", out BlendTree ct, 0);
-            ct.blendType = BlendTreeType.Simple1D;
-            ct.blendParameter = "ClimbSpeed";
-            ct.useAutomaticThresholds = false;
-            ct.AddChild(Get(c, "Hang", "ClimbUp"), 0f);
-            ct.AddChild(Get(c, "ClimbUp", "Hang"), 1f);
-
-            climb.speedParameterActive = true;
-            climb.speedParameter = "ClimbDir";
-
-            var toClimb = sm.AddAnyStateTransition(climb);
-            toClimb.AddCondition(AnimatorConditionMode.If, 0, "Climbing");
-            toClimb.duration = 0.15f; toClimb.canTransitionToSelf = false;
-
-            var outClimb = climb.AddTransition(loco);
-            outClimb.AddCondition(AnimatorConditionMode.IfNot, 0, "Climbing");
-            outClimb.duration = 0.15f; outClimb.hasExitTime = false;
-        }
 
         // ---- Downed ----
         //
@@ -703,14 +672,9 @@ public static class AnimatorBuilder
             // Two components both capturing and restoring shadowCastingMode
             // fight each other, so only one owns it.
 
-            // The old capsule arms were a stand-in for exactly this. Leave them
-            // on and you get four arms.
-            var oldArms = root.GetComponent<PlayerArms>();
-            if (oldArms != null && oldArms.enabled)
-            {
-                oldArms.enabled = false; changed = true;
-                Debug.Log("[Anim] disabled PlayerArms - the real rig has arms now.");
-            }
+            // The old capsule arms were a stand-in for exactly this. The
+            // PlayerArms component is gone, but leftover objects may still be
+            // in older prefabs - leave them on and you get four arms.
             foreach (var n in new[] { "Arm_L", "Arm_R" })
             {
                 var t = root.transform.Find("ChestPivot/" + n) ?? root.transform.Find(n);

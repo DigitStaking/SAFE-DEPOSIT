@@ -89,12 +89,6 @@ public class FirstPersonHands : MonoBehaviour
     [Tooltip("How far in from the screen edge to stay. 0.06 = 6%.")]
     [Range(0f, 0.4f)] public float frameMargin = 0.06f;
 
-    [Tooltip("Keep the hands pinned in frame while climbing too. OFF is " +
-             "recommended - the climb clip already puts both hands on the rope " +
-             "directly in front of your face, which looks better than fists " +
-             "floating over it.")]
-    public bool overrideWhileClimbing = false;
-
     [Tooltip("Release the hands during gameplay one-shots too (pick up, stow, " +
              "use). OFF keeps them locked in frame, which is the safe default: " +
              "these fire during play, when you need to see what you are doing.")]
@@ -183,12 +177,11 @@ public class FirstPersonHands : MonoBehaviour
         // hands do not move when you walk.
         //
         // It only releases for things that are meant to be WATCHED rather
-        // than used: emotes, and climbing. Those cases are found by reading
-        // the tag on the arms layer's current state, not by hard-coding state
-        // names here - so adding a fifth emote later needs no change to this
-        // script.
-        bool climbing = SafeBool("Climbing");
-        bool free = (climbing && !overrideWhileClimbing) || SafeBool("Downed");
+        // than used: emotes, and being downed. Those cases are found by
+        // reading the tag on the arms layer's current state, not by
+        // hard-coding state names here - so adding a fifth emote later needs
+        // no change to this script.
+        bool free = SafeBool("Downed");
 
         // Base layer carries the full-body emotes; arms layer carries the
         // gameplay one-shots. Check both. GetNextAnimatorStateInfo is checked

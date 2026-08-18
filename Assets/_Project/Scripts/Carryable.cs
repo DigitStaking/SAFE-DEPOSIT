@@ -5,17 +5,17 @@
 // ========================================================================
 // WEIGHT LIMITS WHAT YOU CAN DO, NOT JUST HOW FAST YOU MOVE.
 //
-//   SMALL    under 8kg    one hand, climb normally
-//   HEAVY    8 - 60kg     two hands, CANNOT climb the rope, 70% speed
-//   MASSIVE  over 60kg    45% speed, no climbing, no kicking off the rope
+//   SMALL    under 8kg    one hand, fits in the backpack
+//   HEAVY    8 - 60kg     two hands, no jumping, 70% speed
+//   MASSIVE  over 60kg    45% speed, no jumping
 //
 // The class is derived from the Rigidbody's mass rather than set by hand,
 // so an object's behaviour always matches its stated weight. Change the
 // mass and everything follows.
 //
-// The point of Heavy is not the speed penalty. It is that you cannot haul
-// yourself up while holding one - you become dependent on being winched, or
-// on a friend. That dependency is the co-op.
+// The point of Heavy is not the speed penalty. It is that both your hands
+// are gone - you cannot open a door, you cannot help anyone, and you have
+// committed to walking this thing all the way back to the elevator.
 // ========================================================================
 
 using UnityEngine;
@@ -29,18 +29,14 @@ public class Carryable : MonoBehaviour
     {
         Free,     // lying in the world
         Held,     // in a player's hands
-        Stowed,   // in a player's backpack - small items only
-        OnRope    // clipped to the main rope, riding it
+        Stowed    // in a player's backpack - small items only
+                  // OnDeck arrives with ElevatorDeck.cs in Step 8
     }
 
     [Header("Value")]
     [Tooltip("What the black market pays for this. Later the run's quota is " +
              "measured against the sum of these.")]
     public int value = 100;
-
-    [Header("Rope cargo")]
-    [Tooltip("Depth on the main rope once clipped. Set automatically.")]
-    public float ropeDepth;
 
     public CarryState State { get; private set; } = CarryState.Free;
     public float Mass => body != null ? body.mass : 1f;
@@ -54,12 +50,8 @@ public class Carryable : MonoBehaviour
         Mass <= 60f ? WeightClass.Heavy :
                       WeightClass.Massive;
 
-    public bool AllowsClimbing => Weight == WeightClass.Small;
-
-    // Anything needing two hands stops you jumping AND leaping off the rope.
-    // Only one-handed loot lets you move freely - which is the entire reason
-    // the backpack exists.
-    public bool AllowsKicking => Weight == WeightClass.Small;
+    // Anything needing two hands stops you jumping. Only one-handed loot lets
+    // you move freely - which is the entire reason the backpack exists.
     public bool AllowsJumping => Weight == WeightClass.Small;
 
     /// <summary>Small enough to go on your back and leave your hands free.</summary>
@@ -75,10 +67,8 @@ public class Carryable : MonoBehaviour
     Rigidbody body;
     Collider[] colliders;
     Renderer[] renderers;
-    MainRope rope;
 
     int lootLayer = -1;
-    int ropeLayer = -1;
 
     void Awake()
     {
@@ -87,16 +77,6 @@ public class Carryable : MonoBehaviour
         renderers = GetComponentsInChildren<Renderer>();
 
         lootLayer = LayerMask.NameToLayer("Loot");
-        ropeLayer = LayerMask.NameToLayer("Rope");
-
-        if (ropeLayer < 0)
-            Debug.LogWarning("[Carryable] Layer 'Rope' missing. Cargo on the rope " +
-                             "will collide with players and shove them around.");
-    }
-
-    void Start()
-    {
-        rope = FindFirstObjectByType<MainRope>();
     }
 
     // --------------------------------------------------------------------
@@ -118,8 +98,6 @@ public class Carryable : MonoBehaviour
     // and visibly slid sideways across the screen.
     public void PickUp()
     {
-        if (rope != null) rope.UnregisterCargo(this);
-
         transform.SetParent(null, true);   // may be coming out of the backpack
 
         State = CarryState.Held;
@@ -136,8 +114,6 @@ public class Carryable : MonoBehaviour
     /// </summary>
     public void Stow(Transform backAnchor)
     {
-        if (rope != null) rope.UnregisterCargo(this);
-
         State = CarryState.Stowed;
         body.isKinematic = true;
         SetCollidersEnabled(false);
@@ -172,94 +148,15 @@ public class Carryable : MonoBehaviour
         transform.SetParent(null, true);
         SetRenderersEnabled(true);
 
-        if (rope != null) rope.UnregisterCargo(this);
-
         State = CarryState.Free;
         body.isKinematic = false;
         SetCollidersEnabled(true);
         SetCollidersAsTriggers(false);
         SetLayerRecursive(gameObject, lootLayer);
 
-        // Inherit the carrier's motion, so dropping something while swinging
+        // Inherit the carrier's motion, so dropping something while running
         // throws it rather than parking it in mid-air.
         body.linearVelocity = velocity;
-    }
-
-    // --------------------------------------------------------------------
-    // CLIP TO ROPE
-    //
-    // Cargo on the rope is kinematic and driven to follow PointAtDepth. It
-    // is not simulated - it is carried by the same maths that carries the
-    // players, which means it bends the rope and counts against the load
-    // exactly like a person does.
-    // --------------------------------------------------------------------
-
-    /// <summary>
-    /// Rough radius of this object, used to space cargo out along the rope so
-    /// a big statue gets more room than a cash bundle.
-    /// </summary>
-    public float ClearanceRadius
-    {
-        get
-        {
-            float max = 0.3f;
-            foreach (var c in colliders)
-                if (c != null) max = Mathf.Max(max, c.bounds.extents.magnitude);
-            return max;
-        }
-    }
-
-    public void ClipToRope(MainRope mainRope, float depth)
-    {
-        rope = mainRope;
-
-        // Ask the rope for a gap rather than taking the depth we were given.
-        // Without this every item clipped at the same height and the whole
-        // run's loot ended up inside itself.
-        ropeDepth = rope.FindFreeDepth(depth, ClearanceRadius * 2f + 0.2f);
-        rope.RegisterCargo(this);
-
-        State = CarryState.OnRope;
-
-        transform.SetParent(null, true);
-        body.isKinematic = true;
-        SetCollidersEnabled(true);
-        SetRenderersEnabled(true);
-
-        // THIS FIXES BEING SHOVED AND SHAKEN AFTER LOADING CARGO.
-        //
-        // Cargo on the rope sits exactly where the rope is - which is exactly
-        // where the players hanging on it are. It is kinematic and driven by
-        // MovePosition, and a kinematic body wins every contact it makes, so
-        // it was throwing people around the shaft. Worse, the rope moves the
-        // cargo, the cargo shoves the player, the player pulls the rope: a
-        // feedback loop, which is what the vibration was.
-        //
-        // Two guards, because this must never happen again:
-        SetLayerRecursive(gameObject, ropeLayer);   // collision matrix: Player never hits Rope
-        SetCollidersAsTriggers(true);               // and a trigger cannot push anything at all
-
-        // The cost of the trigger is that cargo no longer clatters off walls
-        // while it hangs. Worth it - a piece of loot clipping through a wall
-        // is a small visual oddity, a player being flung across the shaft by
-        // their own cargo is unplayable.
-    }
-
-    public void UnclipFromRope()
-    {
-        if (rope != null) rope.UnregisterCargo(this);
-
-        State = CarryState.Free;
-        body.isKinematic = false;
-        SetCollidersEnabled(true);
-        SetCollidersAsTriggers(false);
-
-        SetLayerRecursive(gameObject, lootLayer);
-    }
-
-    void OnDestroy()
-    {
-        if (rope != null) rope.UnregisterCargo(this);
     }
 
     void SetCollidersAsTriggers(bool on)
@@ -280,20 +177,6 @@ public class Carryable : MonoBehaviour
         go.layer = layer;
         foreach (Transform child in go.transform)
             SetLayerRecursive(child.gameObject, layer);
-    }
-
-    void FixedUpdate()
-    {
-        if (State != CarryState.OnRope || rope == null) return;
-
-        // MovePosition, not transform.position. On a kinematic body
-        // MovePosition sweeps to the new spot and generates proper contacts;
-        // writing the transform teleports it and things fall through it.
-        body.MovePosition(rope.PointAtDepth(ropeDepth));
-
-        // Cargo weighs on the winch and drags the rope sideways, same as a
-        // player. This is why loading three statues is a decision.
-        rope.AddLoad(Mass);
     }
 
     void SetCollidersEnabled(bool on)

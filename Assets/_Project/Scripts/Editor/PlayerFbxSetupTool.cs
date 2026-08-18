@@ -44,8 +44,7 @@ public static class PlayerFbxSetupTool
             var visual = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab, root.transform);
             visual.name = VisualRootName;
             visual.transform.localPosition = Vector3.zero;
-            // Model faces camera-forward with 0 yaw. If yours is backwards,
-            // flip with PlayerProceduralAnim.visualYawOffset = 180.
+            // Model faces camera-forward with 0 yaw.
             visual.transform.localRotation = Quaternion.identity;
             visual.transform.localScale = Vector3.one;
 
@@ -57,8 +56,6 @@ public static class PlayerFbxSetupTool
             // source materials named Player/Body/Suit/Torso without cloning.
             if (root.GetComponent<PlayerSkin>() == null)
                 root.AddComponent<PlayerSkin>();
-            if (root.GetComponent<PlayerProceduralAnim>() == null)
-                root.AddComponent<PlayerProceduralAnim>();
             if (root.GetComponent<LocalFirstPersonBodyCull>() == null)
                 root.AddComponent<LocalFirstPersonBodyCull>();
             if (root.GetComponent<PlayerAnimatorDriver>() == null)

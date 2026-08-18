@@ -29,9 +29,7 @@ public class FirstPersonCamera : MonoBehaviour
     public Transform target;
 
     [Tooltip("Offset from the player's pivot (at the feet) to eye height. " +
-             "1.65 on a 1.8m character is about right. The arm poses in " +
-             "PlayerArms are calculated from this number - change one and you " +
-             "must change the other.")]
+             "1.65 on a 1.8m character is about right.")]
     public Vector3 eyeOffset = new Vector3(0f, 1.65f, 0.12f);
 
     [Header("Look")]

@@ -2,16 +2,16 @@
 // Assets/_Project/Scripts/PlayerAnimatorDriver.cs
 //
 // Translates what the player is DOING into Animator parameters. It does not
-// decide anything and it does not move anything - PlayerMotor and PlayerTether
-// own the physics, this only reports on it.
+// decide anything and it does not move anything - PlayerMotor owns the
+// physics, this only reports on it.
 //
 // ========================================================================
 // DESIGN RULE: THIS SCRIPT READS, IT NEVER WRITES TO GAMEPLAY.
 //
 // Every value below is derived from state that already exists - velocity,
-// grounded, tether attached, hands full. Nothing else in the project had to
-// be modified to add animation, and nothing breaks if this component is
-// deleted. Animation is a LISTENER, never a participant.
+// grounded, hands full. Nothing else in the project had to be modified to
+// add animation, and nothing breaks if this component is deleted.
+// Animation is a LISTENER, never a participant.
 //
 // That is why pickup and stow are detected by watching for a change rather
 // than by PlayerCarry calling us: it keeps the dependency one-directional.
@@ -48,9 +48,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
     static readonly int SpeedId  = Animator.StringToHash("Speed");
     static readonly int GroundId = Animator.StringToHash("Grounded");
     static readonly int JumpId   = Animator.StringToHash("Jump");
-    static readonly int ClimbId  = Animator.StringToHash("Climbing");
-    static readonly int ClimbSpdId = Animator.StringToHash("ClimbSpeed");
-    static readonly int ClimbDirId = Animator.StringToHash("ClimbDir");
     static readonly int CarryId  = Animator.StringToHash("Carry");
     static readonly int PickUpId = Animator.StringToHash("DoPickUp");
     static readonly int StowId   = Animator.StringToHash("DoStow");
@@ -64,7 +61,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
     PlayerMotor motor;
     PlayerCarry carry;
-    PlayerTether tether;
     PlayerBackpack pack;
     Rigidbody rb;
 
@@ -78,7 +74,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
     {
         motor  = GetComponent<PlayerMotor>();
         carry  = GetComponent<PlayerCarry>();
-        tether = GetComponent<PlayerTether>();
         pack   = GetComponent<PlayerBackpack>();
         rb     = GetComponent<Rigidbody>();
 
@@ -90,11 +85,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
         }
 
         if (motor != null) walkSpeed = motor.moveSpeed;
-
-        // A real Animator with real clips beats the procedural fallback.
-        var procedural = GetComponent<PlayerProceduralAnim>();
-        if (procedural != null && animator != null && animator.runtimeAnimatorController != null)
-            procedural.enabled = false;
     }
 
     void Start()
@@ -147,23 +137,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
         animator.SetBool(GroundId, grounded);
 
         // ---------------------------------------------------------------
-        // ROPE
-        //
-        // ClimbDir becomes the state's PLAYBACK SPEED, so -1 runs the climb
-        // clip backwards and gives you a descend animation from one clip.
-        // It is never 0: at zero the whole state freezes, including the
-        // hanging idle, and a frozen character reads as a crash.
-        // ---------------------------------------------------------------
-        bool climbing = tether != null && tether.IsAttached && !grounded;
-        animator.SetBool(ClimbId, climbing);
-
-        if (climbing)
-        {
-            animator.SetFloat(ClimbSpdId, Mathf.Clamp01(Mathf.Abs(vel.y) / 2.5f), 0.15f, dt);
-            animator.SetFloat(ClimbDirId, vel.y < -0.05f ? -1f : 1f);
-        }
-
-        // ---------------------------------------------------------------
         // CARRY
         // ---------------------------------------------------------------
         int carryLevel = 0;
@@ -189,24 +162,21 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // ---------------------------------------------------------------
         // ARMS LAYER WEIGHT
         //
-        // Two cases the avatar mask cannot handle on its own:
+        // The case the avatar mask cannot handle on its own:
         //
-        //   climbing - both hands are on the rope, and a carry pose on top
-        //   would put the crate straight through it.
-        //
-        //   emoting  - emotes are full-body on the BASE layer. If the arms
+        //   emoting - emotes are full-body on the BASE layer. If the arms
         //   layer kept holding a carry pose, the dance would have the legs of
         //   a dancer and the arms of a removal man.
         //
-        // Both are solved by fading the whole layer out rather than fighting
-        // it state by state.
+        // Solved by fading the whole layer out rather than fighting it state
+        // by state.
         // ---------------------------------------------------------------
         if (animator.layerCount > ArmsLayer)
         {
             bool emoting = animator.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
                            animator.GetNextAnimatorStateInfo(0).IsTag("FreeArms");
 
-            float target = (climbing || emoting) ? 0f : 1f;
+            float target = emoting ? 0f : 1f;
             armsWeight = Mathf.MoveTowards(armsWeight, target, dt * 6f);
             animator.SetLayerWeight(ArmsLayer, armsWeight);
         }

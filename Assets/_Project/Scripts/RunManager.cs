@@ -12,9 +12,11 @@
 //               there is no reason to ever go deep. The quota is what makes
 //               greed mandatory rather than optional.
 //
-//   EXTRACTION  reaching the top of the rope ends the run and counts what
-//               you brought. Until now, hitting the top just printed a
-//               refusal message - that moment should be the payoff.
+//   EXTRACTION  DISABLED IN STEP 2. It measured depth against the rope's
+//               anchor, and the rope is gone. It comes back in Step 10,
+//               driven by the elevator reaching the surface.
+//               Until then a run cannot end, so the results screen and the
+//               shop below are unreachable. That is expected.
 //
 //   COLLAPSE    charges go off floor by floor FROM THE ROOF DOWN. The way
 //               out closes behind you rather than a timer ticking in the
@@ -49,10 +51,6 @@ public class RunManager : MonoBehaviour
     // thing in the game. You cannot leave without accounting for every
     // single person, which means the last two minutes of every run are four
     // people shouting positions at each other.
-    //
-    // It also finally gives cutting your tether a real price. A cut line is
-    // invisible to the crew, so at thirty seconds one player is simply
-    // unaccounted for, and somebody has to decide whether to go and look.
     // ------------------------------------------------------------------
 
     [Tooltip("Seconds in a run before the charges fire.\n\n" +
@@ -79,27 +77,21 @@ public class RunManager : MonoBehaviour
     [Tooltip("Warning starts this many seconds before a room seals.")]
     public float roomWarnTime = 60f;
 
-    [Header("Extraction")]
-    [Tooltip("Depth at or above which you count as out, in metres.")]
-    public float extractDepth = 0.6f;
-
-    [Tooltip("How deep you must have gone before extraction arms. Stops the " +
-             "run ending on frame one, since you start near the top.")]
-    public float armAtDepth = 5f;
-
     public RunState State { get; private set; } = RunState.Active;
     public bool IsRunActive => State == RunState.Active;
     public int Recovered { get; private set; }
     public int FloorsLost => Campaign.DestroyedRooms.Count;
 
-    MainRope rope;
-    PlayerTether player;
+    PlayerMotor player;
     PlayerBackpack backpack;
 
-    // Every player in the shaft. The deadline checks all of them, because a
+    // Every player in the shaft. The collapse checks all of them, because a
     // single person left behind loses the run for the entire crew.
-    readonly List<PlayerTether> crew = new List<PlayerTether>();
-    readonly HashSet<PlayerTether> safe = new HashSet<PlayerTether>();
+    //
+    // Typed as PlayerMotor since the rope went: the only things this list is
+    // used for are the transform (is this player inside a sealing room) and
+    // the name (who is it), and every player has a motor.
+    readonly List<PlayerMotor> crew = new List<PlayerMotor>();
 
     readonly List<Transform> levels = new List<Transform>();
     readonly HashSet<int> sealedThisRun = new HashSet<int>();
@@ -108,7 +100,6 @@ public class RunManager : MonoBehaviour
     float nextRoomDeadline;
     int threatenedRoom;
     bool roomWarned;
-    bool extractionArmed;
     string lastEvent = "";
     float lastEventTime = -99f;
 
@@ -116,9 +107,7 @@ public class RunManager : MonoBehaviour
 
     void Start()
     {
-        rope = FindFirstObjectByType<MainRope>();
-
-        crew.AddRange(FindObjectsByType<PlayerTether>(FindObjectsSortMode.None));
+        crew.AddRange(FindObjectsByType<PlayerMotor>(FindObjectsSortMode.None));
         player = crew.Count > 0 ? crew[0] : null;
         backpack = player != null ? player.GetComponent<PlayerBackpack>() : null;
 
@@ -143,15 +132,13 @@ public class RunManager : MonoBehaviour
     {
         quota = Campaign.Quota;
 
-        if (rope != null) rope.ropeLength = Campaign.RopeLength;
-
         if (backpack != null) backpack.slots = Campaign.BackpackSlots;
 
         foreach (int room in Campaign.DestroyedRooms)
             SealRoomIndex(room, killOccupants: false);
 
         if (Campaign.RopeIsUseless)
-            Announce("your rope only reaches rooms that are already gone");
+            Announce("your cable only reaches rooms that are already gone");
     }
 
     void CacheRubbleMaterial()
@@ -189,84 +176,13 @@ public class RunManager : MonoBehaviour
     {
         if (State != RunState.Active) return;
 
-        // The anchor tore out. Nothing else matters.
-        if (rope != null && rope.Snapped)
-        {
-            State = RunState.Buried;
-            Campaign.CampaignOver = true;
-            Campaign.EpitaphReason = "you overloaded the anchor and it tore out";
-            return;
-        }
-
-        UpdateExtraction();
-        UpdateCollapse();
-    }
-
-    // --------------------------------------------------------------------
-    // EXTRACTION
-    // --------------------------------------------------------------------
-
-    void UpdateExtraction()
-    {
-        if (player == null) return;
-
-        // Arm only after somebody has actually gone down. You start near the
-        // top, so without this the run would end on the first frame.
+        // EXTRACTION IS GONE UNTIL STEP 10.
         //
-        // Use world depth as well as rope depth: a cut player who has climbed
-        // deep still arms extraction, and rope-depth alone misses anyone who
-        // left the line.
-        if (!extractionArmed && MemberWorldDepth(player) > armAtDepth)
-        {
-            extractionArmed = true;
-            Announce("extraction armed - get everyone back to the top");
-        }
-
-        if (!extractionArmed) return;
-
-        // Track who is clear. Once you are out you stay out, so nobody gets
-        // marked stranded for stepping back down to help someone.
-        foreach (var member in crew)
-        {
-            if (member == null || safe.Contains(member)) continue;
-
-            if (IsMemberClear(member))
-            {
-                safe.Add(member);
-                if (crew.Count > 1) Announce($"{member.name} is clear ({safe.Count}/{CrewSize})");
-            }
-        }
-
-        // The run only ends when the WHOLE crew is out. One person still down
-        // there and the rest of you wait, which is the entire point.
-        if (safe.Count >= CrewSize) Extract();
-    }
-
-    /// <summary>
-    /// Out of the building = at the surface.
-    ///
-    /// Must work for clipped players (rope depth) AND cut players (world Y).
-    /// An earlier version only checked IsAttached + Depth, so anyone who cut
-    /// the tether at the top could never extract - the run waited forever for
-    /// a ghost still "inside".
-    /// </summary>
-    bool IsMemberClear(PlayerTether member)
-    {
-        if (member == null) return false;
-
-        if (member.IsAttached && member.Depth <= extractDepth)
-            return true;
-
-        // Cut / leaping: judge by distance below the winch. Slightly looser
-        // than extractDepth so standing on the rim still counts.
-        return MemberWorldDepth(member) <= extractDepth + 0.5f;
-    }
-
-    float MemberWorldDepth(PlayerTether member)
-    {
-        if (member == null) return 0f;
-        if (rope == null) return 0f;
-        return rope.AnchorPosition.y - member.transform.position.y;
+        // It measured "are you out" as depth below the rope's anchor, and
+        // there is no rope and no anchor now. Rather than invent a stand-in
+        // that Step 10 would only have to unpick, the run simply cannot end
+        // yet. The collapse below still runs, so the floor still kills you.
+        UpdateCollapse();
     }
 
     int CrewSize
@@ -279,6 +195,10 @@ public class RunManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Ends the run and counts the haul. Nothing calls this in Step 2 -
+    /// Step 10 wires it to the elevator arriving at the surface.
+    /// </summary>
     void Extract()
     {
         // Surfacing commits the currently charged room — even if you leave
@@ -321,9 +241,9 @@ public class RunManager : MonoBehaviour
         {
             if (c == null) continue;
 
+            // Cargo on the elevator deck joins this list in Step 8.
             switch (c.State)
             {
-                case Carryable.CarryState.OnRope:
                 case Carryable.CarryState.Stowed:
                 case Carryable.CarryState.Held:
                     total += c.value;
@@ -508,17 +428,6 @@ public class RunManager : MonoBehaviour
             dash.normal.textColor = new Color(1f, 0.75f, 0.45f, 0.85f);
             GUI.Label(new Rect(24f, 92f, 700f, 22f), SealedRoomsLabel(), dash);
 
-            if (CrewSize > 1 && extractionArmed)
-            {
-                var crewStyle = new GUIStyle(GUI.skin.label) { fontSize = 14 };
-                int inside = CrewSize - safe.Count;
-                crewStyle.normal.textColor = inside > 0 && panic
-                    ? new Color(1f, 0.3f, 0.25f)
-                    : new Color(1f, 1f, 1f, 0.6f);
-
-                GUI.Label(new Rect(24f, 114f, 480f, 22f),
-                    inside > 0 ? $"{inside} still inside" : "everyone is clear", crewStyle);
-            }
         }
 
         if (Time.time - lastEventTime < 4f && !string.IsNullOrEmpty(lastEvent))
@@ -591,7 +500,7 @@ public class RunManager : MonoBehaviour
         body.normal.textColor = new Color(1f, 1f, 1f, 0.85f);
         GUI.Label(new Rect(0f, y + 54f, Screen.width, 24f),
             $"run {Campaign.RunNumber}      recovered {Recovered}      " +
-            $"quota {quota}      crew out {safe.Count}/{CrewSize}", body);
+            $"quota {quota}      crew {CrewSize}", body);
 
         if (Campaign.CampaignOver)
         {

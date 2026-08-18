@@ -65,6 +65,21 @@ public static class ElevatorBuilder
 
     const float DeckSize   = 2.6f;    // marked-out cargo area on the floor
 
+    // STEP 7 - THE BRIDGE. MUST MATCH THE SHAFT'S GAP.
+    //
+    // wallMid (below) is 2.06 - the shutter line, where the bridge starts.
+    // GrayboxBuilder.ShaftInner is 14, so the doorway threshold sits at
+    // ShaftInner/2 = 7 from shaft centre, and the car is parked centred, so:
+    //
+    //   BridgeLength = 7 - 2.06 = 4.94, rounded to 4.9
+    //
+    // Change ShaftInner or CarInner and this number goes stale - it is not
+    // derived at build time because GrayboxBuilder is a separate Editor
+    // class this one has no reason to reference, so the two are kept in
+    // sync by comment the same way Elevator.floorHeight is.
+    const float BridgeLength = 4.9f;
+    const float BridgeWidth  = 1.6f;
+
     // Where to park it so you can look at it. Level_01's floor sits at
     // world y = -4 (GrayboxBuilder puts level i at -FloorHeight * i), and the
     // car's local origin is its FLOOR SURFACE, so -4 lines the car's floor up
@@ -158,10 +173,10 @@ public static class ElevatorBuilder
         // coordinates. Each side is authored once, facing +Z, and the group's
         // yaw puts it where it belongs - the same trick BuildLevel uses to
         // face doorways in different directions. One place to fix a mistake.
-        BuildSide(car.transform, "Side_North",   0f, wallMid, wallSpan, steel, panel);
-        BuildSide(car.transform, "Side_East",   90f, wallMid, wallSpan, steel, panel);
-        BuildSide(car.transform, "Side_South", 180f, wallMid, wallSpan, steel, panel);
-        BuildSide(car.transform, "Side_West",  270f, wallMid, wallSpan, steel, panel);
+        BuildSide(car.transform, "Side_North",   0f, wallMid, wallSpan, steel, panel, hazard);
+        BuildSide(car.transform, "Side_East",   90f, wallMid, wallSpan, steel, panel, hazard);
+        BuildSide(car.transform, "Side_South", 180f, wallMid, wallSpan, steel, panel, hazard);
+        BuildSide(car.transform, "Side_West",  270f, wallMid, wallSpan, steel, panel, hazard);
 
         BuildDeck(car.transform, hazard);
         BuildDashboard(car.transform, half, steel, panel, screen, hazard);
@@ -196,6 +211,12 @@ public static class ElevatorBuilder
 
         root.AddComponent<ElevatorCable>();
 
+        // Step 7. [RequireComponent(typeof(Elevator))] on the script itself,
+        // so this must come after AddComponent<Elevator>() above.
+        var bridge = root.AddComponent<ElevatorBridge>();
+        bridge.length = BridgeLength;
+        bridge.width = BridgeWidth;
+
         SaveAsPrefab(root);
 
         Undo.RegisterCreatedObjectUndo(root, "Build Elevator Car");
@@ -220,7 +241,7 @@ public static class ElevatorBuilder
     // ------------------------------------------------------------------
 
     static void BuildSide(Transform car, string name, float yaw,
-                          float wallMid, float wallSpan, Material steel, Material panel)
+                          float wallMid, float wallSpan, Material steel, Material panel, Material hazard)
     {
         var side = new GameObject(name);
         side.transform.SetParent(car, false);
@@ -254,6 +275,24 @@ public static class ElevatorBuilder
         Box("Shutter", side.transform,
             new Vector3(0f, DoorHeight * 0.5f, wallMid),
             new Vector3(DoorWidth, DoorHeight, WallThick * 0.7f), panel);
+
+        // ---- the bridge deck (Step 7 drives it) ----
+        //
+        // Built on EVERY side, same as the shutter above - only the active
+        // one is ever driven, the other three just sit collapsed. Placed
+        // AT the shutter line (wallMid) with a near-zero starting length, so
+        // an editor session that never presses Play still shows something
+        // sane rather than a full-length plank poking through a closed door.
+        //
+        // ElevatorBridge.cs owns localScale.z and localPosition.z completely
+        // from its own Start() onward - position = midpoint, scale = length,
+        // the same trick ElevatorCable.cs uses for the hoist rope - so
+        // nothing here needs to match BridgeLength exactly. It DOES need a
+        // real BoxCollider to stand on, which CreatePrimitive already gives
+        // it for free; nothing here disables it.
+        Box("Bridge", side.transform,
+            new Vector3(0f, 0.03f, wallMid),
+            new Vector3(BridgeWidth, 0.08f, 0.02f), hazard);
     }
 
     // ------------------------------------------------------------------

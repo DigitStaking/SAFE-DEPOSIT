@@ -50,6 +50,11 @@ public class ElevatorDashboard : MonoBehaviour
     [Header("Links - found automatically if left empty")]
     public Elevator elevator;
 
+    [Tooltip("Step 7. UP / DOWN / GO route through this instead of calling " +
+             "Elevator directly, so a departure can be held for the bridge's " +
+             "retract warning. Found automatically if left empty.")]
+    public ElevatorBridge bridge;
+
     [Tooltip("Where the camera sits while you are using the panel. " +
              "ElevatorBuilder makes this as DashboardAnchor.")]
     public Transform viewAnchor;
@@ -97,10 +102,13 @@ public class ElevatorDashboard : MonoBehaviour
     void Start()
     {
         if (elevator == null) elevator = GetComponentInParent<Elevator>();
+        if (bridge == null) bridge = GetComponentInParent<ElevatorBridge>();
         if (viewAnchor == null) viewAnchor = transform.Find("DashboardAnchor");
 
         if (elevator == null)
             Debug.LogError("[Dashboard] No Elevator found in parents.");
+        if (bridge == null)
+            Debug.LogError("[Dashboard] No ElevatorBridge found in parents.");
         if (viewAnchor == null)
             Debug.LogError("[Dashboard] No DashboardAnchor - run Build Elevator Car.");
 
@@ -187,34 +195,44 @@ public class ElevatorDashboard : MonoBehaviour
 
     void RefreshInteractable()
     {
-        if (buttons == null || elevator == null) return;
+        if (buttons == null || elevator == null || bridge == null) return;
+
+        // Dead while the elevator is moving OR while the bridge is mid-cycle
+        // (Warning, Retracting, or still swinging out from the last
+        // arrival) - the same "make the refusal visible" rule as everywhere
+        // else, now covering the window RequestGoToFloor also refuses.
+        bool busy = elevator.IsMoving || bridge.IsBusy;
 
         foreach (var b in buttons)
         {
             if (b == null) continue;
             b.Interactable = b.kind switch
             {
-                ElevatorButton.Kind.Up   => !elevator.IsMoving && elevator.CurrentFloor > 0,
-                ElevatorButton.Kind.Down => !elevator.IsMoving && elevator.CurrentFloor < elevator.lowestFloor,
-                _ => !elevator.IsMoving
+                ElevatorButton.Kind.Up   => !busy && elevator.CurrentFloor > 0,
+                ElevatorButton.Kind.Down => !busy && elevator.CurrentFloor < elevator.lowestFloor,
+                _ => !busy
             };
         }
     }
 
     void Activate(ElevatorButton b)
     {
-        if (elevator == null) return;
+        if (elevator == null || bridge == null) return;
 
         switch (b.kind)
         {
+            // Step 7: routed through the bridge, not called on Elevator
+            // directly - see ElevatorBridge.cs for why. The button still
+            // reads elevator.IsMoving/CurrentFloor for its own Interactable
+            // state above; only the ACTION of pressing it changed.
             case ElevatorButton.Kind.Up:
                 entryBuffer = "";
-                elevator.GoUp();
+                bridge.RequestGoUp();
                 break;
 
             case ElevatorButton.Kind.Down:
                 entryBuffer = "";
-                elevator.GoDown();
+                bridge.RequestGoDown();
                 break;
 
             case ElevatorButton.Kind.Digit:
@@ -251,8 +269,10 @@ public class ElevatorDashboard : MonoBehaviour
         if (floor > 0 && floor > Campaign.DeepestReachableFloor) { Reject($"{floor:00} BEYOND CABLE"); return; }
 
         // fast: true is the whole point of Step 6 - this is what makes GO
-        // different from just pressing DOWN repeatedly.
-        elevator.GoToFloor(floor, fast: true);
+        // different from just pressing DOWN repeatedly. Routed through the
+        // bridge (Step 7) the same as Up/Down, so a numeric-entry departure
+        // gets the same retract warning a call-button departure does.
+        bridge.RequestGoToFloor(floor, fast: true);
     }
 
     void Reject(string message)

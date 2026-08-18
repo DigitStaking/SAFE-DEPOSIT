@@ -1,0 +1,14 @@
+newmtl Wood
+Kd 0.450 0.330 0.200
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Slat
+Kd 0.380 0.270 0.160
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+

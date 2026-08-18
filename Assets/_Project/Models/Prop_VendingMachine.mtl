@@ -1,0 +1,63 @@
+newmtl Shell
+Kd 0.300 0.310 0.340
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Trim
+Kd 0.160 0.170 0.190
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Glass
+Kd 0.090 0.130 0.160
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Slot
+Kd 0.050 0.050 0.060
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Panel
+Kd 0.620 0.200 0.160
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl CanA
+Kd 0.850 0.320 0.220
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl CanB
+Kd 0.350 0.680 0.450
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl CanC
+Kd 0.900 0.750 0.280
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl CanD
+Kd 0.350 0.520 0.800
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+

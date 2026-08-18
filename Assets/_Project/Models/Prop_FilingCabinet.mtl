@@ -1,0 +1,21 @@
+newmtl Steel
+Kd 0.420 0.440 0.420
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl DrawerFace
+Kd 0.360 0.380 0.360
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+
+newmtl Handle
+Kd 0.720 0.730 0.700
+Ks 0 0 0
+Ns 8
+d 1
+illum 1
+

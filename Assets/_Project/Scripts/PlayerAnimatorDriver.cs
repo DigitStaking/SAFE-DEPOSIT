@@ -1,0 +1,274 @@
+// PlayerAnimatorDriver.cs  -  SAFE DEPOSIT
+// Assets/_Project/Scripts/PlayerAnimatorDriver.cs
+//
+// Translates what the player is DOING into Animator parameters. It does not
+// decide anything and it does not move anything - PlayerMotor and PlayerTether
+// own the physics, this only reports on it.
+//
+// ========================================================================
+// DESIGN RULE: THIS SCRIPT READS, IT NEVER WRITES TO GAMEPLAY.
+//
+// Every value below is derived from state that already exists - velocity,
+// grounded, tether attached, hands full. Nothing else in the project had to
+// be modified to add animation, and nothing breaks if this component is
+// deleted. Animation is a LISTENER, never a participant.
+//
+// That is why pickup and stow are detected by watching for a change rather
+// than by PlayerCarry calling us: it keeps the dependency one-directional.
+// ========================================================================
+
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+[DefaultExecutionOrder(20)]
+public class PlayerAnimatorDriver : MonoBehaviour
+{
+    [Header("Animator")]
+    [Tooltip("Animator on PlayerModel_FBX_VISUAL. Auto-found if empty.")]
+    public Animator animator;
+
+    [Header("Tuning")]
+    [Tooltip("Movement speed MoveZ = 1 corresponds to. Match PlayerMotor.moveSpeed " +
+             "or the walk cycle plays at the wrong rate and the feet slide.")]
+    public float walkSpeed = 4.5f;
+
+    [Tooltip("Smoothing on the blend tree inputs. Too low = twitchy, too high = mushy.")]
+    public float moveDamp = 0.10f;
+
+    [Tooltip("Upward speed at the moment you leave the ground that counts as a jump " +
+             "rather than walking off a ledge.")]
+    public float jumpDetectSpeed = 1.0f;
+
+    [Header("Emote keys")]
+    public bool emotesEnabled = true;
+
+    // ---- parameter hashes. StringToHash once, not every frame. ----
+    static readonly int MoveXId  = Animator.StringToHash("MoveX");
+    static readonly int MoveZId  = Animator.StringToHash("MoveZ");
+    static readonly int SpeedId  = Animator.StringToHash("Speed");
+    static readonly int GroundId = Animator.StringToHash("Grounded");
+    static readonly int JumpId   = Animator.StringToHash("Jump");
+    static readonly int ClimbId  = Animator.StringToHash("Climbing");
+    static readonly int ClimbSpdId = Animator.StringToHash("ClimbSpeed");
+    static readonly int ClimbDirId = Animator.StringToHash("ClimbDir");
+    static readonly int CarryId  = Animator.StringToHash("Carry");
+    static readonly int PickUpId = Animator.StringToHash("DoPickUp");
+    static readonly int StowId   = Animator.StringToHash("DoStow");
+    static readonly int UseId    = Animator.StringToHash("DoUse");
+    static readonly int EmoteId  = Animator.StringToHash("Emote");
+    static readonly int DoEmoteId= Animator.StringToHash("DoEmote");
+    static readonly int DownedId = Animator.StringToHash("Downed");
+    static readonly int DoStunId = Animator.StringToHash("DoStun");
+
+    const int ArmsLayer = 1;
+
+    PlayerMotor motor;
+    PlayerCarry carry;
+    PlayerTether tether;
+    PlayerBackpack pack;
+    Rigidbody rb;
+
+    bool wasGrounded = true;
+    bool wasCarrying;
+    int  lastPackCount;
+    float armsWeight = 1f;
+    bool downed;
+
+    void Awake()
+    {
+        motor  = GetComponent<PlayerMotor>();
+        carry  = GetComponent<PlayerCarry>();
+        tether = GetComponent<PlayerTether>();
+        pack   = GetComponent<PlayerBackpack>();
+        rb     = GetComponent<Rigidbody>();
+
+        if (animator == null)
+        {
+            var visual = transform.Find("PlayerModel_FBX_VISUAL");
+            if (visual != null) animator = visual.GetComponentInChildren<Animator>();
+            if (animator == null) animator = GetComponentInChildren<Animator>();
+        }
+
+        if (motor != null) walkSpeed = motor.moveSpeed;
+
+        // A real Animator with real clips beats the procedural fallback.
+        var procedural = GetComponent<PlayerProceduralAnim>();
+        if (procedural != null && animator != null && animator.runtimeAnimatorController != null)
+            procedural.enabled = false;
+    }
+
+    void Start()
+    {
+        if (pack != null) lastPackCount = pack.Count;
+    }
+
+    void Update()
+    {
+        if (animator == null || !animator.enabled) return;
+        if (animator.runtimeAnimatorController == null) return;
+
+        float dt = Time.deltaTime;
+
+        // ---------------------------------------------------------------
+        // MOVEMENT
+        //
+        // Velocity is converted into the MODEL's local space, not the world's.
+        // The blend tree asks "am I moving forward or sideways relative to
+        // where I am facing" - a world-space vector cannot answer that, and
+        // you would strafe while walking north.
+        // ---------------------------------------------------------------
+        Vector3 vel = rb != null ? rb.linearVelocity : Vector3.zero;
+        Vector3 flat = new Vector3(vel.x, 0f, vel.z);
+        float speed = flat.magnitude;
+
+        Transform facing = animator.transform;
+        Vector3 local = facing.InverseTransformDirection(flat);
+        float unit = Mathf.Max(0.1f, walkSpeed);
+
+        animator.SetFloat(MoveXId, local.x / unit, moveDamp, dt);
+        animator.SetFloat(MoveZId, local.z / unit, moveDamp, dt);
+        animator.SetFloat(SpeedId, speed, moveDamp, dt);
+
+        // ---------------------------------------------------------------
+        // GROUND AND JUMP
+        //
+        // Jump is detected, not requested. The frame the feet leave the floor
+        // while still moving upward is a jump; leaving the floor while moving
+        // downward is walking off a ledge, and only one of those deserves a
+        // launch animation. This means PlayerMotor needed no changes at all.
+        // ---------------------------------------------------------------
+        bool grounded = motor == null || motor.IsGrounded;
+        bool strict   = motor == null || motor.IsGroundedStrict;
+
+        if (wasGrounded && !strict && vel.y > jumpDetectSpeed)
+            animator.SetTrigger(JumpId);
+
+        wasGrounded = strict;
+        animator.SetBool(GroundId, grounded);
+
+        // ---------------------------------------------------------------
+        // ROPE
+        //
+        // ClimbDir becomes the state's PLAYBACK SPEED, so -1 runs the climb
+        // clip backwards and gives you a descend animation from one clip.
+        // It is never 0: at zero the whole state freezes, including the
+        // hanging idle, and a frozen character reads as a crash.
+        // ---------------------------------------------------------------
+        bool climbing = tether != null && tether.IsAttached && !grounded;
+        animator.SetBool(ClimbId, climbing);
+
+        if (climbing)
+        {
+            animator.SetFloat(ClimbSpdId, Mathf.Clamp01(Mathf.Abs(vel.y) / 2.5f), 0.15f, dt);
+            animator.SetFloat(ClimbDirId, vel.y < -0.05f ? -1f : 1f);
+        }
+
+        // ---------------------------------------------------------------
+        // CARRY
+        // ---------------------------------------------------------------
+        int carryLevel = 0;
+        if (carry != null && carry.IsCarrying)
+        {
+            float sm = carry.SpeedMultiplier;      // small 1, heavy ~0.7, massive ~0.45
+            carryLevel = sm <= 0.5f ? 3 : sm <= 0.85f ? 2 : 1;
+        }
+        animator.SetInteger(CarryId, carryLevel);
+
+        // Hands went from empty to full - that was a pickup.
+        bool carrying = carryLevel > 0;
+        if (carrying && !wasCarrying) animator.SetTrigger(PickUpId);
+        wasCarrying = carrying;
+
+        // Something entered the backpack - that was a stow.
+        if (pack != null)
+        {
+            if (pack.Count > lastPackCount) animator.SetTrigger(StowId);
+            lastPackCount = pack.Count;
+        }
+
+        // ---------------------------------------------------------------
+        // ARMS LAYER WEIGHT
+        //
+        // Two cases the avatar mask cannot handle on its own:
+        //
+        //   climbing - both hands are on the rope, and a carry pose on top
+        //   would put the crate straight through it.
+        //
+        //   emoting  - emotes are full-body on the BASE layer. If the arms
+        //   layer kept holding a carry pose, the dance would have the legs of
+        //   a dancer and the arms of a removal man.
+        //
+        // Both are solved by fading the whole layer out rather than fighting
+        // it state by state.
+        // ---------------------------------------------------------------
+        if (animator.layerCount > ArmsLayer)
+        {
+            bool emoting = animator.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
+                           animator.GetNextAnimatorStateInfo(0).IsTag("FreeArms");
+
+            float target = (climbing || emoting) ? 0f : 1f;
+            armsWeight = Mathf.MoveTowards(armsWeight, target, dt * 6f);
+            animator.SetLayerWeight(ArmsLayer, armsWeight);
+        }
+
+        // ---------------------------------------------------------------
+        // EMOTES
+        // ---------------------------------------------------------------
+        if (emotesEnabled) ReadEmoteKeys();
+    }
+
+    void ReadEmoteKeys()
+    {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        if      (kb.zKey.wasPressedThisFrame) PlayEmote(1);   // wave
+        else if (kb.xKey.wasPressedThisFrame) PlayEmote(2);   // point
+        else if (kb.cKey.wasPressedThisFrame) PlayEmote(3);   // hip hop dance
+        else if (kb.bKey.wasPressedThisFrame) PlayEmote(4);   // clap
+        else if (kb.nKey.wasPressedThisFrame) PlayEmote(5);   // salute
+        else if (kb.mKey.wasPressedThisFrame) PlayEmote(6);   // silly dance
+    }
+
+    // ---- public hooks for the rest of the game --------------------------
+
+    /// <summary>1 wave, 2 point, 3 dance, 4 clap, 5 salute, 6 silly dance.</summary>
+    public void PlayEmote(int id)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+
+        // Emoting while downed would look absurd and would also fight the
+        // kneel pose on the base layer.
+        if (downed) return;
+
+        animator.SetInteger(EmoteId, id);
+        animator.SetTrigger(DoEmoteId);
+    }
+
+    /// <summary>Call from keypads, the winch, puzzle switches.</summary>
+    public void PlayUse()
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        animator.SetTrigger(UseId);
+    }
+
+    /// <summary>Trap hits, falling debris. Half a second of "not in control".</summary>
+    public void PlayStun()
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        animator.SetTrigger(DoStunId);
+    }
+
+    /// <summary>
+    /// Knocked down, waiting for a teammate. NOT death - pass false to revive.
+    /// Call from RunManager / traps.
+    /// </summary>
+    public void SetDowned(bool value)
+    {
+        downed = value;
+        if (animator != null && animator.runtimeAnimatorController != null)
+            animator.SetBool(DownedId, downed);
+    }
+
+    public bool IsDowned => downed;
+}

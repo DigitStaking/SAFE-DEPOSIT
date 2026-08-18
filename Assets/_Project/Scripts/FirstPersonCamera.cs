@@ -1,0 +1,210 @@
+// FirstPersonCamera.cs  -  SAFE DEPOSIT
+// Assets/_Project/Scripts/FirstPersonCamera.cs
+// Goes on: the Main Camera.
+//
+// ========================================================================
+// THE CAMERA IS NOT A CHILD OF THE PLAYER.
+//
+// The obvious setup is to parent it to the head and inherit the body's
+// rotation. Don't.
+//
+// The body is a Rigidbody, so it can only rotate in FixedUpdate - 60 times
+// a second. Your monitor may draw 144 frames. A camera inheriting that
+// rotation updates 60 times and repeats itself the rest, and mouse look
+// feels like it is stuttering at a perfect frame rate.
+//
+// So the camera is a free object that owns yaw and pitch and updates every
+// rendered frame. It snaps to the eye position in LateUpdate, after all
+// movement is done. The body then turns to match the camera's yaw in
+// FixedUpdate, which only matters for what OTHER players see - your own
+// view never waits on physics.
+// ========================================================================
+
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class FirstPersonCamera : MonoBehaviour
+{
+    [Header("Target")]
+    public Transform target;
+
+    [Tooltip("Offset from the player's pivot (at the feet) to eye height. " +
+             "1.65 on a 1.8m character is about right. The arm poses in " +
+             "PlayerArms are calculated from this number - change one and you " +
+             "must change the other.")]
+    public Vector3 eyeOffset = new Vector3(0f, 1.65f, 0.12f);
+
+    [Header("Look")]
+    [Tooltip("Mouse: degrees per pixel. NOT scaled by delta time - mouse input " +
+             "is already a per-frame delta.")]
+    public float mouseSensitivity = 0.12f;
+
+    [Tooltip("Gamepad: degrees per second at full deflection. IS scaled by " +
+             "delta time, because a held stick is a rate, not a delta.")]
+    public float stickSensitivity = 220f;
+
+    [Tooltip("How far up and down you can look. Negative is up.\n\n" +
+             "This game NEEDS the full range - players must be able to look " +
+             "straight up at the winch and straight down the drop. Do not " +
+             "narrow it to the usual 70 or 80.\n\n" +
+             "Stops just short of 90 on purpose: at exactly 90 the yaw and roll " +
+             "axes align (gimbal lock) and the view snaps sideways.")]
+    public float minPitch = -89.9f;
+    public float maxPitch = 89.9f;
+
+    [Tooltip("Flip vertical look. Some players cannot play without this - ship " +
+             "it as an option, never as a fixed choice.")]
+    public bool invertY = false;
+
+    [Header("Comfort")]
+    [Tooltip("Camera roll when moving sideways or swinging. Looks good, makes " +
+             "some people motion sick. SHIP THIS OFF and expose it as an " +
+             "accessibility option. First person plus pendulum motion is the " +
+             "most nausea-inducing combination in games.")]
+    public bool enableTilt = false;
+
+    [Tooltip("Max roll in degrees. Above about 5 it starts costing you players.")]
+    public float maxTilt = 3f;
+
+    [Tooltip("Head bob on solid ground. Never bobs airborne - bobbing during a " +
+             "swing is what actually makes people ill.")]
+    public bool enableHeadBob = true;
+    public float bobFrequency = 9f;
+    public float bobAmplitude = 0.06f;
+
+    [Header("Field of view")]
+    public float baseFov = 75f;
+
+    [Tooltip("Extra FOV at speed. Sells falling and swinging without moving the " +
+             "camera at all - by far the gentlest way to convey motion in first " +
+             "person. Roll and shake both cost you motion-sick players.")]
+    public float speedFovBoost = 12f;
+    public float speedForMaxFov = 14f;
+
+    public float Yaw => yaw;
+
+    PlayerMotor motor;
+    Rigidbody targetBody;
+    Camera cam;
+
+    float yaw, pitch, bobTimer, currentTilt;
+
+    void Start()
+    {
+        if (target == null)
+        {
+            Debug.LogError("[FirstPersonCamera] No target assigned.");
+            enabled = false;
+            return;
+        }
+
+        motor = target.GetComponent<PlayerMotor>();
+        targetBody = target.GetComponent<Rigidbody>();
+        cam = GetComponent<Camera>();
+        if (cam != null) cam.fieldOfView = baseFov;
+
+        yaw = target.eulerAngles.y;
+        pitch = 0f;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    void Update()
+    {
+        // Escape frees the mouse so you can reach the editor without stopping
+        // play mode; click to recapture.
+        //
+        // Reads the NEW input system (Keyboard.current, Mouse.current). The
+        // old UnityEngine.Input API throws InvalidOperationException because
+        // Active Input Handling is set to Input System Package. The two
+        // systems cannot be mixed.
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else if (Cursor.lockState == CursorLockMode.None &&
+                 Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
+    // LateUpdate runs after every Update, so the player has finished moving
+    // this frame before we position the camera. In Update the camera would
+    // always be one frame behind - subtle, but it reads as "floaty" and
+    // nobody can ever say why.
+    void LateUpdate()
+    {
+        if (target == null || motor == null) return;
+        ApplyLook();
+        ApplyPosition();
+        ApplyFov();
+    }
+
+    void ApplyLook()
+    {
+        Vector2 look = motor.LookInput;
+
+        // A mouse reports pixels moved since last frame - already a delta, so
+        // scaling by deltaTime again would tie sensitivity to frame rate. A
+        // stick reports how far it is currently pushed - a rate, which must be
+        // scaled by deltaTime. Getting this backwards is why some games have
+        // gamepad aim that speeds up on better hardware.
+        float scale = motor.UsingGamepad
+            ? stickSensitivity * Time.deltaTime
+            : mouseSensitivity;
+
+        yaw += look.x * scale;
+        pitch -= look.y * scale * (invertY ? -1f : 1f);
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+    }
+
+    void ApplyPosition()
+    {
+        Vector3 eye = target.position + eyeOffset;
+
+        if (enableHeadBob && motor.IsGrounded && targetBody != null)
+        {
+            Vector3 flat = targetBody.linearVelocity;
+            flat.y = 0f;
+            float speed = flat.magnitude;
+
+            if (speed > 0.4f)
+            {
+                // Advanced by distance travelled rather than by time, so the
+                // rhythm matches your pace instead of running at a fixed rate.
+                bobTimer += Time.deltaTime * bobFrequency * Mathf.Clamp01(speed / 4.5f);
+                eye.y += Mathf.Sin(bobTimer) * bobAmplitude;
+            }
+            else
+            {
+                // Ease to neutral, or the camera jumps every time you stop.
+                bobTimer = Mathf.MoveTowards(bobTimer, 0f, Time.deltaTime * 8f);
+            }
+        }
+
+        float targetTilt = 0f;
+        if (enableTilt && targetBody != null)
+        {
+            Vector3 right = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+            float lateral = Vector3.Dot(targetBody.linearVelocity, right);
+            targetTilt = Mathf.Clamp(-lateral / 6f, -1f, 1f) * maxTilt;
+        }
+        currentTilt = Mathf.Lerp(currentTilt, targetTilt, 6f * Time.deltaTime);
+
+        transform.position = eye;
+        transform.rotation = Quaternion.Euler(pitch, yaw, currentTilt);
+    }
+
+    void ApplyFov()
+    {
+        if (cam == null || targetBody == null) return;
+
+        float t = Mathf.Clamp01(targetBody.linearVelocity.magnitude / speedForMaxFov);
+        float desired = baseFov + speedFovBoost * t;
+        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, desired, 4f * Time.deltaTime);
+    }
+}

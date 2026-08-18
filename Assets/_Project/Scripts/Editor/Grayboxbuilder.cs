@@ -29,7 +29,25 @@ public static class GrayboxBuilder
     // 1 unit = 1 metre. Unity's physics defaults assume this.
     // ------------------------------------------------------------------
 
-    const float ShaftInner = 8f;    // interior width and depth of the shaft
+    // WAS 8. The car is 4x4m (ElevatorBuilder.CarInner), parked centred, so
+    // this left a 2m gap between the car's outer wall and the doorway on
+    // every side - and 2m is a gap a player can simply run and jump across.
+    //
+    // A player's maximum achievable horizontal jump, computed from
+    // PlayerMotor's own numbers (moveSpeed 4.5, jumpHeight 1.1,
+    // fallGravityMultiplier 1.8): launch speed sqrt(2 * 9.81 * 1.1) =
+    // 4.65 m/s, air time (rise under normal gravity + fall under 1.8x)
+    // = 0.83s, so distance = 4.5 * 0.83 = ~3.7m at an absolute best-case
+    // dead sprint with a perfect edge takeoff. The old 2m gap was barely
+    // half of that - trivial, not tense.
+    //
+    // 14m leaves a 4.9m gap on every side: roughly 30% beyond the
+    // theoretical best jump, with margin for the fact nobody takes off from
+    // the exact lip of the deck. That is what makes falling read as
+    // certain death rather than an embarrassing miss, and is what makes
+    // Step 7's bridge feel load-bearing rather than decorative - see the
+    // note in ELEVATOR_SPEC.md.
+    const float ShaftInner = 14f;   // interior width and depth of the shaft
     const float WallThick = 0.5f;
     const float FloorHeight = 4f;    // vertical distance between levels
     const float RoomDepth = 6f;    // how far a room extends from the shaft

@@ -36,13 +36,17 @@ public static class ElevatorBuilder
     // DIMENSIONS - the only numbers you should need to edit.
     // 1 unit = 1 metre.
     //
-    // These are not free choices. GrayboxBuilder builds an 8 m inner shaft
+    // These are not free choices. GrayboxBuilder builds a 14 m inner shaft
     // with 4 m floor spacing, a 2 m wide door and a 2.5 m high one, so:
     //
-    //   CarInner 4      leaves 2 m of clearance on every side of the shaft.
-    //                   That gap is not slack - it is exactly what the
-    //                   BRIDGE spans in Step 7. Widen the car and you delete
-    //                   the bridge; narrow it and the bridge gets silly.
+    //   CarInner 4      leaves a 4.9 m gap on every side of the shaft - see
+    //                   GrayboxBuilder.ShaftInner for the jump-distance math
+    //                   this is sized against. That gap is not slack, it is
+    //                   exactly what the BRIDGE spans in Step 7, and it is
+    //                   deliberately wider than a player can jump: falling
+    //                   should read as certain death, not an embarrassing
+    //                   near-miss. Widen the car and you shrink the gap back
+    //                   toward jumpable; narrow it and the bridge gets silly.
     //
     //   CarHeight 2.8   fits inside the 4 m floor pitch with room above for
     //                   the roof and the cable hitch.

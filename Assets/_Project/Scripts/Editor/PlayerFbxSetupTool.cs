@@ -108,12 +108,19 @@ public static class PlayerFbxSetupTool
         return new MaterialSet
         {
             // Close to your Blender screenshot: red/orange suit, dark rubber,
-            // yellow lamp/glass, grey straps, dark badge.
+            // white bulb glass, grey straps, dark badge.
             playerSuit = Mat("Player", new Color(0.95f, 0.12f, 0.07f), 0.0f, 0.28f),
             bodyTrim = Mat("Body", new Color(0.52f, 0.54f, 0.55f), 0.0f, 0.36f),
             rubberDark = Mat("AntiLight", new Color(0.035f, 0.033f, 0.032f), 0.0f, 0.18f),
             glassVisor = Mat("Glass", new Color(0.08f, 0.12f, 0.13f, 0.74f), 0.0f, 0.74f, transparent: true),
-            lampGlass = Mat("Light", new Color(1.0f, 0.92f, 0.25f), 0.0f, 0.48f, emission: new Color(1.0f, 0.85f, 0.22f) * 1.7f),
+
+            // WHITE, not the yellow this was for years. A headlamp bulb reads
+            // as a warm INDICATOR light at this colour, not an active bulb -
+            // PlayerHeadlamp.cs reads this asset's own base and emission at
+            // runtime and dims them for the OFF state, so this value is the
+            // single source of truth for what the lamp looks like lit, in
+            // both the editor and in play.
+            lampGlass = Mat("Light", new Color(0.92f, 0.95f, 1.0f), 0.0f, 0.55f, emission: Color.white * 2.6f),
             rope = Mat("Rope", new Color(0.55f, 0.34f, 0.10f), 0.0f, 0.32f),
             badge = Mat("Badge", new Color(0.025f, 0.035f, 0.048f), 0.0f, 0.22f),
             antiLight = Mat("DarkRubber", new Color(0.055f, 0.045f, 0.04f), 0.0f, 0.16f),

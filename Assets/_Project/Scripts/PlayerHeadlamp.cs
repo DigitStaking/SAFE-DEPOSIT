@@ -111,20 +111,25 @@ public class PlayerHeadlamp : MonoBehaviour
              "file does not.")]
     public string bumpMaterialKey = "light";
 
-    // ON is a bright white LED, not the material's baked-in warm yellow - a
-    // headlamp that is ACTUALLY ON reads as a bright bulb, and white is what
-    // sells "bright" the way yellow at the same brightness reads as "amber
-    // indicator light" instead.
-    //
-    // 2.6 is comfortably above the URP Bloom threshold (1.0 by default), so
-    // this is the thing that actually glows - the base colour underneath
-    // barely matters once the emission is this far over 1.
-    public Color bumpOnEmission = Color.white * 2.6f;
-    public Color bumpOnBase = Color.white;
+    // ON and OFF are both DERIVED, not hardcoded - see FindBumpSlot(). The
+    // material asset (PlayerFbxSetupTool's "M_Player_Light", white and bright
+    // by design) is the single source of truth for what the lamp looks like
+    // lit. OFF is that same colour dimmed, not a second independent guess -
+    // two copies of the same colour is how an editor tweak and a script
+    // default quietly drift apart over a few months.
+    [Range(0f, 1f)] public float offBaseDim = 0.18f;
+    [Range(0f, 0.2f)] public float offGlowDim = 0.02f;
 
-    // OFF stays the material's own baked look - a dim warm ember, which is
-    // what it always was before this script could turn it off at all.
-    public Color bumpOffEmission = new Color(1.0f, 0.85f, 0.22f) * 0.05f;
+    // All four set once in FindBumpSlot(), from the material asset - never
+    // hand-tuned here. bumpOnBase/bumpOnEmission ARE whatever the asset
+    // bakes in; bumpOffBase/bumpOffEmission are those same values times the
+    // dim factors above. Defaults below only cover the case FindBumpSlot()
+    // never runs (no character found), so the fields are never left at
+    // Color.clear.
+    Color bumpOnEmission = Color.white * 2.6f;
+    Color bumpOnBase = Color.white;
+    Color bumpOffEmission = Color.white * 0.02f;
+    Color bumpOffBase = new Color(0.16f, 0.17f, 0.19f);
 
     public bool IsOn { get; private set; }
 
@@ -137,12 +142,6 @@ public class PlayerHeadlamp : MonoBehaviour
     Renderer bumpRenderer;
     int bumpSlot = -1;
     MaterialPropertyBlock bumpBlock;
-
-    // Read once from the shared material and written back every time the
-    // lamp goes OFF, so toggling back and forth can never leave the white
-    // "on" base colour stuck - a property block override does not revert on
-    // its own, it holds whatever was set last until something sets it again.
-    Color bumpOffBase = new Color(1.0f, 0.92f, 0.25f);
 
     static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -254,11 +253,30 @@ public class PlayerHeadlamp : MonoBehaviour
             {
                 bumpSlot = i;
 
-                // The material's OWN base colour, read once, so the OFF
-                // state matches whatever this asset actually bakes in rather
-                // than a second hard-coded guess at the same value.
+                // Read ON straight from the asset - PlayerFbxSetupTool bakes
+                // it white and bright already, so this script does not carry
+                // a second copy of that colour to go stale against it.
+                // OFF is derived, not guessed: the same colour, scaled down,
+                // so lit and unlit always agree on WHICH colour the bulb is
+                // and differ only in how bright it is.
                 if (mats[i].HasProperty(BaseColorId))
-                    bumpOffBase = mats[i].GetColor(BaseColorId);
+                {
+                    bumpOnBase = mats[i].GetColor(BaseColorId);
+
+                    // Color * float scales ALPHA too, not just RGB. The
+                    // material is Opaque so alpha is currently unread, but
+                    // scaling it down to 0.18 anyway is a transparency bug
+                    // waiting for someone to tick Alpha Clipping on. Alpha
+                    // pinned to the source colour's own instead.
+                    bumpOffBase = bumpOnBase * offBaseDim;
+                    bumpOffBase.a = bumpOnBase.a;
+                }
+
+                if (mats[i].HasProperty(EmissionColorId))
+                {
+                    bumpOnEmission = mats[i].GetColor(EmissionColorId);
+                    bumpOffEmission = bumpOnEmission * offGlowDim;
+                }
 
                 return;
             }

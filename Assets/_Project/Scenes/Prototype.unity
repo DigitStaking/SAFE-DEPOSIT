@@ -2358,14 +2358,17 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6213281331607931449, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: leftHand.y
-      value: -0.24
+      value: -0.22
       objectReference: {fileID: 0}
     - target: {fileID: 6213281331607931449, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: rightHand.y
-      value: -0.24
+      value: -0.22
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 3781667393484996263, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+    - {fileID: 2385259640091588288, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+    - {fileID: 2665818942877038289, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
@@ -4827,7 +4830,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraRig
   target: {fileID: 252229420}
-  eyeOffset: {x: 0, y: 1.55, z: 0.12}
+  eyeOffset: {x: 0, y: 1.65, z: 0.12}
   mouseSensitivity: 0.12
   stickSensitivity: 220
   minPitch: -89.9

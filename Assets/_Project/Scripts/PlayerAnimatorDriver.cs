@@ -46,6 +46,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
     static readonly int MoveXId  = Animator.StringToHash("MoveX");
     static readonly int MoveZId  = Animator.StringToHash("MoveZ");
     static readonly int SpeedId  = Animator.StringToHash("Speed");
+    static readonly int VelYId   = Animator.StringToHash("VelY");
     static readonly int GroundId = Animator.StringToHash("Grounded");
     static readonly int JumpId   = Animator.StringToHash("Jump");
     static readonly int CarryId  = Animator.StringToHash("Carry");
@@ -127,6 +128,12 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // downward is walking off a ledge, and only one of those deserves a
         // launch animation. This means PlayerMotor needed no changes at all.
         // ---------------------------------------------------------------
+        // Raw, unsmoothed vertical speed. The Falling state is gated on this
+        // rather than on a timer, so that a short hop never reaches the
+        // skydiving clip. Not damped - a lag here would let the free-fall
+        // pose linger after you have already landed.
+        animator.SetFloat(VelYId, vel.y);
+
         bool grounded = motor == null || motor.IsGrounded;
         bool strict   = motor == null || motor.IsGroundedStrict;
 

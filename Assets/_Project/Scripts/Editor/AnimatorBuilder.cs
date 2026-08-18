@@ -302,6 +302,7 @@ public static class AnimatorBuilder
         P(ac, "MoveX",      AnimatorControllerParameterType.Float);
         P(ac, "MoveZ",      AnimatorControllerParameterType.Float);
         P(ac, "Speed",      AnimatorControllerParameterType.Float);
+        P(ac, "VelY",       AnimatorControllerParameterType.Float);
         P(ac, "Grounded",   AnimatorControllerParameterType.Bool, true);
         P(ac, "Jump",       AnimatorControllerParameterType.Trigger);
         P(ac, "Carry",      AnimatorControllerParameterType.Int);
@@ -382,14 +383,38 @@ public static class AnimatorBuilder
             t.duration = 0.05f; t.hasExitTime = false; t.canTransitionToSelf = false;
         }
 
-        if (jump != null && fall != null) Exit(jump, fall, 0.7f, 0.15f);
+        // ---- WHY "Falling" IS GATED ON SPEED, NOT ON TIME ----
+        //
+        // Mixamo's Falling Idle is a SKYDIVING pose: face down, arms and legs
+        // spread. It is authored for a long drop.
+        //
+        // This used to be Exit(jump, fall, 0.7f, ...) - 70% of the way through
+        // the jump clip, unconditionally. A 1.1m hop is airborne for under a
+        // second, so the character adopted a skydiver's belly-flop about
+        // 30cm above the floor, which reads exactly like sinking through it.
+        // Nothing was ever below the ground; the pose was just horizontal.
+        //
+        // Gate it on actually falling fast instead. A 1.1m jump tops out
+        // around -5.9 m/s, so at -8 a normal jump NEVER reaches this state -
+        // JumpUp covers the whole hop - and a genuine multi-storey drop
+        // still gets the free-fall pose it was drawn for.
+        const float FreeFallSpeed = -8f;
+
+        if (jump != null && fall != null)
+        {
+            var t = jump.AddTransition(fall);
+            t.AddCondition(AnimatorConditionMode.Less, FreeFallSpeed, "VelY");
+            t.duration = 0.2f; t.hasExitTime = false;
+        }
 
         if (fall != null)
         {
-            // Walk off a ledge without jumping: go airborne after a short grace
-            // so a bumpy floor does not flicker you into the fall clip.
+            // Walk off a ledge without jumping. Same speed gate, so stepping
+            // off a crate keeps the walk cycle instead of snapping to a
+            // skydive for a 40cm drop.
             var t = loco.AddTransition(fall);
             t.AddCondition(AnimatorConditionMode.IfNot, 0, "Grounded");
+            t.AddCondition(AnimatorConditionMode.Less, FreeFallSpeed, "VelY");
             t.duration = 0.2f; t.hasExitTime = false;
         }
 

@@ -67,12 +67,18 @@ public static class ElevatorBuilder
     // with the room's floor and you can walk straight across.
     const float ParkY = -4f;
 
-    // Which side is left open for Step 3 only.
+    // EVERY SHUTTER IS BUILT CLOSED.
     //
-    // Level_01 has zero rotation and GrayboxBuilder always cuts its doorway
-    // in the EAST wall, so East is the side that faces a room you can walk
-    // into. Sealed in a box you cannot judge the space.
-    const float OpenSideYaw = 90f;
+    // Step 3 baked one open so the car could be walked into. Step 4 drives
+    // them from Elevator.cs, which captures each shutter's CLOSED pose at
+    // Awake and derives the open one from it - so the builder has to hand
+    // over a consistent starting state, and "closed" is the only one that is
+    // the same for all four.
+    //
+    // The alternative was for Elevator.cs to hard-code DoorHeight to work out
+    // where a shutter belongs. Two files owning the same number is how you
+    // get a door that opens to the wrong height six steps later and no idea
+    // which file lied.
 
     const string SteelMaterialPath  = "Assets/_Project/Materials/M_ElevatorSteel.mat";
     const string HazardMaterialPath = "Assets/_Project/Materials/M_ElevatorHazard.mat";
@@ -161,13 +167,30 @@ public static class ElevatorBuilder
         if (envLayer >= 0) SetLayerRecursive(root, envLayer);
         else Debug.LogWarning("[Elevator] Layer 'Environment' missing. Create it in Tags and Layers.");
 
+        // ---- Step 4: the components that make it move ----
+        //
+        // Added here rather than left for hand-dragging, for the same reason
+        // the geometry is built in code: the prefab has to be reproducible
+        // from a menu click, or a rebuild silently loses whatever was wired
+        // up by hand last time.
+        //
+        // Elevator carries [RequireComponent(typeof(Rigidbody))], so the
+        // kinematic body arrives with it and configures itself in Awake.
+        var lift = root.AddComponent<Elevator>();
+        lift.floorHeight = 4f;      // GrayboxBuilder.FloorHeight
+        lift.lowestFloor = 5;       // GrayboxBuilder.LevelCount - Step 11 raises to 20
+        lift.activeSide = "Side_East";
+
+        root.AddComponent<ElevatorCable>();
+
         SaveAsPrefab(root);
 
         Undo.RegisterCreatedObjectUndo(root, "Build Elevator Car");
         Selection.activeGameObject = root;
 
         Debug.Log($"[Elevator] {CarInner}x{CarInner}m car at y={ParkY}. " +
-                  $"East shutter open (Step 3 only). Prefab saved to {PrefabPath}.");
+                  $"All shutters closed - Elevator.cs opens the active one. " +
+                  $"Prefab saved to {PrefabPath}.");
     }
 
     // ------------------------------------------------------------------
@@ -213,22 +236,11 @@ public static class ElevatorBuilder
             new Vector3(0f, DoorHeight + 0.16f, wallMid - 0.06f),
             new Vector3(DoorWidth + 0.12f, 0.22f, 0.22f), steel);
 
-        bool open = Mathf.Approximately(yaw, OpenSideYaw);
-
-        if (open)
-        {
-            // Rolled up: a squat slab tucked under the lintel. Step 7 replaces
-            // this with real travel between the two poses.
-            Box("Shutter", side.transform,
-                new Vector3(0f, DoorHeight - 0.10f, wallMid),
-                new Vector3(DoorWidth, 0.20f, WallThick * 0.7f), panel);
-        }
-        else
-        {
-            Box("Shutter", side.transform,
-                new Vector3(0f, DoorHeight * 0.5f, wallMid),
-                new Vector3(DoorWidth, DoorHeight, WallThick * 0.7f), panel);
-        }
+        // Closed. Elevator.cs reads this pose at Awake and rolls it up from
+        // here, so this is the single definition of where a shutter lives.
+        Box("Shutter", side.transform,
+            new Vector3(0f, DoorHeight * 0.5f, wallMid),
+            new Vector3(DoorWidth, DoorHeight, WallThick * 0.7f), panel);
     }
 
     // ------------------------------------------------------------------

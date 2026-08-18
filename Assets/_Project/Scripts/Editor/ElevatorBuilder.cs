@@ -84,6 +84,7 @@ public static class ElevatorBuilder
     const string HazardMaterialPath = "Assets/_Project/Materials/M_ElevatorHazard.mat";
     const string PanelMaterialPath  = "Assets/_Project/Materials/M_ElevatorPanel.mat";
     const string GlowMaterialPath   = "Assets/_Project/Materials/M_ElevatorGlow.mat";
+    const string ScreenMaterialPath = "Assets/_Project/Materials/M_ElevatorScreen.mat";
 
     const string PrefabPath = "Assets/_Project/Prefabs/Elevator.prefab";
     const string RootName   = "ELEVATOR";
@@ -103,6 +104,14 @@ public static class ElevatorBuilder
         Material panel  = GetOrCreateMaterial(PanelMaterialPath,  new Color(0.11f, 0.12f, 0.14f));
         Material glow   = GetOrCreateMaterial(GlowMaterialPath,   new Color(1f, 0.94f, 0.82f),
                                               new Color(1f, 0.90f, 0.72f) * 2.2f);
+
+        // A DARK display, not a lamp.
+        //
+        // The screen was the same emissive material as the ceiling light, and
+        // under a 2.6-intensity lamp 1.5m away it blew out to pure white and
+        // swallowed the number written on it. A readout works the way a real
+        // one does: a dark face, and the GLYPHS are the only thing emitting.
+        Material screen = GetOrCreateMaterial(ScreenMaterialPath, new Color(0.05f, 0.07f, 0.09f));
 
         // ROOT IS EMPTY ON PURPOSE.
         //
@@ -151,7 +160,7 @@ public static class ElevatorBuilder
         BuildSide(car.transform, "Side_West",  270f, wallMid, wallSpan, steel, panel);
 
         BuildDeck(car.transform, hazard);
-        BuildDashboard(car.transform, half, steel, panel, glow);
+        BuildDashboard(car.transform, half, steel, panel, screen);
         BuildScanner(car.transform, half, steel, glow);
         BuildLight(car.transform, glow);
         BuildCableHitch(car.transform, steel);
@@ -292,7 +301,7 @@ public static class ElevatorBuilder
     // ------------------------------------------------------------------
 
     static void BuildDashboard(Transform car, float half,
-                               Material steel, Material panel, Material glow)
+                               Material steel, Material panel, Material screen)
     {
         float sideWidth   = (CarInner + WallThick * 2f - DoorWidth) * 0.5f;
         float sideCenterZ = DoorWidth * 0.5f + sideWidth * 0.5f;
@@ -317,8 +326,12 @@ public static class ElevatorBuilder
             new Vector3(0.92f, 0.70f, 0.04f), panel);
 
         // ---- the screen ----
-        Box("Screen", face.transform, new Vector3(0f, 0.17f, 0.025f),
-            new Vector3(0.76f, 0.26f, 0.01f), glow);
+        //
+        // Front face lands at z = 0.026. Everything drawn ON the screen must
+        // sit in FRONT of that or the box hides it - the readout was at 0.012
+        // and the white slab ate the bottom half of the number.
+        Box("Screen", face.transform, new Vector3(0f, 0.20f, 0.021f),
+            new Vector3(0.78f, 0.22f, 0.01f), screen);
 
         // Real world-space text, not a canvas. The panel is an object in a
         // room, so its readout has to be lit by the cage light, hidden when
@@ -328,30 +341,36 @@ public static class ElevatorBuilder
         // TextMesh rather than TextMeshPro: TMP's runtime ships with the
         // project but its essential assets are a manual import, and a missing
         // font renders nothing at all with no error.
-        // TUNE THESE TWO IF THE TEXT IS THE WRONG SIZE.
-        // TextMesh scale is fontSize x characterSize and the relationship is
-        // not obvious from either number alone. This is the readout, so it
-        // wants to be roughly twice the height of a button label.
-        Label("FloorText", face.transform, new Vector3(0f, 0.17f, 0.012f),
-              "--", 0.020f, new Color(0.15f, 0.85f, 1f));
+        Label("FloorText", face.transform, new Vector3(0f, 0.20f, 0.034f),
+              "--", 0.0070f, new Color(0.35f, 0.92f, 1f), bold: true);
 
         // Step 8 hangs the load gauge here.
-        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.17f, 0.04f));
+        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.20f, 0.04f));
 
         // ---- the two buttons ----
         //
-        // Left and right rather than stacked: the fascia is wider than it is
-        // tall once the screen has the top half, and a 0.34m target is one
-        // you can hit without pixel-hunting. Step 6 puts the keypad where
-        // there is room below.
-        MakeButton(face.transform, "Button_Up", new Vector3(-0.20f, -0.16f, 0.045f),
-                   ElevatorButton.Kind.Up, "UP", steel, glow);
-        MakeButton(face.transform, "Button_Down", new Vector3(0.20f, -0.16f, 0.045f),
-                   ElevatorButton.Kind.Down, "DOWN", steel, glow);
+        // STACKED, not side by side. Up above down is how every lift on earth
+        // is laid out, and the first version put them left and right - which
+        // reads fine on paper and is genuinely ambiguous in the car, because
+        // which one is on your left depends on which of the four doors you
+        // walked in through.
+        MakeButton(face.transform, "Button_Up", new Vector3(0f, 0.005f, 0.045f),
+                   ElevatorButton.Kind.Up, "UP", steel);
+        MakeButton(face.transform, "Button_Down", new Vector3(0f, -0.20f, 0.045f),
+                   ElevatorButton.Kind.Down, "DOWN", steel);
 
-        // Standing position: back from the panel, at eye height, looking at it.
-        var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.42f, 0.95f));
-        look.transform.localRotation = Quaternion.Euler(12f, 180f, 0f);
+        // WHERE THE CAMERA STANDS.
+        //
+        // It was at +0.42, well above the panel's centre at +0.02, pitched
+        // only 12 degrees down - so the fascia sat low and half off frame and
+        // the view was mostly the top edge and the wall above it.
+        //
+        // Now placed so the line from here to the panel centre matches the
+        // pitch: 0.16 up over 0.62 back is about 14 degrees, which is what
+        // the rotation says. Change one of these three numbers and the panel
+        // slides off centre again, so change them together.
+        var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.18f, 0.80f));
+        look.transform.localRotation = Quaternion.Euler(14f, 180f, 0f);
 
         // Step 5. Finds its Elevator via GetComponentInParent and its anchor
         // by name at runtime, so it does not care that the root does not have
@@ -408,8 +427,13 @@ public static class ElevatorBuilder
         var light = lamp.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(1f, 0.91f, 0.76f);
-        light.intensity = 2.6f;
-        light.range = 8f;
+
+        // 1.5, down from 2.6. At 2.6 the hotspot on the dashboard washed the
+        // whole panel to white and swallowed the readout. The car still wants
+        // to feel like the one warm room in the building - that comes from it
+        // being the ONLY light, not from it being a searchlight.
+        light.intensity = 1.5f;
+        light.range = 7f;
         light.shadows = LightShadows.Soft;
     }
 
@@ -468,13 +492,12 @@ public static class ElevatorBuilder
     /// collider to raycast against and a label sitting on its face.
     /// </summary>
     static GameObject MakeButton(Transform face, string name, Vector3 localPos,
-                                 ElevatorButton.Kind kind, string text,
-                                 Material body, Material glow)
+                                 ElevatorButton.Kind kind, string text, Material body)
     {
         // Depth 0.05 against a fascia 0.04 thick, sitting proud of it. A flush
         // button reads as a sticker; one you can see the side of reads as
         // something to push.
-        var go = Box(name, face, localPos, new Vector3(0.34f, 0.20f, 0.05f), body);
+        var go = Box(name, face, localPos, new Vector3(0.52f, 0.17f, 0.05f), body);
 
         var btn = go.AddComponent<ElevatorButton>();
         btn.kind = kind;
@@ -486,18 +509,31 @@ public static class ElevatorBuilder
         // its 0.05 scale, so half a unit is the front face and a little more
         // lifts the text clear of it.
         Label(name + "_Label", go.transform, new Vector3(0f, 0f, 0.55f),
-              text, 0.010f, Color.white);
+              text, 0.0042f, Color.white, bold: true);
 
         return go;
     }
 
     /// <summary>
-    /// World-space text. characterSize is in metres per unit of fontSize, so
-    /// the two multiply - fontSize high for crisp glyphs, characterSize small
-    /// to bring them back to a sane physical size.
+    /// World-space text.
+    ///
+    /// PHYSICAL SIZE IS fontSize x characterSize. RESOLUTION IS fontSize ALONE.
+    ///
+    /// That is the whole trick, and getting it wrong is why the first version
+    /// came out blurry. Unity rasterises the glyph atlas at fontSize pixels;
+    /// if the text then covers more screen pixels than that, it is upscaled
+    /// and goes soft. At 96 a floor number half a metre from your face lands
+    /// on roughly 160 pixels, so it was being stretched 1.7x.
+    ///
+    /// FontRes is therefore high and the sizes passed in are correspondingly
+    /// small. To change how BIG text is, change the size argument. To change
+    /// how SHARP it is, change FontRes - and then scale every size argument by
+    /// the inverse, or everything silently grows.
     /// </summary>
+    const int FontRes = 256;
+
     static GameObject Label(string name, Transform parent, Vector3 localPos,
-                            string text, float size, Color colour)
+                            string text, float size, Color colour, bool bold = false)
     {
         var go = new GameObject(name);
         go.transform.SetParent(parent, false);
@@ -514,11 +550,13 @@ public static class ElevatorBuilder
 
         var tm = go.AddComponent<TextMesh>();
         tm.text = text;
-        tm.fontSize = 96;
+        tm.fontSize = FontRes;
         tm.characterSize = size;
         tm.anchor = TextAnchor.MiddleCenter;
         tm.alignment = TextAlignment.Center;
         tm.color = colour;
+        tm.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        tm.richText = false;
 
         // "Arial.ttf" was removed in newer Unity; this is the replacement and
         // it is always present, so no font asset has to be imported.
@@ -529,10 +567,11 @@ public static class ElevatorBuilder
             go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
         }
 
-        // No rotation. TextMesh is readable when viewed from its +Z side, and
-        // the fascia's +Z already points at whoever is standing at the panel,
-        // so it is facing the right way already. Adding a 180 here - which is
-        // the obvious guess - shows you the back of every glyph.
+        // TextMesh builds its quads facing its own -Z, so a label parented to
+        // something whose +Z points at the reader comes out MIRRORED. Tested,
+        // not reasoned: without this, "DOWN" renders as "NWOD".
+        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
         return go;
     }
 

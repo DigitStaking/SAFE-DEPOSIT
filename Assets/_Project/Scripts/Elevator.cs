@@ -45,8 +45,8 @@ public class Elevator : MonoBehaviour
     [Tooltip("Must match GrayboxBuilder.FloorHeight, or the car stops between floors.")]
     public float floorHeight = 4f;
 
-    [Tooltip("Deepest floor that exists. Step 11 raises this to 20 for the demo.")]
-    public int lowestFloor = 5;
+    [Tooltip("Deepest floor that exists. Must match GrayboxBuilder.LevelCount.")]
+    public int lowestFloor = 20;
 
     [Header("Speed")]
     [Tooltip("UP / DOWN, one floor, deliberate.")]

@@ -206,7 +206,7 @@ public static class ElevatorBuilder
         // kinematic body arrives with it and configures itself in Awake.
         var lift = root.AddComponent<Elevator>();
         lift.floorHeight = 4f;      // GrayboxBuilder.FloorHeight
-        lift.lowestFloor = 5;       // GrayboxBuilder.LevelCount - Step 11 raises to 20
+        lift.lowestFloor = 20;      // GrayboxBuilder.LevelCount
         lift.activeSide = "Side_East";
 
         root.AddComponent<ElevatorCable>();

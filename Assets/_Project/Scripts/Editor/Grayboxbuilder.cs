@@ -53,12 +53,41 @@ public static class GrayboxBuilder
     const float RoomDepth = 6f;    // how far a room extends from the shaft
     const float DoorWidth = 2f;
     const float DoorHeight = 2.5f;
-    const int LevelCount = 5;
 
-    // Y rotation per level. This is what makes doorways face different
-    // directions, so players must SWING to reach them instead of just
-    // dropping straight down. Wraps if LevelCount is longer than this list.
-    static readonly float[] LevelRotations = { 0f, 90f, 180f, 270f, 90f };
+    // 20 for the demo, per DEMO_PLAN.md. Was 5.
+    const int LevelCount = 20;
+
+    // HEADROOM ABOVE THE SURFACE, so the car can actually park at floor 0.
+    //
+    // This was the "I go up and the loot and I get left behind" bug. The cap
+    // used to sit at y = 0..0.5 - exactly where the car's interior is when
+    // parked at floor 0 (its floor is y = 0, its ceiling y = 2.92). The car
+    // is kinematic so it teleported straight through the slab, but players
+    // and loot are dynamic bodies: they hit solid geometry and stayed
+    // behind while the car left without them.
+    //
+    // 3.4 clears the car's 2.92 with room to spare. The cap moves up by the
+    // same amount and four walls close the gap, so the surface reads as a
+    // place the lift arrives IN rather than an open hole it stops above.
+    const float SurfaceHeadroom = 3.4f;
+
+    // Y rotation per level - what puts each floor's doorway on a different
+    // side of the shaft, so arriving somewhere means orienting yourself
+    // (MASTER.md section 3). Elevator.UpdateActiveSide reads these rotations
+    // straight off the built level, so changing this array is all it takes
+    // to rearrange which shutter opens where.
+    //
+    // Twenty entries rather than five wrapping four times: a repeating
+    // 5-cycle is learnable by floor 6, which is exactly what this is meant
+    // to prevent. No two adjacent floors share a side, so every arrival is
+    // a genuine reorientation.
+    static readonly float[] LevelRotations =
+    {
+          0f,  90f, 270f, 180f,  90f,
+          0f, 180f, 270f,   0f,  90f,
+        180f,   0f, 270f,  90f, 180f,
+        270f,  90f,   0f, 270f, 180f,
+    };
 
     // Loot: real prop prefabs when present, cubes only as fallback.
         // Mass/value match PropImporter table.
@@ -95,23 +124,46 @@ public static class GrayboxBuilder
         var lootRoot = new GameObject(LootRootName);
         lootRoot.transform.position = Vector3.zero;
 
-        // Cap slab. Its BOTTOM face sits at y = 0, which is why the position
-        // is half the thickness above zero. A transform position is the
-        // CENTRE of an object, never a corner.
+        // Cap slab, now SurfaceHeadroom above zero rather than sitting on it,
+        // so the car has somewhere to be when it parks at floor 0. Its BOTTOM
+        // face sits at SurfaceHeadroom, which is why the position is half a
+        // thickness higher again - a transform position is the CENTRE of an
+        // object, never a corner.
         Box("Ceiling_Top", root.transform,
-            new Vector3(0f, WallThick * 0.5f, 0f),
+            new Vector3(0f, SurfaceHeadroom + WallThick * 0.5f, 0f),
             new Vector3(wallSpan, WallThick, wallSpan), gray);
+
+        // The four walls of that new surface space. Without them the lift
+        // would rise out of the shaft and stop in an open-sided box.
+        float surfaceMidY = SurfaceHeadroom * 0.5f;
+        Box("Surface_Wall_North", root.transform,
+            new Vector3(0f, surfaceMidY, wallMid),
+            new Vector3(wallSpan, SurfaceHeadroom, WallThick), gray);
+        Box("Surface_Wall_South", root.transform,
+            new Vector3(0f, surfaceMidY, -wallMid),
+            new Vector3(wallSpan, SurfaceHeadroom, WallThick), gray);
+        Box("Surface_Wall_East", root.transform,
+            new Vector3(wallMid, surfaceMidY, 0f),
+            new Vector3(WallThick, SurfaceHeadroom, wallSpan), gray);
+        Box("Surface_Wall_West", root.transform,
+            new Vector3(-wallMid, surfaceMidY, 0f),
+            new Vector3(WallThick, SurfaceHeadroom, wallSpan), gray);
 
         Box("Floor_Bottom", root.transform,
             new Vector3(0f, -totalDrop - WallThick * 0.5f, 0f),
             new Vector3(wallSpan, WallThick, wallSpan), gray);
 
-        // The point the rope hangs from. An empty on purpose - it is a
+        // The point the hoist rope hangs from. An empty on purpose - it is a
         // coordinate, not an object, so the anchor can move without touching
         // any visible geometry.
+        //
+        // Lifted to the underside of the cap along with everything else. At
+        // y = 0 it would have been BELOW the car's roof hitch whenever the
+        // car parked at floor 0, and ElevatorCable would have drawn the rope
+        // pointing downward out of the winch to reach it.
         var anchor = new GameObject("Winch_Anchor");
         anchor.transform.SetParent(root.transform, false);
-        anchor.transform.localPosition = Vector3.zero;
+        anchor.transform.localPosition = new Vector3(0f, SurfaceHeadroom, 0f);
 
         for (int i = 0; i < LevelCount; i++)
         {

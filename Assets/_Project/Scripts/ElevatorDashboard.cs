@@ -378,12 +378,13 @@ public class ElevatorDashboard : MonoBehaviour
         int floor = int.Parse(entryBuffer);
         entryBuffer = "";
 
-        // Typing 0 is asking to go to the surface, which ENDS THE RUN - the
-        // same thing RETURN does, so it goes through the same door rather
-        // than round it. Handing it to TryReturn() means the crew check and
-        // the load check apply however you asked, instead of the keypad
-        // being a quiet bypass for both.
-        if (floor == 0) { TryReturn(); return; }
+        // Typing 0 does NOT depart. Ending the run is RETURN's job and only
+        // RETURN's. Briefly this routed to TryReturn() so the checks applied
+        // however you asked - correct on safety, wrong on feel: a keypad
+        // entry that silently ends the run is a surprise, and one button
+        // meaning exactly one thing beats a second hidden way to do it.
+        // The 0 KEY still works, for typing 10 and 20.
+        if (floor == 0) { Reject("USE RETURN"); return; }
 
         if (floor > elevator.lowestFloor) { Reject($"NO FLOOR {floor:00}"); return; }
         if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }

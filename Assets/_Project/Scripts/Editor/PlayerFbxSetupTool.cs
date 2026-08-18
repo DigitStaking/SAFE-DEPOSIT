@@ -171,11 +171,20 @@ public static class PlayerFbxSetupTool
         {
             mat.EnableKeyword("_EMISSION");
             SetColor(mat, "_EmissionColor", emission.Value);
+
+            // THE MISSING PIECE. The keyword alone left the Inspector's
+            // Emission checkbox unticked and the bump dark - URP's Lit
+            // ShaderGUI reads globalIlluminationFlags, not just the keyword,
+            // to decide whether emission is "on". ElevatorBuilder's glow
+            // material (the one that has always worked) sets both; this one
+            // only ever set the keyword.
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
         }
         else
         {
             mat.DisableKeyword("_EMISSION");
             SetColor(mat, "_EmissionColor", Color.black);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
         }
 
         EditorUtility.SetDirty(mat);

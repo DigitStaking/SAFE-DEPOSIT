@@ -108,15 +108,32 @@ public class Carryable : MonoBehaviour
     // but can no longer walk it anywhere.
     //
     // SET EQUAL TO MASS, on request, after "very hard to push anything" -
-    // heavier items already resist proportionally more with no separate
-    // tuning table to keep in sync as loot masses change. A 6kg crate gets
-    // 6 damping, a 140kg vending machine gets 140 - the number IS the
-    // resistance, not a lookup keyed off it.
+    // heavier items resist proportionally more with no separate tuning
+    // table to keep in sync as loot masses change.
+    //
+    // HORIZONTAL ONLY - THIS IS THE PART THE FIRST VERSION GOT WRONG.
+    //
+    // Rigidbody.linearDamping resists ALL motion equally, on every axis -
+    // including the vertical one gravity uses to make something fall. At
+    // damping = mass, a 34kg cabinet resisted falling exactly as hard as it
+    // resisted being shoved sideways, which is not "heavy", it is "barely
+    // affected by gravity": freshly spawned loot never finished settling
+    // onto the floor, and anything just dropped hung in the air and sank in
+    // slow motion. Both are the "floating" and "going down slowly" reports.
+    //
+    // body.linearDamping stays at Unity's default of 0 - gravity is left
+    // completely alone. horizontalDamping is applied by hand, in
+    // FixedUpdate below, to the x/z components only, so a push is resisted
+    // exactly as hard as before while a fall is not slowed at all.
+    // angularDamping is untouched by this problem - gravity has no angular
+    // component - so tipping/tumbling resistance stays simple.
     // --------------------------------------------------------------------
+
+    float horizontalDamping;
 
     void ApplyPushResistance()
     {
-        body.linearDamping = body.mass;
+        horizontalDamping = body.mass;
         body.angularDamping = body.mass;
 
         // Caps how fast PhysX is allowed to shove two overlapping bodies
@@ -129,6 +146,23 @@ public class Carryable : MonoBehaviour
         // overlap still gets pushed out, just over a few gentle frames
         // instead of one violent one.
         body.maxDepenetrationVelocity = 3f;
+    }
+
+    /// <summary>
+    /// Only runs while Free - Held and Stowed are kinematic and do not
+    /// simulate at all, so there is nothing here for them to fight.
+    /// Same exponential form Unity's own linearDamping uses internally,
+    /// applied to x/z only so y (the fall) is never touched.
+    /// </summary>
+    void FixedUpdate()
+    {
+        if (State != CarryState.Free) return;
+
+        Vector3 v = body.linearVelocity;
+        float k = 1f / (1f + horizontalDamping * Time.fixedDeltaTime);
+        v.x *= k;
+        v.z *= k;
+        body.linearVelocity = v;
     }
 
     // --------------------------------------------------------------------

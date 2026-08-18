@@ -59,12 +59,30 @@ now.** Build them like they matter.
 
 ## One thing to keep: the cable
 
-The elevator hangs from the winch on a **visible steel cable**. Keep it, because
-it's nearly free and it keeps three things alive:
+The elevator hangs from the winch on a **visible steel wire rope** — braided
+strand over a grooved sheave, the real thing lifts do. Keep it, because it's
+nearly free and it keeps four things alive:
 
 - The load limit has a physical object attached to it
 - The cable can **fray** under overload — your best trap survives
 - The shaft still reads as a rope-drop, which is your existing art
+- **It is what the shop sells.** Decided 18 Aug 2026.
+
+### The hoist rope IS the progression
+
+More wire rope on the drum = the car reaches a deeper floor. This is the same
+role the old climbing rope had, so the economy is unchanged — `RopeCost(R) =
+80 × g^(R-1)`, max 2 buys a round, one buy = one floor.
+
+What changes is what you're looking at when you spend the money. You are not
+buying abstract "depth", you are buying **more steel on the winch drum**, and
+the drum is visible from inside the car. A player who has bought nothing this
+round can see how little is left.
+
+`Campaign.RopeLength` / `RopeChunk` / `BuyRope()` already model exactly this and
+keep working untouched. **Rename them to Cable* in Step 12**, with the rest of
+the constants — not before, or every step in between has to be re-tested for a
+change that alters no behaviour.
 
 ---
 

@@ -404,22 +404,30 @@ public static class ElevatorBuilder
         float arrowUpCy = BelowY1 - (BelowY1 - BelowY0) * 0.25f;
         float arrowDownCy = BelowY0 + (BelowY1 - BelowY0) * 0.25f;
 
+        // labelSize dropped from the original 0.0042 to 0.0022. Label() sizes
+        // text in WORLD units, independent of the button's own box size -
+        // shrinking the button from 0.52 wide to 0.27 wide did nothing to
+        // the text drawn on it, so "DOWN" kept its original physical width
+        // and spilled off both edges of a button now half as wide.
         MakeButton(face.transform, "Button_Up", new Vector3(arrowsCx, arrowUpCy, 0.045f),
-                   ElevatorButton.Kind.Up, "UP", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0042f);
+                   ElevatorButton.Kind.Up, "UP", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0022f);
         MakeButton(face.transform, "Button_Down", new Vector3(arrowsCx, arrowDownCy, 0.045f),
-                   ElevatorButton.Kind.Down, "DOWN", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0042f);
+                   ElevatorButton.Kind.Down, "DOWN", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0022f);
 
         // WHERE THE CAMERA STANDS.
         //
-        // It was at +0.42, well above the panel's centre at +0.02, pitched
-        // only 12 degrees down - so the fascia sat low and half off frame and
-        // the view was mostly the top edge and the wall above it.
+        // Pulled back again for Step 6: at 0.62 back the fascia's HORIZONTAL
+        // centre (x=0, where FloorText sits) framed correctly, but the panel
+        // went from two centred buttons to controls using the fascia's full
+        // 0.92 x 0.70 extent - and at that distance the whole assembly no
+        // longer fit inside frame, cropping one side while leaving empty
+        // space on the other.
         //
-        // Now placed so the line from here to the panel centre matches the
-        // pitch: 0.16 up over 0.62 back is about 14 degrees, which is what
-        // the rotation says. Change one of these three numbers and the panel
-        // slides off centre again, so change them together.
-        var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.18f, 0.80f));
+        // Distance grew to 1.15; the up offset grew with it to hold the same
+        // ~14 degree look angle (up = back * tan(14 deg)). Change one of
+        // these three numbers and the panel slides off centre again, so
+        // change them together.
+        var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.29f, 1.15f));
         look.transform.localRotation = Quaternion.Euler(14f, 180f, 0f);
 
         // Step 5. Finds its Elevator via GetComponentInParent and its anchor

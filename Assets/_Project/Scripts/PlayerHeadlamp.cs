@@ -49,6 +49,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+// Runs after FirstPersonCamera's own LateUpdate (default order 0). EyeRotation
+// is a property read from pitch/yaw fields that FirstPersonCamera.LateUpdate
+// updates every frame - go first and the beam aims from LAST frame's look
+// direction, a one-frame lag that would show up as the beam trailing behind a
+// fast mouse flick.
+[DefaultExecutionOrder(40)]
 public class PlayerHeadlamp : MonoBehaviour
 {
     [Header("Whose head")]
@@ -129,6 +135,7 @@ public class PlayerHeadlamp : MonoBehaviour
 
     Transform headBone;
     Animator anim;
+    FirstPersonCamera fpCam;
     GameObject rig;
     Light spot;
     LightShaft shaft;
@@ -166,11 +173,8 @@ public class PlayerHeadlamp : MonoBehaviour
     {
         Transform root = characterRoot;
 
-        if (root == null && Camera.main != null)
-        {
-            var fpCam = Camera.main.GetComponent<FirstPersonCamera>();
-            if (fpCam != null && fpCam.target != null) root = fpCam.target;
-        }
+        if (Camera.main != null) fpCam = Camera.main.GetComponent<FirstPersonCamera>();
+        if (root == null && fpCam != null && fpCam.target != null) root = fpCam.target;
 
         anim = root != null ? root.GetComponentInChildren<Animator>() : null;
 
@@ -337,22 +341,52 @@ public class PlayerHeadlamp : MonoBehaviour
     // headBone.position is not one frame stale. Runs whether the light is on
     // or off, so it is already in the right place the instant it is switched
     // back on.
+    //
+    // POSITION comes from the head bone - it is physically on top of the
+    // character's head, and that is a body-facing (yaw) question, unaffected
+    // by where you are currently looking.
+    //
+    // ROTATION comes from the CAMERA, not the head bone, and this is the
+    // actual fix for "the light must go with camera direction". The rig
+    // (Player root) only turns to match camera YAW, in FixedUpdate, and
+    // never pitches at all - PITCH stays purely a camera concept so looking
+    // straight up or down never turns the body. A rig sourcing rotation from
+    // headBone therefore aimed level no matter how far up or down you
+    // looked, which is why the beam was hitting the ceiling and the ground
+    // was dark in the screenshot: the lit patch on the wall was where the
+    // BODY was still facing, not where the CAMERA was pointed.
     void LateUpdate()
     {
         if (rig == null) return;
 
-        if (headBone != null)
+        Vector3 pos;
+        Quaternion aim;
+
+        if (fpCam != null)
         {
-            rig.transform.SetPositionAndRotation(
-                headBone.position + headBone.TransformDirection(headOffset),
-                headBone.rotation * Quaternion.Euler(aimEuler));
+            // EyeRotation already IS pitch+yaw+tilt combined - exactly the
+            // direction you are actually looking, full stop.
+            aim = fpCam.EyeRotation * Quaternion.Euler(aimEuler);
+            pos = headBone != null
+                ? headBone.position + headBone.TransformDirection(headOffset)
+                : fpCam.EyePosition;
+        }
+        else if (headBone != null)
+        {
+            // No camera found at all (should not happen in play, kept for
+            // safety) - better a beam that only yaws with the body than no
+            // beam.
+            pos = headBone.position + headBone.TransformDirection(headOffset);
+            aim = headBone.rotation * Quaternion.Euler(aimEuler);
         }
         else if (cameraFallback != null)
         {
-            rig.transform.SetPositionAndRotation(
-                cameraFallback.position + cameraFallback.TransformDirection(new Vector3(0f, 0f, 0.15f)),
-                cameraFallback.rotation * Quaternion.Euler(aimEuler));
+            pos = cameraFallback.position + cameraFallback.TransformDirection(new Vector3(0f, 0f, 0.15f));
+            aim = cameraFallback.rotation * Quaternion.Euler(aimEuler);
         }
+        else return;
+
+        rig.transform.SetPositionAndRotation(pos, aim);
     }
 
     // Runs when you change a value in the Inspector, so tuning headOffset or

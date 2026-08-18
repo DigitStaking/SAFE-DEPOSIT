@@ -111,10 +111,19 @@ public class PlayerHeadlamp : MonoBehaviour
              "file does not.")]
     public string bumpMaterialKey = "light";
 
-    // Same values PlayerFbxSetupTool bakes into the shared material's base
-    // emission, so "on" looks identical to how the bump already looked before
-    // this script could turn it off - only the OFF state is new.
-    public Color bumpOnEmission = new Color(1.0f, 0.85f, 0.22f) * 1.7f;
+    // ON is a bright white LED, not the material's baked-in warm yellow - a
+    // headlamp that is ACTUALLY ON reads as a bright bulb, and white is what
+    // sells "bright" the way yellow at the same brightness reads as "amber
+    // indicator light" instead.
+    //
+    // 2.6 is comfortably above the URP Bloom threshold (1.0 by default), so
+    // this is the thing that actually glows - the base colour underneath
+    // barely matters once the emission is this far over 1.
+    public Color bumpOnEmission = Color.white * 2.6f;
+    public Color bumpOnBase = Color.white;
+
+    // OFF stays the material's own baked look - a dim warm ember, which is
+    // what it always was before this script could turn it off at all.
     public Color bumpOffEmission = new Color(1.0f, 0.85f, 0.22f) * 0.05f;
 
     public bool IsOn { get; private set; }
@@ -129,6 +138,14 @@ public class PlayerHeadlamp : MonoBehaviour
     int bumpSlot = -1;
     MaterialPropertyBlock bumpBlock;
 
+    // Read once from the shared material and written back every time the
+    // lamp goes OFF, so toggling back and forth can never leave the white
+    // "on" base colour stuck - a property block override does not revert on
+    // its own, it holds whatever was set last until something sets it again.
+    Color bumpOffBase = new Color(1.0f, 0.92f, 0.25f);
+
+    static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    static readonly int ColorId = Shader.PropertyToID("_Color");
     static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
     // Old behaviour, kept as a fallback ONLY. If no rigged character can be
@@ -236,6 +253,13 @@ public class PlayerHeadlamp : MonoBehaviour
             if (n.IndexOf(bumpMaterialKey, StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 bumpSlot = i;
+
+                // The material's OWN base colour, read once, so the OFF
+                // state matches whatever this asset actually bakes in rather
+                // than a second hard-coded guess at the same value.
+                if (mats[i].HasProperty(BaseColorId))
+                    bumpOffBase = mats[i].GetColor(BaseColorId);
+
                 return;
             }
         }
@@ -275,7 +299,18 @@ public class PlayerHeadlamp : MonoBehaviour
         {
             if (bumpBlock == null) bumpBlock = new MaterialPropertyBlock();
             bumpRenderer.GetPropertyBlock(bumpBlock, bumpSlot);
+
+            // Base colour written every time, on AND off, not just on. A
+            // MaterialPropertyBlock override holds whatever was last set
+            // until something sets it again - it does not fall back to the
+            // material's own value on its own - so writing only the ON case
+            // would leave the bump permanently white the first time it was
+            // ever switched on, no matter how many times it was switched
+            // off again after.
+            bumpBlock.SetColor(BaseColorId, on ? bumpOnBase : bumpOffBase);
+            bumpBlock.SetColor(ColorId, on ? bumpOnBase : bumpOffBase);
             bumpBlock.SetColor(EmissionColorId, on ? bumpOnEmission : bumpOffEmission);
+
             bumpRenderer.SetPropertyBlock(bumpBlock, bumpSlot);
         }
     }

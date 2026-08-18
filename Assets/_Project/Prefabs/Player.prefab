@@ -455,7 +455,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08eece632d8b20e4e88724d282f4606e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimatorDriver
-  animator: {fileID: 0}
+  animator: {fileID: 864865954262565343}
   walkSpeed: 4.5
   moveDamp: 0.1
   jumpDetectSpeed: 1
@@ -583,6 +583,14 @@ PrefabInstance:
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: 518035421fefd5046a53c8a942c08f08, type: 2}
+    - target: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      propertyPath: m_CullingMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -591,6 +599,11 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 6213281331607931449}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+--- !u!95 &864865954262565343 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+  m_PrefabInstance: {fileID: 6731204314928708686}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &5884906708658798879 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

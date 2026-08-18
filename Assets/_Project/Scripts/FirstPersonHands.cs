@@ -114,8 +114,9 @@ public class FirstPersonHands : MonoBehaviour
     [Range(0f, 1f)] public float rotationWeight = 0.7f;
 
     [Header("Feel")]
-    [Tooltip("Lag behind the camera. A little lag reads as weight; none reads " +
-             "as the hands being glued to the screen.")]
+    [Tooltip("How fast the hands ease to a new POSE (a carry offset, an " +
+             "injury). It does NOT lag them behind the camera - that is done " +
+             "in camera space, so walking can never drag them.")]
     public float followSpeed = 16f;
 
     [Tooltip("Fade speed when the weight target changes.")]
@@ -129,7 +130,9 @@ public class FirstPersonHands : MonoBehaviour
     Animator anim;
     Transform cam;
     Camera camComponent;
-    Vector3 lPos, rPos;
+    FirstPersonCamera fpCam;
+    Vector3 lPos, rPos;        // world, for the gizmos
+    Vector3 lSmooth, rSmooth;  // CAMERA space - this is what gets eased
     float weight;
     bool primed;
 
@@ -154,6 +157,7 @@ public class FirstPersonHands : MonoBehaviour
         cam = cameraTransform;
         if (cam == null && Camera.main != null) { cam = Camera.main.transform; cameraTransform = cam; }
         camComponent = cam != null ? cam.GetComponent<Camera>() : null;
+        fpCam = cam != null ? cam.GetComponent<FirstPersonCamera>() : null;
     }
 
     void MeasureReach()
@@ -245,16 +249,31 @@ public class FirstPersonHands : MonoBehaviour
         //
         // The hands belong in front of the FACE. The camera only ever supplies
         // the direction that face is looking.
+        // ---- WHERE THE EYE IS, THIS FRAME, NOT LAST ----
+        //
+        // Read from FirstPersonCamera rather than the camera's transform.
+        // Unity calls OnAnimatorIK during the ANIMATION update, which runs
+        // BEFORE LateUpdate - and LateUpdate is where the camera moves. So
+        // cam.position still holds LAST frame's value while the body has
+        // already moved this frame. At 4.5 m/s that is a ~7cm backward error
+        // for the whole time you are walking, which is why the hands would
+        // not stay centred while moving.
+        //
+        // EyePosition is computed from the target's current position, so
+        // there is no stale frame to inherit.
+        Vector3 eyePos = fpCam != null ? fpCam.EyePosition : cam.position;
+        Quaternion eyeRot = fpCam != null ? fpCam.EyeRotation : cam.rotation;
+
         var headBone = anim.GetBoneTransform(HumanBodyBones.Head);
-        Vector3 eye = headBone != null
+        Vector3 head = headBone != null
             ? headBone.position
             : transform.position + Vector3.up * 1.6f;
 
-        // In first person, anchor on the camera instead: it is rock steady,
+        // In first person, anchor on the eye instead: it is rock steady,
         // whereas the head bone carries the idle clip's breathing bob and would
         // make the hands jitter.
-        bool thirdPerson = Vector3.Distance(cam.position, eye) > 0.8f;
-        Vector3 anchor = thirdPerson ? eye : cam.position;
+        bool thirdPerson = Vector3.Distance(eyePos, head) > 0.8f;
+        Vector3 anchor = thirdPerson ? head : eyePos;
 
         // The frustum clamp is only meaningful when the camera is at the eye.
         // In third person it would be measuring a screen the hands are not
@@ -263,14 +282,25 @@ public class FirstPersonHands : MonoBehaviour
         Vector3 lLocal = clamp ? ClampToFrame(leftHand)  : leftHand;
         Vector3 rLocal = clamp ? ClampToFrame(rightHand) : rightHand;
 
-        Vector3 lWant = ClampToReach(anchor + cam.rotation * lLocal, HumanBodyBones.LeftUpperArm,  reachLeft);
-        Vector3 rWant = ClampToReach(anchor + cam.rotation * rLocal, HumanBodyBones.RightUpperArm, reachRight);
-
-        if (!primed) { lPos = lWant; rPos = rWant; primed = true; }
+        // ---- SMOOTH IN CAMERA SPACE, NEVER IN WORLD SPACE ----
+        //
+        // This used to lerp the WORLD position, which meant simply walking
+        // dragged the hands: the body translated, the target translated with
+        // it, and the smoothed position trailed about 60ms behind. That reads
+        // as the hands sliding around whenever you move.
+        //
+        // Easing the camera-space OFFSET instead exempts translation by
+        // construction. The hands are welded to the view no matter how fast
+        // you move, and the easing is left to do the job it is actually good
+        // at: blending to a new POSE, such as a carry offset or an injury.
+        if (!primed) { lSmooth = lLocal; rSmooth = rLocal; primed = true; }
 
         float t = 1f - Mathf.Exp(-followSpeed * Time.deltaTime);   // framerate independent
-        lPos = Vector3.Lerp(lPos, lWant, t);
-        rPos = Vector3.Lerp(rPos, rWant, t);
+        lSmooth = Vector3.Lerp(lSmooth, lLocal, t);
+        rSmooth = Vector3.Lerp(rSmooth, rLocal, t);
+
+        lPos = ClampToReach(anchor + eyeRot * lSmooth, HumanBodyBones.LeftUpperArm,  reachLeft);
+        rPos = ClampToReach(anchor + eyeRot * rSmooth, HumanBodyBones.RightUpperArm, reachRight);
 
         anim.SetIKPositionWeight(AvatarIKGoal.LeftHand,  weight);
         anim.SetIKPositionWeight(AvatarIKGoal.RightHand, weight);
@@ -278,8 +308,11 @@ public class FirstPersonHands : MonoBehaviour
         anim.SetIKPosition(AvatarIKGoal.RightHand, rPos);
 
         // Palms roughly facing each other and forward, so you see the backs of
-        // the hands rather than the edges.
-        Quaternion look = Quaternion.LookRotation(cam.forward, cam.up);
+        // the hands rather than the edges. Uses the same fresh eye rotation as
+        // the positions above - reading cam.forward here would reintroduce the
+        // one-frame lag on the wrists only, which shows up as the hands
+        // twisting slightly whenever you turn.
+        Quaternion look = Quaternion.LookRotation(eyeRot * Vector3.forward, eyeRot * Vector3.up);
         anim.SetIKRotationWeight(AvatarIKGoal.LeftHand,  weight * rotationWeight);
         anim.SetIKRotationWeight(AvatarIKGoal.RightHand, weight * rotationWeight);
         anim.SetIKRotation(AvatarIKGoal.LeftHand,  look * Quaternion.Euler(0f,  0f,  75f));

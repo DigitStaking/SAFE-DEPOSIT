@@ -80,12 +80,36 @@ public class FirstPersonCamera : MonoBehaviour
     public float speedForMaxFov = 14f;
 
     public float Yaw => yaw;
+    public float Pitch => pitch;
+
+    // ------------------------------------------------------------------
+    // THE EYE POSE, COMPUTED ON DEMAND.
+    //
+    // These exist because FirstPersonHands needs to know where the eye is
+    // from inside OnAnimatorIK, which Unity calls during the ANIMATION
+    // update - before LateUpdate, where this script moves the camera. Read
+    // transform.position there and you get LAST frame's value while the
+    // body has already moved this frame, so the hands sit permanently
+    // behind the view while you walk.
+    //
+    // Computed from the target's CURRENT position instead, so there is no
+    // stale frame. ApplyPosition uses the same two properties, which keeps
+    // the camera and the hands agreeing by construction rather than by two
+    // copies of the same arithmetic.
+    // ------------------------------------------------------------------
+
+    public Vector3 EyePosition =>
+        target != null
+            ? target.position + Quaternion.Euler(0f, yaw, 0f) * eyeOffset + Vector3.up * bobOffset
+            : transform.position;
+
+    public Quaternion EyeRotation => Quaternion.Euler(pitch, yaw, currentTilt);
 
     PlayerMotor motor;
     Rigidbody targetBody;
     Camera cam;
 
-    float yaw, pitch, bobTimer, currentTilt;
+    float yaw, pitch, bobTimer, currentTilt, bobOffset;
 
     void Start()
     {
@@ -162,22 +186,17 @@ public class FirstPersonCamera : MonoBehaviour
 
     void ApplyPosition()
     {
-        // Rotate the offset by yaw before adding it.
+        // NOTE: eyeOffset is rotated by YAW inside EyePosition.
         //
-        // This was `target.position + eyeOffset`, which added it in WORLD
+        // It used to be added as `target.position + eyeOffset`, in WORLD
         // space - so the 0.12 "forward" component always pointed along world
         // +Z no matter which way you were facing. The camera therefore sat
         // 12cm in FRONT of your face looking one way and 12cm BEHIND it
-        // looking the other: a 24cm swing.
-        //
-        // FirstPersonHands builds its targets from cam.position and then
-        // clamps them to arm's reach from the shoulder, so that swing was
-        // the whole "hands vanish walking forward, look huge walking back,
-        // drift sideways when strafing" bug.
+        // looking the other: a 24cm swing that the hand IK inherited.
         //
         // Yaw only, never pitch - the eye must not slide forward when you
         // look down, or the view pushes into your own chest.
-        Vector3 eye = target.position + Quaternion.Euler(0f, yaw, 0f) * eyeOffset;
+        bobOffset = 0f;
 
         if (enableHeadBob && motor.IsGrounded && targetBody != null)
         {
@@ -190,13 +209,14 @@ public class FirstPersonCamera : MonoBehaviour
                 // Advanced by distance travelled rather than by time, so the
                 // rhythm matches your pace instead of running at a fixed rate.
                 bobTimer += Time.deltaTime * bobFrequency * Mathf.Clamp01(speed / 4.5f);
-                eye.y += Mathf.Sin(bobTimer) * bobAmplitude;
             }
             else
             {
                 // Ease to neutral, or the camera jumps every time you stop.
                 bobTimer = Mathf.MoveTowards(bobTimer, 0f, Time.deltaTime * 8f);
             }
+
+            bobOffset = Mathf.Sin(bobTimer) * bobAmplitude;
         }
 
         float targetTilt = 0f;
@@ -208,8 +228,8 @@ public class FirstPersonCamera : MonoBehaviour
         }
         currentTilt = Mathf.Lerp(currentTilt, targetTilt, 6f * Time.deltaTime);
 
-        transform.position = eye;
-        transform.rotation = Quaternion.Euler(pitch, yaw, currentTilt);
+        transform.position = EyePosition;
+        transform.rotation = EyeRotation;
     }
 
     void ApplyFov()

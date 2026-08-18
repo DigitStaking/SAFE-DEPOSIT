@@ -160,7 +160,7 @@ public static class ElevatorBuilder
         BuildSide(car.transform, "Side_West",  270f, wallMid, wallSpan, steel, panel);
 
         BuildDeck(car.transform, hazard);
-        BuildDashboard(car.transform, half, steel, panel, screen);
+        BuildDashboard(car.transform, half, steel, panel, screen, hazard);
         BuildScanner(car.transform, half, steel, glow);
         BuildLight(car.transform, glow);
         BuildCableHitch(car.transform, steel);
@@ -301,7 +301,7 @@ public static class ElevatorBuilder
     // ------------------------------------------------------------------
 
     static void BuildDashboard(Transform car, float half,
-                               Material steel, Material panel, Material screen)
+                               Material steel, Material panel, Material screen, Material hazard)
     {
         float sideWidth   = (CarInner + WallThick * 2f - DoorWidth) * 0.5f;
         float sideCenterZ = DoorWidth * 0.5f + sideWidth * 0.5f;
@@ -347,17 +347,67 @@ public static class ElevatorBuilder
         // Step 8 hangs the load gauge here.
         Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.20f, 0.04f));
 
-        // ---- the two buttons ----
+        // ---- STEP 6: numeric keypad, left. UP / DOWN, right. ----
         //
-        // STACKED, not side by side. Up above down is how every lift on earth
-        // is laid out, and the first version put them left and right - which
-        // reads fine on paper and is genuinely ambiguous in the car, because
-        // which one is on your left depends on which of the four doors you
-        // walked in through.
-        MakeButton(face.transform, "Button_Up", new Vector3(0f, 0.005f, 0.045f),
-                   ElevatorButton.Kind.Up, "UP", steel);
-        MakeButton(face.transform, "Button_Down", new Vector3(0f, -0.20f, 0.045f),
-                   ElevatorButton.Kind.Down, "DOWN", steel);
+        // Everything below the screen splits into two zones rather than
+        // stacking every control in one column: a real elevator puts call
+        // arrows to one side and floor entry in the middle, and doing the
+        // same here is what makes twelve new buttons fit next to the two
+        // that already existed without either zone feeling like an
+        // afterthought.
+        //
+        // Below-screen area is x[-0.46, 0.46], y[-0.35, 0.09].
+        const float BelowY0 = -0.35f, BelowY1 = 0.09f;
+        const float KeypadX0 = -0.46f, KeypadX1 = 0.16f;   // 0.62m wide
+        const float ArrowsX0 = 0.16f, ArrowsX1 = 0.46f;    // 0.30m wide
+
+        // 3 columns x 4 rows: 1-9, then CLR / 0 / GO.
+        float colW = (KeypadX1 - KeypadX0) / 3f;
+        float rowH = (BelowY1 - BelowY0) / 4f;
+        Vector3 keySize = new Vector3(colW - 0.03f, rowH - 0.02f, 0.05f);
+
+        string[,] keys = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "CLR", "0", "GO" } };
+
+        for (int row = 0; row < 4; row++)
+        {
+            for (int col = 0; col < 3; col++)
+            {
+                string label = keys[row, col];
+                float cx = KeypadX0 + colW * (col + 0.5f);
+                float cy = BelowY1 - rowH * (row + 0.5f);
+
+                ElevatorButton.Kind kind = label switch
+                {
+                    "CLR" => ElevatorButton.Kind.Clear,
+                    "GO" => ElevatorButton.Kind.Go,
+                    _ => ElevatorButton.Kind.Digit
+                };
+
+                // GO gets the hazard-yellow accent so it reads as the one
+                // button that commits you to something, the same colour
+                // language the deck stripes already use for "this matters".
+                Material body = kind == ElevatorButton.Kind.Go ? hazard : steel;
+
+                var go = MakeButton(face.transform, $"Key_{row}_{col}",
+                                    new Vector3(cx, cy, 0.045f), kind, label, body, keySize, 0.0026f);
+
+                if (kind == ElevatorButton.Kind.Digit)
+                    go.GetComponent<ElevatorButton>().digit = int.Parse(label);
+            }
+        }
+
+        // UP / DOWN keep their own stacked shape, just narrower and moved
+        // into the right-hand column instead of spanning the whole fascia.
+        float arrowsCx = (ArrowsX0 + ArrowsX1) * 0.5f;
+        float arrowW = ArrowsX1 - ArrowsX0 - 0.03f;
+        float arrowH = (BelowY1 - BelowY0) * 0.5f - 0.02f;
+        float arrowUpCy = BelowY1 - (BelowY1 - BelowY0) * 0.25f;
+        float arrowDownCy = BelowY0 + (BelowY1 - BelowY0) * 0.25f;
+
+        MakeButton(face.transform, "Button_Up", new Vector3(arrowsCx, arrowUpCy, 0.045f),
+                   ElevatorButton.Kind.Up, "UP", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0042f);
+        MakeButton(face.transform, "Button_Down", new Vector3(arrowsCx, arrowDownCy, 0.045f),
+                   ElevatorButton.Kind.Down, "DOWN", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0042f);
 
         // WHERE THE CAMERA STANDS.
         //
@@ -490,14 +540,19 @@ public static class ElevatorBuilder
     /// <summary>
     /// A physical button: a box that sticks out of the fascia, with a
     /// collider to raycast against and a label sitting on its face.
+    ///
+    /// size and labelSize both default to the values the original UP/DOWN
+    /// buttons shipped with, so nothing about those two changes just because
+    /// the keypad now calls this with its own, smaller numbers.
     /// </summary>
     static GameObject MakeButton(Transform face, string name, Vector3 localPos,
-                                 ElevatorButton.Kind kind, string text, Material body)
+                                 ElevatorButton.Kind kind, string text, Material body,
+                                 Vector3? size = null, float labelSize = 0.0042f)
     {
         // Depth 0.05 against a fascia 0.04 thick, sitting proud of it. A flush
         // button reads as a sticker; one you can see the side of reads as
         // something to push.
-        var go = Box(name, face, localPos, new Vector3(0.52f, 0.17f, 0.05f), body);
+        var go = Box(name, face, localPos, size ?? new Vector3(0.52f, 0.17f, 0.05f), body);
 
         var btn = go.AddComponent<ElevatorButton>();
         btn.kind = kind;
@@ -507,9 +562,11 @@ public static class ElevatorBuilder
         //
         // z +0.55 in the button's own space: the box is one unit deep before
         // its 0.05 scale, so half a unit is the front face and a little more
-        // lifts the text clear of it.
+        // lifts the text clear of it. That is true regardless of the box's
+        // WIDTH or HEIGHT - Label() cancels out the parent's scale before
+        // sizing the text, so a small keypad key does not need a different z.
         Label(name + "_Label", go.transform, new Vector3(0f, 0f, 0.55f),
-              text, 0.0042f, Color.white, bold: true);
+              text, labelSize, Color.white, bold: true);
 
         return go;
     }

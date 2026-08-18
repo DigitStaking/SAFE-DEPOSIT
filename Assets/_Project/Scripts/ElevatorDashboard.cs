@@ -8,9 +8,25 @@
 // Press F near the panel. The camera moves in, the crosshair becomes a
 // cursor, movement locks. UP and DOWN drive the car. F or Esc steps back.
 //
-// Step 6 adds numeric entry, GO, fast travel and the floor list. Nothing
-// here should need rewriting for that - this file owns GETTING TO the panel
-// and back, and Step 6 only adds controls to draw while you are at it.
+// ====================================================================
+// STEP 6 - DASHBOARD, PART TWO.
+//
+// Type a floor on the keypad, press GO, travel there FAST (~8 m/s, see
+// Elevator.fastSpeed) instead of the slow UP/DOWN crawl. Nothing from Step 5
+// needed rewriting for it, exactly as planned - this file owns getting to the
+// panel and back, Step 6 only added controls to draw while you are at it.
+//
+// SCOPE CUT, DELIBERATE: the spec mockup in ELEVATOR_SPEC.md Part 2 shows a
+// full grid of every floor's state (■ reachable / □ beyond cable / ✕
+// demolished) permanently on screen. That is NOT built here. With 5 floors
+// that exist today and 20 coming in Step 11, a persistent 20-cell grid is a
+// layout I cannot verify without a screenshot and a system with nothing real
+// to show yet - Step 11 is what actually populates floor content. Instead,
+// GO validates against the same data (Campaign.DeepestReachableFloor,
+// Campaign.DestroyedRooms) and REJECTS with a reason - "12 SEALED", "12
+// BEYOND CABLE" - which is the same information, delivered reactively rather
+// than as a permanent display. The full grid is easy to add later against
+// this same validation logic once there is real content to show it against.
 //
 // ====================================================================
 // WHY THIS IS A CAMERA MOVE AND NOT A MENU.
@@ -59,6 +75,19 @@ public class ElevatorDashboard : MonoBehaviour
     ElevatorButton[] buttons;
     ElevatorButton hovered;
     TextMesh floorText;
+
+    // What you have typed so far, shown on the readout in place of the
+    // current floor while it is non-empty. Capped at two digits - the demo
+    // tops out at floor 20; three digits for the full game's 100 is a
+    // problem for whenever a cable can actually reach that deep.
+    string entryBuffer = "";
+
+    // A rejection reason, shown in place of the normal readout for a couple
+    // of seconds after a bad GO - "12 SEALED", "12 BEYOND CABLE" - then it
+    // clears itself. This is the floor-state feedback from the spec's grid
+    // mockup, just delivered reactively instead of as a permanent display.
+    string statusMsg;
+    float statusMsgUntil;
 
     // Where the camera was when we took it over, so we can put it back.
     Vector3 fromPos;
@@ -178,19 +207,87 @@ public class ElevatorDashboard : MonoBehaviour
 
         switch (b.kind)
         {
-            case ElevatorButton.Kind.Up: elevator.GoUp(); break;
-            case ElevatorButton.Kind.Down: elevator.GoDown(); break;
-            // Digit / Go / Clear / Return arrive in Steps 6 and 10.
+            case ElevatorButton.Kind.Up:
+                entryBuffer = "";
+                elevator.GoUp();
+                break;
+
+            case ElevatorButton.Kind.Down:
+                entryBuffer = "";
+                elevator.GoDown();
+                break;
+
+            case ElevatorButton.Kind.Digit:
+                if (entryBuffer.Length < 2) entryBuffer += b.digit;
+                break;
+
+            case ElevatorButton.Kind.Clear:
+                entryBuffer = "";
+                break;
+
+            case ElevatorButton.Kind.Go:
+                TryGo();
+                break;
+
+            // Return arrives in Step 10.
         }
     }
 
     /// <summary>
+    /// GO. Validates against the same reachability and demolition data the
+    /// spec's floor grid would have shown, and rejects with a reason instead
+    /// of silently doing nothing - "nothing happened" is the worst possible
+    /// response to a button press.
+    /// </summary>
+    void TryGo()
+    {
+        if (entryBuffer.Length == 0) return;
+
+        int floor = int.Parse(entryBuffer);
+        entryBuffer = "";
+
+        if (floor > elevator.lowestFloor) { Reject($"NO FLOOR {floor:00}"); return; }
+        if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }
+        if (floor > 0 && floor > Campaign.DeepestReachableFloor) { Reject($"{floor:00} BEYOND CABLE"); return; }
+
+        // fast: true is the whole point of Step 6 - this is what makes GO
+        // different from just pressing DOWN repeatedly.
+        elevator.GoToFloor(floor, fast: true);
+    }
+
+    void Reject(string message)
+    {
+        statusMsg = message;
+        statusMsgUntil = Time.time + 2f;
+    }
+
+    /// <summary>
     /// The number on the panel. Updated whether or not anyone is using it -
-    /// the readout is for the whole crew, not just the driver.
+    /// the readout is for the whole crew, not just the driver. Priority:
+    /// what you are typing, then a recent rejection reason, then the normal
+    /// floor / moving display.
     /// </summary>
     void UpdateReadout()
     {
         if (floorText == null || elevator == null) return;
+
+        if (entryBuffer.Length > 0)
+        {
+            floorText.text = entryBuffer + "_";
+            floorText.color = Color.white;
+            return;
+        }
+
+        if (statusMsg != null)
+        {
+            if (Time.time < statusMsgUntil)
+            {
+                floorText.text = statusMsg;
+                floorText.color = new Color(1f, 0.35f, 0.3f);
+                return;
+            }
+            statusMsg = null;
+        }
 
         floorText.text = elevator.IsMoving
             ? $"{elevator.CurrentFloor} > {elevator.TargetFloor}"
@@ -259,6 +356,11 @@ public class ElevatorDashboard : MonoBehaviour
         t = 0f;
         fromPos = cam.position;
         fromRot = cam.rotation;
+
+        // Start clean - a "12 SEALED" from three visits ago has no business
+        // greeting the next person who walks up to the panel.
+        entryBuffer = "";
+        statusMsg = null;
 
         // Take the camera off FirstPersonCamera. Disabling rather than
         // fighting it: it writes position and rotation every LateUpdate, and

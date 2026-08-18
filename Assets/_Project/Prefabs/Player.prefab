@@ -622,8 +622,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonHands
   cameraTransform: {fileID: 0}
-  leftHand: {x: -0.36, y: -0.22, z: 0.34}
-  rightHand: {x: 0.36, y: -0.22, z: 0.34}
+  leftHand: {x: -0.26, y: -0.24, z: 0.32}
+  rightHand: {x: 0.26, y: -0.24, z: 0.32}
   handWeight: 1
   keepInFrame: 1
   frameMargin: 0.06

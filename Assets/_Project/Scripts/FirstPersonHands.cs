@@ -71,26 +71,37 @@ public class FirstPersonHands : MonoBehaviour
     public Transform cameraTransform;
 
     [Header("Where the hands sit, in CAMERA space")]
-    // WE WERE HERE FRAMING: wide, low and CLOSE.
+    // WE WERE HERE FRAMING.
     //
-    // Their hands sit in the bottom corners and read big, which is what makes
-    // them feel like your hands rather than a distant character's. Three
-    // numbers do all the work:
+    // These offsets are measured from the EYE, so what matters is not the
+    // number itself but the WORLD height it lands on relative to the
+    // shoulder. Get that wrong and the IK reaches straight out at shoulder
+    // height, which is the zombie pose.
     //
-    //   z 0.34  close to the eye. This is the one that controls SIZE - the
-    //           nearer the hand, the larger it draws. 0.52 put them at arm's
-    //           length, which reads small and detached.
-    //   x 0.36  wide, so they frame the view from the corners instead of
-    //           meeting in the middle like a zombie.
-    //   y 0.22  low enough to stay out of the way of what you are looking at.
+    //   eye 1.55 + y -0.24  ->  hands at world 1.31
+    //   shoulder is at about 1.42
     //
-    // Do not push z below about 0.30: the arm has roughly 0.5 m of reach from
-    // the shoulder, and once the target is closer than the elbow can fold the
-    // IK starts folding the arm through the chest.
+    // So the hands sit ~11cm BELOW the shoulder and the elbow hangs. With
+    // the eye at 1.65 the same offset landed at 1.43 - dead level with the
+    // shoulder - which is why the arms looked raised.
+    //
+    //   z 0.32  controls SIZE: nearer = bigger. Also the reach budget.
+    //   x 0.26  narrow enough that the elbows stay down instead of flaring.
+    //   y 0.24  below the shoulder, which is what makes the arms hang.
+    //
+    // Reach is only about 0.5m from the shoulder on this stocky rig, and the
+    // target above already sits at 0.46m. Push x or z much further and
+    // ClampToReach straightens the arm, which looks locked and wrong.
+    //
+    // NOTE: keepInFrame clamps y to the frustum half-height at this depth
+    // (about 0.246 at z 0.32), so asking for a much lower y does nothing on
+    // its own - it gets pushed straight back up. Lower the EYE instead.
     [Tooltip("x = right, y = up, z = forward, in metres from the eye. " +
-             "z is SIZE: smaller = closer = bigger hands. Keep z above 0.30.")]
-    public Vector3 leftHand  = new Vector3(-0.36f, -0.22f, 0.34f);
-    public Vector3 rightHand = new Vector3( 0.36f, -0.22f, 0.34f);
+             "z is SIZE: smaller = closer = bigger hands. To sit the hands " +
+             "lower, drop the camera's eyeOffset, not this - the frame clamp " +
+             "limits how far down y can go.")]
+    public Vector3 leftHand  = new Vector3(-0.26f, -0.24f, 0.32f);
+    public Vector3 rightHand = new Vector3( 0.26f, -0.24f, 0.32f);
 
     [Header("Visibility")]
     [Tooltip("LEAVE AT 1. Anything lower blends the hands back toward the walk " +

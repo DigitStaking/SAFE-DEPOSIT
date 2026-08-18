@@ -158,18 +158,23 @@ public static class AnimatorBuilder
             // "Feet" re-bases the clip so the lowest foot sits on y = 0. That
             // is right for anything standing on ground, and wrong for anything
             // hanging or airborne, where the feet are supposed to dangle.
-            // WAS: jump / falling / climb / hang / rope all counted as
-            // airborne, which kept the clip's authored height instead of
-            // re-basing the feet to y = 0.
+            // WHY JUMP AND FALL MUST STAY ON "Original".
             //
-            // That existed for the rope: hanging thirty metres up, your feet
-            // are SUPPOSED to dangle. The rope is gone, and the only clips
-            // still matching were Jumping Up and Falling Idle - where keeping
-            // Mixamo's authored root height just floats the character above
-            // the floor, because the Rigidbody already owns world position.
+            // "Feet" does not measure once - it re-bases EVERY FRAME so the
+            // lowest foot sits on y = 0. On a walk that is correct, because
+            // a foot really is on the floor. In an airborne clip the legs are
+            // swinging through empty air, so the reference point keeps moving
+            // and the entire body gets shoved up and down chasing it. That
+            // reads as the character bouncing mid-fall and sinking through
+            // the floor.
             //
-            // Nothing hangs any more, so nothing needs to dangle.
-            bool airborne = false;
+            // "Original" keeps the authored height, which is stable for the
+            // whole clip. The Rigidbody owns world position anyway, so a
+            // constant offset is harmless where a per-frame one is not.
+            //
+            // climb / hang / rope are gone with the rope. jump and falling
+            // are the only airborne clips left, and they still need this.
+            bool airborne = lower.Contains("jump") || lower.Contains("falling");
 
             // Compare against the settings actually APPLIED, not Unity's
             // defaults - defaultClipAnimations always reports the defaults, so

@@ -136,10 +136,49 @@ public class ElevatorDashboard : MonoBehaviour
 
         var ft = transform.Find("Face/FloorText");
         if (ft != null) floorText = ft.GetComponent<TextMesh>();
+
+        run = Object.FindFirstObjectByType<RunManager>();
+
+        // Remember where we started so an arrival at floor 0 can be told
+        // apart from simply BEGINNING at floor 0.
+        wasMoving = elevator != null && elevator.IsMoving;
+    }
+
+    RunManager run;
+    bool wasMoving;
+
+    /// <summary>
+    /// The car arriving at the surface is what ends a run. Detected as a
+    /// transition - moving, then stopped, at floor 0 - rather than polled as
+    /// "is at floor 0", so a car that STARTS the scene parked at the surface
+    /// does not instantly end the run before anyone has moved.
+    /// </summary>
+    void CheckSurfaceArrival()
+    {
+        if (elevator == null || run == null) return;
+
+        bool moving = elevator.IsMoving;
+        bool justArrived = wasMoving && !moving;
+        wasMoving = moving;
+
+        if (justArrived && elevator.CurrentFloor == 0)
+        {
+            // If the player is standing at the panel when the run ends, hand
+            // the camera back first - the results screen needs the mouse,
+            // and Release() is what restores it along with movement.
+            if (state != State.Idle) Release();
+            run.Extract();
+        }
     }
 
     void Update()
     {
+        // FIRST, and outside every early return below. The run ends when the
+        // car reaches the surface whether or not anybody happens to be
+        // standing at the panel at that moment - a crew that pressed RETURN
+        // and then walked away to argue about the haul still arrives.
+        CheckSurfaceArrival();
+
         var kb = Keyboard.current;
         if (kb == null) return;
 
@@ -259,8 +298,63 @@ public class ElevatorDashboard : MonoBehaviour
                 TryGo();
                 break;
 
-            // Return arrives in Step 10.
+            case ElevatorButton.Kind.Return:
+                TryReturn();
+                break;
         }
+    }
+
+    /// <summary>
+    /// RETURN TO SURFACE. The departure vote from the spec, minus the vote -
+    /// with one player there is nobody to vote against, so what remains is
+    /// the half that actually matters: the check that everyone is aboard,
+    /// and NAMING whoever is not.
+    ///
+    /// "CANNOT DEPART - KARIM IS NOT ABOARD" is the spec's own example, and
+    /// the naming is the whole design. ECONOMY_AND_CAMPAIGN.md is explicit
+    /// about why: "Name them, don't just say 'someone'. With proximity
+    /// voice, three people shouting one name is the moment." A count would
+    /// tell you a problem exists; a name tells you whose problem it is.
+    /// </summary>
+    void TryReturn()
+    {
+        entryBuffer = "";
+
+        if (elevator.CurrentFloor == 0) { Reject("ALREADY AT SURFACE"); return; }
+        if (RejectIfOverloaded()) return;
+
+        string missing = FirstCrewMemberNotAboard();
+        if (missing != null) { Reject($"{missing.ToUpper()} IS NOT ABOARD"); return; }
+
+        // Floor 0 through the bridge like any other departure, so the
+        // retract warning still runs - leaving is not exempt from the
+        // countdown that makes leaving tense.
+        bridge.RequestGoToFloor(0, fast: true);
+    }
+
+    /// <summary>
+    /// The name of one crew member who is not currently inside the car, or
+    /// null if everyone is aboard.
+    ///
+    /// Reads Elevator.Riders - the same overlap query that decides who gets
+    /// carried when the car moves and whose 70kg counts toward the load. A
+    /// separate "is aboard" test could disagree with those two, and a
+    /// departure check that disagrees with the thing that physically
+    /// carries you is the worst possible kind of bug.
+    /// </summary>
+    string FirstCrewMemberNotAboard()
+    {
+        foreach (var motor in Object.FindObjectsByType<PlayerMotor>(FindObjectsSortMode.None))
+        {
+            if (motor == null) continue;
+
+            bool aboard = false;
+            foreach (var rb in elevator.Riders)
+                if (rb != null && rb.gameObject == motor.gameObject) { aboard = true; break; }
+
+            if (!aboard) return motor.gameObject.name;
+        }
+        return null;
     }
 
     /// <summary>

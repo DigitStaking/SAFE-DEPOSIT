@@ -176,12 +176,15 @@ public class RunManager : MonoBehaviour
     {
         if (State != RunState.Active) return;
 
-        // EXTRACTION IS GONE UNTIL STEP 10.
+        // EXTRACTION IS NO LONGER CHECKED HERE.
         //
-        // It measured "are you out" as depth below the rope's anchor, and
-        // there is no rope and no anchor now. Rather than invent a stand-in
-        // that Step 10 would only have to unpick, the run simply cannot end
-        // yet. The collapse below still runs, so the floor still kills you.
+        // It used to poll "is everyone above depth X" every frame, because
+        // with a rope there was no single moment that meant 'the run is
+        // over' - people trickled up one at a time. The elevator replaces
+        // that with an actual event: the car reaches floor 0 with the crew
+        // inside. So extraction is PUSHED by ElevatorDashboard calling
+        // Extract() rather than polled for, and this method is left with
+        // only the collapse to run.
         UpdateCollapse();
     }
 
@@ -196,11 +199,18 @@ public class RunManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Ends the run and counts the haul. Nothing calls this in Step 2 -
-    /// Step 10 wires it to the elevator arriving at the surface.
+    /// Ends the run and counts the haul. Called by ElevatorDashboard the
+    /// moment the car reaches the surface with the crew aboard - the
+    /// departure vote and the "who is missing" check live there, because
+    /// that is where the button is. This method's only job is to settle up.
+    ///
+    /// Idempotent: a second call after the run has already ended does
+    /// nothing, so a stray arrival event cannot double-count the haul.
     /// </summary>
-    void Extract()
+    public void Extract()
     {
+        if (State != RunState.Active) return;
+
         // Surfacing commits the currently charged room — even if you leave
         // early. Stay longer = more timers complete mid-run = more rooms gone.
         OnExtractSeal();
@@ -229,28 +239,42 @@ public class RunManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Everything you actually got out with: clipped to the rope, on your
-    /// back, or in your hands. Loot still lying on a floor does not count,
-    /// which is the entire reason the rope matters.
+    /// Everything you actually got out with: in a player's hands, on their
+    /// back, or lying loose anywhere inside the car. Loot still on a floor
+    /// does not count, which is the entire reason the load limit matters.
+    ///
+    /// The "loose in the car" half is deliberately the SAME rule
+    /// ElevatorDeck uses to compute load - if its mass counted against the
+    /// cable on the way up, its value counts on arrival. Anything else
+    /// would mean loot that costs you capacity but pays nothing.
     /// </summary>
     int CountRecoveredValue()
     {
         int total = 0;
 
+        var deckLoot = new HashSet<Carryable>();
+        var lift = FindFirstObjectByType<Elevator>();
+        if (lift != null)
+            foreach (var rb in lift.Riders)
+            {
+                if (rb == null) continue;
+                var c = rb.GetComponent<Carryable>();
+                if (c != null) deckLoot.Add(c);
+            }
+
         foreach (var c in FindObjectsByType<Carryable>(FindObjectsSortMode.None))
         {
             if (c == null) continue;
 
-            // Free-but-inside-the-elevator loot does NOT count here yet - this
-            // method predates the elevator entirely and still only knows
-            // about a player's own hands and pack. Step 10 (extraction) has
-            // to teach it "or sitting anywhere in the car when it reaches
-            // the surface", the same rule ElevatorDeck.cs now uses for load.
             switch (c.State)
             {
                 case Carryable.CarryState.Stowed:
                 case Carryable.CarryState.Held:
                     total += c.value;
+                    break;
+
+                case Carryable.CarryState.Free:
+                    if (deckLoot.Contains(c)) total += c.value;
                     break;
             }
         }

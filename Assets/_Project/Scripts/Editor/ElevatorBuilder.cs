@@ -474,6 +474,24 @@ public static class ElevatorBuilder
         MakeButton(face.transform, "Button_Down", new Vector3(arrowsCx, arrowDownCy, 0.045f),
                    ElevatorButton.Kind.Down, "DOWN", steel, new Vector3(arrowW, arrowH, 0.05f), 0.0022f);
 
+        // ---- STEP 10: RETURN TO SURFACE. "The big red one." ----
+        //
+        // On the HOUSING, below the fascia - not squeezed into the keypad
+        // grid above, which is already full. That separation is the point,
+        // not a layout compromise: every other control on this panel picks
+        // WHICH FLOOR. This one ends the run. A button that means something
+        // categorically different should not sit in the same grid as the
+        // digits, at the same size, in the same colour - it should be
+        // somewhere your hand has to travel to deliberately.
+        //
+        // Parented to dash rather than face so it stays flat on the housing
+        // instead of inheriting the fascia's 16-degree tilt.
+        var ret = MakeButton(dash.transform, "Button_Return",
+                             new Vector3(0f, -0.30f, 0.20f),
+                             ElevatorButton.Kind.Return, "RETURN", hazard,
+                             new Vector3(0.62f, 0.14f, 0.06f), 0.0026f);
+        ret.transform.localRotation = Quaternion.Euler(-70f, 0f, 0f);
+
         // WHERE THE CAMERA STANDS.
         //
         // Pulled back again for Step 6: at 0.62 back the fascia's HORIZONTAL

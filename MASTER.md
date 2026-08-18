@@ -19,7 +19,7 @@ Last updated: 14 Aug 2026, after the elevator decision.
 | **`ECONOMY_AND_CAMPAIGN.md`** | the numbers. Rooms, rounds, loot, mass, shop, survivors, rescue |
 | **`PUZZLES.md`** | all 25 puzzles, the lock/key/modifier kit, placement rules |
 | **`ELEVATOR_SPEC.md`** | the elevator, and the 12-step build order |
-| **`DEMO_PLAN.md`** | schedule to Next Fest, consistency check, cut list |
+| **`DEMO_PLAN.md`** | schedule to Next Fest, consistency check, cut list — **rewritten 18 Aug 2026 for the elevator** |
 | **`ANIMATIONS.md`** | animation system, clip list, two-layer Animator |
 
 ## Superseded — do not follow these
@@ -231,6 +231,17 @@ Paste this at the start of any new session:
 
 # 8. THE NEXT THING TO DO
 
-**Step 1: commit.** Around 6,000 lines are still untracked, including every
-document in this index. Tag it `v0.1-rope-era` — it's the last save point where
-the rope exists, and you may want to look at it again.
+**Step 1 is done.** 18 Aug 2026 — the project is committed, pushed to GitHub and
+tagged `v0.1-rope-era`.
+
+What Step 1 actually turned out to be: the code was already committed locally,
+but `Untitled.glb` — a 942 MB unreferenced export — sat above GitHub's 100 MB
+per-file hard limit and had been silently blocking every push. The entire
+project existed on one disk. Removed from history, gitignored, pushed.
+
+**Next: `ELEVATOR_SPEC.md` Step 2 — delete the six rope files.**
+
+## Scope decision, 18 Aug 2026
+
+**The demo is built first and alone: 20 floors, 5 Tier-1 puzzles, 10 rounds.**
+Nothing from the full game gets built until the demo ships. See `DEMO_PLAN.md`.

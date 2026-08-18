@@ -81,10 +81,14 @@ public static class ElevatorBuilder
     const float BridgeWidth  = 1.6f;
 
     // Where to park it so you can look at it. Level_01's floor sits at
-    // world y = -4 (GrayboxBuilder puts level i at -FloorHeight * i), and the
-    // car's local origin is its FLOOR SURFACE, so -4 lines the car's floor up
-    // with the room's floor and you can walk straight across.
-    const float ParkY = -4f;
+    // world y = -FloorHeight (GrayboxBuilder puts level i at -FloorHeight*i),
+    // and the car's local origin is its FLOOR SURFACE, so this lines the
+    // car's floor up with the room's and you can walk straight across.
+    //
+    // -5, not -4: Step 12 raised FloorHeight to 5 so one cable purchase buys
+    // exactly one floor. Left at -4 the car would park a metre below floor 1
+    // and Elevator.FloorAt would round it to the wrong storey on Awake.
+    const float ParkY = -5f;
 
     // EVERY SHUTTER IS BUILT CLOSED.
     //
@@ -205,7 +209,7 @@ public static class ElevatorBuilder
         // Elevator carries [RequireComponent(typeof(Rigidbody))], so the
         // kinematic body arrives with it and configures itself in Awake.
         var lift = root.AddComponent<Elevator>();
-        lift.floorHeight = 4f;      // GrayboxBuilder.FloorHeight
+        lift.floorHeight = 5f;      // GrayboxBuilder.FloorHeight / Campaign.FloorHeight
         lift.lowestFloor = 20;      // GrayboxBuilder.LevelCount
         lift.activeSide = "Side_East";
 

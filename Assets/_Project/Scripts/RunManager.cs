@@ -37,37 +37,27 @@ public class RunManager : MonoBehaviour
     [Header("Quota")]
     [Tooltip("Read from Campaign at runtime - shown here for reference only. " +
              "It rises every run.")]
-    public int quota = 800;
+    public int quota = 200;   // Campaign.BaseMafia; overwritten from Campaign at Start
 
-    [Header("The deadline")]
     // ------------------------------------------------------------------
-    // ONE RUN, ONE DEADLINE, SHARED BY EVERYONE.
+    // THERE IS NO RUN TIMER. THE ROOMS DIE, NOT YOU.
     //
-    // When it reaches zero the government fires the charges. Anyone still
-    // below the surface dies - and if ANY member of the crew dies, the whole
-    // run is lost. Not "you continue with three players". Everyone loses.
+    // runTime = 600 used to sit here as a hard cap on the whole run, and
+    // DEMO_PLAN.md's consistency check flagged it as one of four things
+    // that were "genuinely not logical yet": "The design says you can stay
+    // as long as you like - the ROOMS die, not you. A hard 10-minute cap
+    // contradicts the entire pressure system."
     //
-    // That rule is what turns the timer from an annoyance into the loudest
-    // thing in the game. You cannot leave without accounting for every
-    // single person, which means the last two minutes of every run are four
-    // people shouting positions at each other.
+    // It is gone, along with firstWarning and panicWindow, which were read
+    // by nothing at all - leftovers from the rope-era ascent countdown.
+    //
+    // roomChargeTime below is the real clock and always was. Every 10
+    // minutes you are still down there, a room seals; leaving seals the one
+    // currently counting down. That produces the design's
+    // floor(runMinutes / 10) + 1 without ever telling a crew to hurry up.
     // ------------------------------------------------------------------
 
-    [Tooltip("Seconds in a run before the charges fire.\n\n" +
-             "Set per floor: a floor with a long puzzle chain gets more time " +
-             "than a smash-and-grab. Around 10 to 20 minutes shipped; keep it " +
-             "much shorter while testing or you will lose a whole afternoon " +
-             "to five runs.")]
-    public float runTime = 600f;
-
-    [Tooltip("Seconds before zero that the first warning fires.")]
-    public float firstWarning = 120f;
-
-    [Tooltip("Seconds before zero at which the countdown becomes constant and " +
-             "loud - the point where anyone still deep has already lost.")]
-    public float panicWindow = 30f;
-
-    [Tooltip("Turn the deadline off entirely while tuning other things.")]
+    [Tooltip("Turn the collapse off entirely while tuning other things.")]
     public bool enableCollapse = true;
 
     [Header("Room charges (mid-run)")]
@@ -120,7 +110,7 @@ public class RunManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Pull the persistent campaign state into this run: how much rope you
+    /// Pull the persistent campaign state into this run: how much cable you
     /// bought, which floors the government has already blown, what the mafia
     /// wants this time.
     ///
@@ -137,7 +127,7 @@ public class RunManager : MonoBehaviour
         foreach (int room in Campaign.DestroyedRooms)
             SealRoomIndex(room, killOccupants: false);
 
-        if (Campaign.RopeIsUseless)
+        if (Campaign.CableIsUseless)
             Announce("your cable only reaches rooms that are already gone");
     }
 
@@ -326,8 +316,11 @@ public class RunManager : MonoBehaviour
 
     void ScheduleNextRoomCharge(bool initial)
     {
-        float t = initial ? Mathf.Min(runTime, roomChargeTime) : roomChargeTime;
-        nextRoomDeadline = Time.time + t;
+        // Was Mathf.Min(runTime, roomChargeTime) for the first charge - the
+        // last thing runTime did. With no run timer there is nothing to take
+        // a minimum against: every charge, first or not, is one full
+        // roomChargeTime.
+        nextRoomDeadline = Time.time + roomChargeTime;
         roomWarned = false;
         threatenedRoom = 0;
         ChooseThreatenedRoom();
@@ -570,33 +563,33 @@ public class RunManager : MonoBehaviour
         var status = new GUIStyle(GUI.skin.label)
         { fontSize = 15, alignment = TextAnchor.MiddleCenter };
 
-        status.normal.textColor = Campaign.RopeIsUseless
+        status.normal.textColor = Campaign.CableIsUseless
             ? new Color(1f, 0.35f, 0.3f)
             : (Campaign.LiveRoomsInReach <= 1
                 ? new Color(1f, 0.7f, 0.3f)
                 : new Color(1f, 1f, 1f, 0.65f));
 
         GUI.Label(new Rect(0f, y + 34f, Screen.width, 22f),
-            $"rope {Campaign.RopeLength:0}m reaches floor {Campaign.DeepestReachableFloor}" +
+            $"cable {Campaign.CableLength:0}m reaches floor {Campaign.DeepestReachableFloor}" +
             $"      sealed rooms: {Campaign.DestroyedRooms.Count}" +
             $"      live rooms in reach: {Campaign.LiveRoomsInReach}", status);
 
-        if (Campaign.RopeIsUseless)
+        if (Campaign.CableIsUseless)
         {
             status.normal.textColor = new Color(1f, 0.35f, 0.3f);
             GUI.Label(new Rect(0f, y + 56f, Screen.width, 22f),
-                "no live rooms left in rope range. buy rope or this is over.",
+                "no live rooms left in cable range. buy cable or this is over.",
                 status);
         }
 
         float by = y + 92f;
 
-        // ---- rope ----
-        GUI.enabled = Campaign.Money >= Campaign.RopeChunkCost;
+        // ---- cable ----
+        GUI.enabled = Campaign.Money >= Campaign.CableChunkCost;
         if (GUI.Button(new Rect(cx - 250f, by, 240f, 40f),
-                       $"+{Campaign.RopeChunk}m rope   ({Campaign.RopeChunkCost})"))
+                       $"+{Campaign.CableChunk}m cable   ({Campaign.CableChunkCost})"))
         {
-            Campaign.BuyRope();
+            Campaign.BuyCable();
         }
 
         // ---- backpack ----
@@ -611,7 +604,7 @@ public class RunManager : MonoBehaviour
 
         body.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
         GUI.Label(new Rect(0f, by + 46f, Screen.width, 22f),
-            $"next run quota {Campaign.BaseQuota + Campaign.RunNumber * Campaign.QuotaStep}" +
+            $"next run quota {Campaign.NextQuota}" +
             $"  —  each 10 min a room seals; leaving seals the charged room too", body);
 
         if (GUI.Button(new Rect(cx - 110f, by + 82f, 220f, 40f), "go back down"))

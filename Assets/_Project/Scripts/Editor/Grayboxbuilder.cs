@@ -49,7 +49,11 @@ public static class GrayboxBuilder
     // note in ELEVATOR_SPEC.md.
     const float ShaftInner = 14f;   // interior width and depth of the shaft
     const float WallThick = 0.5f;
-    const float FloorHeight = 4f;    // vertical distance between levels
+    // 5, not 4. Step 12: this is metres of cable per floor as well as
+    // physical spacing, and ECONOMY_AND_CAMPAIGN.md prices one cable
+    // purchase (Campaign.CableChunk) at exactly one floor. Must stay equal
+    // to Campaign.FloorHeight and Elevator.floorHeight.
+    const float FloorHeight = 5f;    // vertical distance between levels
     const float RoomDepth = 6f;    // how far a room extends from the shaft
     const float DoorWidth = 2f;
     const float DoorHeight = 2.5f;

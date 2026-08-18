@@ -42,8 +42,9 @@ public class Elevator : MonoBehaviour
     [Tooltip("World Y of floor 0, the surface. Floor N sits floorHeight below it.")]
     public float surfaceY = 0f;
 
-    [Tooltip("Must match GrayboxBuilder.FloorHeight, or the car stops between floors.")]
-    public float floorHeight = 4f;
+    [Tooltip("Must match GrayboxBuilder.FloorHeight and Campaign.FloorHeight, " +
+             "or the car stops between floors.")]
+    public float floorHeight = 5f;
 
     [Tooltip("Deepest floor that exists. Must match GrayboxBuilder.LevelCount.")]
     public int lowestFloor = 20;

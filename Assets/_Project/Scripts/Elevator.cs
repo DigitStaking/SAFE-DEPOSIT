@@ -231,7 +231,17 @@ public class Elevator : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
-    // INPUT - a stand-in for the dashboard's UP and DOWN buttons.
+    // DEBUG INPUT
+    //
+    // PageUp/PageDown were the Step 4 stand-in for the dashboard's UP and
+    // DOWN, from before the dashboard existed. They are now clamped to
+    // floor 1 as well: they call GoToFloor DIRECTLY, skipping the bridge's
+    // retract warning AND the departure checks, so leaving them able to
+    // reach floor 0 made them a debug key that could silently end a run.
+    //
+    // Kept rather than deleted - being able to move the car without walking
+    // to the panel is genuinely useful while building the next steps - but
+    // they can no longer do anything the dashboard would have refused.
     // ------------------------------------------------------------------
 
     void Update()
@@ -239,7 +249,7 @@ public class Elevator : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null) return;
 
-        if (kb.pageUpKey.wasPressedThisFrame) GoUp();
+        if (kb.pageUpKey.wasPressedThisFrame && TargetFloor > 1) GoUp();
         if (kb.pageDownKey.wasPressedThisFrame) GoDown();
 
         DriveShutters();

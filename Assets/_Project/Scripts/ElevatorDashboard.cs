@@ -255,7 +255,15 @@ public class ElevatorDashboard : MonoBehaviour
             if (b == null) continue;
             b.Interactable = b.kind switch
             {
-                ElevatorButton.Kind.Up   => !busy && elevator.CurrentFloor > 0,
+                // UP stops at floor 1, NOT floor 0.
+                //
+                // Floor 0 is the surface - reaching it ENDS THE RUN. Letting
+                // UP walk you there from floor 1 meant one keypress skipped
+                // every check RETURN exists to enforce: nobody counted the
+                // crew, nobody checked the load, and the run just ended.
+                // Floor 0 is now reachable only through TryReturn(), which
+                // is where those checks live.
+                ElevatorButton.Kind.Up   => !busy && elevator.CurrentFloor > 1,
                 ElevatorButton.Kind.Down => !busy && elevator.CurrentFloor < elevator.lowestFloor,
                 _ => !busy
             };
@@ -369,6 +377,13 @@ public class ElevatorDashboard : MonoBehaviour
 
         int floor = int.Parse(entryBuffer);
         entryBuffer = "";
+
+        // Typing 0 is asking to go to the surface, which ENDS THE RUN - the
+        // same thing RETURN does, so it goes through the same door rather
+        // than round it. Handing it to TryReturn() means the crew check and
+        // the load check apply however you asked, instead of the keypad
+        // being a quiet bypass for both.
+        if (floor == 0) { TryReturn(); return; }
 
         if (floor > elevator.lowestFloor) { Reject($"NO FLOOR {floor:00}"); return; }
         if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }

@@ -364,27 +364,37 @@ public static class ElevatorBuilder
 
         // Housing, then the fascia tilted back so it faces a standing player
         // rather than the opposite wall.
+        // 0.96 tall, up from 0.78, to stay a backing for the now-taller
+        // 0.88 fascia rather than a plate the fascia overhangs.
         Box("Housing", dash.transform, new Vector3(0f, 0f, 0.09f),
-            new Vector3(1.0f, 0.78f, 0.18f), steel);
+            new Vector3(1.0f, 0.96f, 0.18f), steel);
 
         var face = new GameObject("Face");
         face.transform.SetParent(dash.transform, false);
         face.transform.localPosition = new Vector3(0f, 0.02f, 0.18f);
         face.transform.localRotation = Quaternion.Euler(-16f, 0f, 0f);
 
+        // Fascia grown 0.70 -> 0.88 tall for Step 10's RETURN button.
+        //
+        // The first attempt put RETURN on the HOUSING below the fascia,
+        // reasoning that a button which ends the run should sit apart from
+        // the ones that pick a floor. It was invisible in play: the housing's
+        // front face is BEHIND the tilted fascia's bottom edge, so RETURN
+        // rendered behind GO and only its label bled through. The idea was
+        // right, the surface was wrong - it now gets its own strip at the
+        // bottom OF the fascia, which reads as separate without hiding.
+        //
+        // Everything else keeps its exact size: the keypad band is still
+        // 0.44 tall, just shifted up, so no button changed dimensions.
         Box("Fascia", face.transform, Vector3.zero,
-            new Vector3(0.92f, 0.70f, 0.04f), panel);
+            new Vector3(0.92f, 0.88f, 0.04f), panel);
 
         // ---- the screen ----
-        //
-        // Grown from 0.22 to 0.25 tall for Step 8's load line - bottom edge
-        // held at 0.09 (flush with the keypad's own top boundary) so it only
-        // grows UPWARD, into the margin the fascia already had to spare.
         //
         // Front face lands at z = 0.026. Everything drawn ON the screen must
         // sit in FRONT of that or the box hides it - the readout was at 0.012
         // once and the white slab ate the bottom half of the number.
-        Box("Screen", face.transform, new Vector3(0f, 0.215f, 0.021f),
+        Box("Screen", face.transform, new Vector3(0f, 0.30f, 0.021f),
             new Vector3(0.78f, 0.25f, 0.01f), screen);
 
         // Real world-space text, not a canvas. The panel is an object in a
@@ -395,17 +405,17 @@ public static class ElevatorBuilder
         // TextMesh rather than TextMeshPro: TMP's runtime ships with the
         // project but its essential assets are a manual import, and a missing
         // font renders nothing at all with no error.
-        Label("FloorText", face.transform, new Vector3(0f, 0.275f, 0.034f),
+        Label("FloorText", face.transform, new Vector3(0f, 0.36f, 0.034f),
               "--", 0.0070f, new Color(0.35f, 0.92f, 1f), bold: true);
 
         // Step 8: the load gauge, smaller, sitting under the floor number.
         // ElevatorDeck.cs drives both its text and colour every frame -
         // green/amber/red, matching the gauge the spec's dashboard mockup
         // describes.
-        Label("LoadText", face.transform, new Vector3(0f, 0.145f, 0.034f),
+        Label("LoadText", face.transform, new Vector3(0f, 0.23f, 0.034f),
               "--/---", 0.0045f, new Color(0.4f, 0.9f, 0.55f), bold: true);
 
-        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.215f, 0.04f));
+        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.30f, 0.04f));
 
         // ---- STEP 6: numeric keypad, left. UP / DOWN, right. ----
         //
@@ -416,8 +426,10 @@ public static class ElevatorBuilder
         // that already existed without either zone feeling like an
         // afterthought.
         //
-        // Below-screen area is x[-0.46, 0.46], y[-0.35, 0.09].
-        const float BelowY0 = -0.35f, BelowY1 = 0.09f;
+        // Below-screen band, shifted up by the fascia's extra height so the
+        // bottom strip is free for RETURN. Still 0.44 tall, so every button
+        // below keeps the exact dimensions it had before.
+        const float BelowY0 = -0.29f, BelowY1 = 0.15f;
         const float KeypadX0 = -0.46f, KeypadX1 = 0.16f;   // 0.62m wide
         const float ArrowsX0 = 0.16f, ArrowsX1 = 0.46f;    // 0.30m wide
 
@@ -476,21 +488,14 @@ public static class ElevatorBuilder
 
         // ---- STEP 10: RETURN TO SURFACE. "The big red one." ----
         //
-        // On the HOUSING, below the fascia - not squeezed into the keypad
-        // grid above, which is already full. That separation is the point,
-        // not a layout compromise: every other control on this panel picks
-        // WHICH FLOOR. This one ends the run. A button that means something
-        // categorically different should not sit in the same grid as the
-        // digits, at the same size, in the same colour - it should be
-        // somewhere your hand has to travel to deliberately.
-        //
-        // Parented to dash rather than face so it stays flat on the housing
-        // instead of inheriting the fascia's 16-degree tilt.
-        var ret = MakeButton(dash.transform, "Button_Return",
-                             new Vector3(0f, -0.30f, 0.20f),
-                             ElevatorButton.Kind.Return, "RETURN", hazard,
-                             new Vector3(0.62f, 0.14f, 0.06f), 0.0026f);
-        ret.transform.localRotation = Quaternion.Euler(-70f, 0f, 0f);
+        // Its own full-width strip along the bottom of the fascia, below the
+        // keypad band and clear of it. Every other control on this panel
+        // picks WHICH FLOOR; this one ends the run, so it gets its own row,
+        // its own width, and the hazard colour rather than a slot in the
+        // digit grid at digit size.
+        MakeButton(face.transform, "Button_Return", new Vector3(0f, -0.365f, 0.045f),
+                   ElevatorButton.Kind.Return, "RETURN", hazard,
+                   new Vector3(0.84f, 0.12f, 0.05f), 0.0030f);
 
         // WHERE THE CAMERA STANDS.
         //

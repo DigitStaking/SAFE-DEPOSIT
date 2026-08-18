@@ -315,11 +315,39 @@ public static class ElevatorBuilder
 
         Box("Fascia", face.transform, Vector3.zero,
             new Vector3(0.92f, 0.70f, 0.04f), panel);
-        Box("Screen", face.transform, new Vector3(0f, 0.13f, 0.03f),
-            new Vector3(0.74f, 0.36f, 0.01f), glow);
 
-        // Step 6 draws the floor list on the screen and Step 8 the load gauge.
-        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.13f, 0.04f));
+        // ---- the screen ----
+        Box("Screen", face.transform, new Vector3(0f, 0.17f, 0.025f),
+            new Vector3(0.76f, 0.26f, 0.01f), glow);
+
+        // Real world-space text, not a canvas. The panel is an object in a
+        // room, so its readout has to be lit by the cage light, hidden when
+        // somebody stands in front of it, and visible to the rest of the crew.
+        // A screen-space label would be none of those things.
+        //
+        // TextMesh rather than TextMeshPro: TMP's runtime ships with the
+        // project but its essential assets are a manual import, and a missing
+        // font renders nothing at all with no error.
+        // TUNE THESE TWO IF THE TEXT IS THE WRONG SIZE.
+        // TextMesh scale is fontSize x characterSize and the relationship is
+        // not obvious from either number alone. This is the readout, so it
+        // wants to be roughly twice the height of a button label.
+        Label("FloorText", face.transform, new Vector3(0f, 0.17f, 0.012f),
+              "--", 0.020f, new Color(0.15f, 0.85f, 1f));
+
+        // Step 8 hangs the load gauge here.
+        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.17f, 0.04f));
+
+        // ---- the two buttons ----
+        //
+        // Left and right rather than stacked: the fascia is wider than it is
+        // tall once the screen has the top half, and a 0.34m target is one
+        // you can hit without pixel-hunting. Step 6 puts the keypad where
+        // there is room below.
+        MakeButton(face.transform, "Button_Up", new Vector3(-0.20f, -0.16f, 0.045f),
+                   ElevatorButton.Kind.Up, "UP", steel, glow);
+        MakeButton(face.transform, "Button_Down", new Vector3(0.20f, -0.16f, 0.045f),
+                   ElevatorButton.Kind.Down, "DOWN", steel, glow);
 
         // Standing position: back from the panel, at eye height, looking at it.
         var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.42f, 0.95f));
@@ -432,6 +460,79 @@ public static class ElevatorBuilder
         // clones it for every object and leaves dozens of duplicates.
         if (mat != null) go.GetComponent<MeshRenderer>().sharedMaterial = mat;
 
+        return go;
+    }
+
+    /// <summary>
+    /// A physical button: a box that sticks out of the fascia, with a
+    /// collider to raycast against and a label sitting on its face.
+    /// </summary>
+    static GameObject MakeButton(Transform face, string name, Vector3 localPos,
+                                 ElevatorButton.Kind kind, string text,
+                                 Material body, Material glow)
+    {
+        // Depth 0.05 against a fascia 0.04 thick, sitting proud of it. A flush
+        // button reads as a sticker; one you can see the side of reads as
+        // something to push.
+        var go = Box(name, face, localPos, new Vector3(0.34f, 0.20f, 0.05f), body);
+
+        var btn = go.AddComponent<ElevatorButton>();
+        btn.kind = kind;
+
+        // Parented to the BUTTON, so it sinks with it when pressed. Parent it
+        // to the fascia instead and the label floats while the button moves.
+        //
+        // z +0.55 in the button's own space: the box is one unit deep before
+        // its 0.05 scale, so half a unit is the front face and a little more
+        // lifts the text clear of it.
+        Label(name + "_Label", go.transform, new Vector3(0f, 0f, 0.55f),
+              text, 0.010f, Color.white);
+
+        return go;
+    }
+
+    /// <summary>
+    /// World-space text. characterSize is in metres per unit of fontSize, so
+    /// the two multiply - fontSize high for crisp glyphs, characterSize small
+    /// to bring them back to a sane physical size.
+    /// </summary>
+    static GameObject Label(string name, Transform parent, Vector3 localPos,
+                            string text, float size, Color colour)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPos;
+
+        // The label lives on the FRONT of whatever it is attached to, and a
+        // child of a scaled box inherits that scale - so undo it, or text on
+        // a 0.34 x 0.20 x 0.05 button comes out smeared.
+        var s = parent.localScale;
+        go.transform.localScale = new Vector3(
+            s.x != 0f ? 1f / s.x : 1f,
+            s.y != 0f ? 1f / s.y : 1f,
+            s.z != 0f ? 1f / s.z : 1f);
+
+        var tm = go.AddComponent<TextMesh>();
+        tm.text = text;
+        tm.fontSize = 96;
+        tm.characterSize = size;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.color = colour;
+
+        // "Arial.ttf" was removed in newer Unity; this is the replacement and
+        // it is always present, so no font asset has to be imported.
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font != null)
+        {
+            tm.font = font;
+            go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+        }
+
+        // No rotation. TextMesh is readable when viewed from its +Z side, and
+        // the fascia's +Z already points at whoever is standing at the panel,
+        // so it is facing the right way already. Adding a 180 here - which is
+        // the obvious guess - shows you the back of every glyph.
         return go;
     }
 

@@ -54,6 +54,11 @@ public class ElevatorDashboard : MonoBehaviour
     PlayerInput playerInput;
     FirstPersonCamera fpCam;
     Transform cam;
+    Camera camComponent;
+
+    ElevatorButton[] buttons;
+    ElevatorButton hovered;
+    TextMesh floorText;
 
     // Where the camera was when we took it over, so we can put it back.
     Vector3 fromPos;
@@ -77,9 +82,15 @@ public class ElevatorDashboard : MonoBehaviour
 
         if (Camera.main != null)
         {
+            camComponent = Camera.main;
             cam = Camera.main.transform;
             fpCam = Camera.main.GetComponent<FirstPersonCamera>();
         }
+
+        buttons = GetComponentsInChildren<ElevatorButton>(true);
+
+        var ft = transform.Find("Face/FloorText");
+        if (ft != null) floorText = ft.GetComponent<TextMesh>();
     }
 
     void Update()
@@ -100,6 +111,94 @@ public class ElevatorDashboard : MonoBehaviour
             Exit();
             return;
         }
+
+        if (state == State.Active) UpdatePointer();
+        UpdateReadout();
+    }
+
+    // ------------------------------------------------------------------
+    // POINTING AT A PHYSICAL BUTTON
+    //
+    // A raycast from the camera through the cursor. This is what a UI Canvas
+    // would have done for us, and it is about fifteen lines to do by hand -
+    // a fair price for buttons that live in the room, catch the cage light,
+    // and can be seen being pressed by everyone else in the car.
+    // ------------------------------------------------------------------
+
+    void UpdatePointer()
+    {
+        var mouse = Mouse.current;
+        if (mouse == null || camComponent == null) return;
+
+        RefreshInteractable();
+
+        ElevatorButton hit = null;
+        Ray ray = camComponent.ScreenPointToRay(mouse.position.ReadValue());
+
+        // Short range: the panel is half a metre away. A long ray would let
+        // you press buttons through the far wall of the car.
+        if (Physics.Raycast(ray, out RaycastHit info, 4f, ~0, QueryTriggerInteraction.Ignore))
+            hit = info.collider.GetComponentInParent<ElevatorButton>();
+
+        if (hit != null && !hit.Interactable) hit = null;
+
+        if (hit != hovered)
+        {
+            if (hovered != null) hovered.SetHover(false);
+            hovered = hit;
+            if (hovered != null) hovered.SetHover(true);
+        }
+
+        if (hovered != null && mouse.leftButton.wasPressedThisFrame)
+        {
+            hovered.Poke();
+            Activate(hovered);
+        }
+    }
+
+    void RefreshInteractable()
+    {
+        if (buttons == null || elevator == null) return;
+
+        foreach (var b in buttons)
+        {
+            if (b == null) continue;
+            b.Interactable = b.kind switch
+            {
+                ElevatorButton.Kind.Up   => !elevator.IsMoving && elevator.CurrentFloor > 0,
+                ElevatorButton.Kind.Down => !elevator.IsMoving && elevator.CurrentFloor < elevator.lowestFloor,
+                _ => !elevator.IsMoving
+            };
+        }
+    }
+
+    void Activate(ElevatorButton b)
+    {
+        if (elevator == null) return;
+
+        switch (b.kind)
+        {
+            case ElevatorButton.Kind.Up: elevator.GoUp(); break;
+            case ElevatorButton.Kind.Down: elevator.GoDown(); break;
+            // Digit / Go / Clear / Return arrive in Steps 6 and 10.
+        }
+    }
+
+    /// <summary>
+    /// The number on the panel. Updated whether or not anyone is using it -
+    /// the readout is for the whole crew, not just the driver.
+    /// </summary>
+    void UpdateReadout()
+    {
+        if (floorText == null || elevator == null) return;
+
+        floorText.text = elevator.IsMoving
+            ? $"{elevator.CurrentFloor} > {elevator.TargetFloor}"
+            : $"{elevator.CurrentFloor:00}";
+
+        floorText.color = elevator.IsMoving
+            ? new Color(1f, 0.72f, 0.25f)
+            : new Color(0.15f, 0.85f, 1f);
     }
 
     // The camera has to be placed AFTER FirstPersonCamera would have run, or
@@ -207,73 +306,38 @@ public class ElevatorDashboard : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
-    // THE PANEL ITSELF
+    // THE ONLY SCREEN-SPACE TEXT LEFT.
     //
-    // Throwaway OnGUI, same as every other HUD in the project so far. Step 6
-    // replaces it with the real layout - floor grid, numeric entry, GO, and
-    // the load gauge. Drawn in screen space over the panel the camera is
-    // looking at, which is a graybox shortcut and looks fine at this stage.
+    // The panel itself is real geometry - buttons you raycast, a readout that
+    // is lit by the cage light and can be blocked by somebody standing in
+    // front of it. What stays on the screen is the bit that is not a physical
+    // object: a prompt telling you the key, and a reminder of how to leave.
+    //
+    // Those two are genuinely information ABOUT the world rather than IN it,
+    // which is the line worth holding when deciding what gets a mesh.
     // ------------------------------------------------------------------
 
     void OnGUI()
     {
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
 
+        var style = new GUIStyle(GUI.skin.label)
+        { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+
         if (state == State.Idle)
         {
             if (!PlayerIsNear()) return;
 
-            var prompt = new GUIStyle(GUI.skin.label)
-            { fontSize = 15, alignment = TextAnchor.MiddleCenter };
-            prompt.normal.textColor = new Color(0.4f, 0.85f, 1f);
-
+            style.normal.textColor = new Color(0.4f, 0.85f, 1f);
             GUI.Label(new Rect((Screen.width - 700f) * 0.5f, Screen.height * 0.5f + 60f, 700f, 24f),
-                      "F   use the dashboard", prompt);
+                      "F   use the dashboard", style);
             return;
         }
 
-        if (state != State.Active || elevator == null) return;
+        if (state != State.Active) return;
 
-        float w = 320f, h = 250f;
-        float x = (Screen.width - w) * 0.5f;
-        float y = (Screen.height - h) * 0.5f;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.55f);
-        GUI.Box(new Rect(x, y, w, h), GUIContent.none);
-        GUI.color = Color.white;
-
-        var head = new GUIStyle(GUI.skin.label)
-        { fontSize = 22, alignment = TextAnchor.MiddleCenter };
-        head.normal.textColor = elevator.IsMoving
-            ? new Color(1f, 0.75f, 0.3f)
-            : new Color(0.55f, 0.9f, 1f);
-
-        GUI.Label(new Rect(x, y + 14f, w, 30f),
-                  elevator.IsMoving
-                      ? $"{elevator.CurrentFloor}  →  {elevator.TargetFloor}"
-                      : $"FLOOR  {elevator.CurrentFloor:00}", head);
-
-        var sub = new GUIStyle(GUI.skin.label)
-        { fontSize = 12, alignment = TextAnchor.MiddleCenter };
-        sub.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
-        GUI.Label(new Rect(x, y + 46f, w, 20f),
-                  elevator.CurrentFloor == 0 ? "surface" : "", sub);
-
-        // Buttons go dead while moving. The car refuses anyway - this makes
-        // the refusal visible instead of silent.
-        GUI.enabled = !elevator.IsMoving && elevator.CurrentFloor > 0;
-        if (GUI.Button(new Rect(x + 40f, y + 78f, w - 80f, 46f), "▲   UP"))
-            elevator.GoUp();
-
-        GUI.enabled = !elevator.IsMoving && elevator.CurrentFloor < elevator.lowestFloor;
-        if (GUI.Button(new Rect(x + 40f, y + 132f, w - 80f, 46f), "▼   DOWN"))
-            elevator.GoDown();
-
-        GUI.enabled = true;
-
-        var foot = new GUIStyle(GUI.skin.label)
-        { fontSize = 12, alignment = TextAnchor.MiddleCenter };
-        foot.normal.textColor = new Color(1f, 1f, 1f, 0.45f);
-        GUI.Label(new Rect(x, y + h - 34f, w, 20f), "F  or  Esc   step back", foot);
+        style.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
+        GUI.Label(new Rect((Screen.width - 700f) * 0.5f, Screen.height - 56f, 700f, 24f),
+                  "click a button      F  or  Esc   step back", style);
     }
 }

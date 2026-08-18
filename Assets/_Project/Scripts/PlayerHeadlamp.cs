@@ -99,10 +99,9 @@ public class PlayerHeadlamp : MonoBehaviour
     public Key toggleKey = Key.L;
 
     [Header("The helmet lamp bump")]
-    [Tooltip("Also dim the little glass bump ON THE MODEL when the beam is " +
-             "off, so a teammate behind you can tell your light is out " +
-             "without needing to see the beam itself. Matches the emissive " +
-             "'Light' material PlayerFbxSetupTool already paints onto the rig.")]
+    [Tooltip("Also switch off the little glass bump ON THE MODEL when the " +
+             "beam is off, so a teammate behind you can tell your light is " +
+             "out without needing to see the beam itself.")]
     public bool tintHelmetBump = true;
 
     [Tooltip("Submesh material whose name contains this (case-insensitive) " +
@@ -111,25 +110,19 @@ public class PlayerHeadlamp : MonoBehaviour
              "file does not.")]
     public string bumpMaterialKey = "light";
 
-    // ON and OFF are both DERIVED, not hardcoded - see FindBumpSlot(). The
-    // material asset (PlayerFbxSetupTool's "M_Player_Light", white and bright
-    // by design) is the single source of truth for what the lamp looks like
-    // lit. OFF is that same colour dimmed, not a second independent guess -
-    // two copies of the same colour is how an editor tweak and a script
-    // default quietly drift apart over a few months.
-    [Range(0f, 1f)] public float offBaseDim = 0.18f;
-    [Range(0f, 0.2f)] public float offGlowDim = 0.02f;
-
-    // All four set once in FindBumpSlot(), from the material asset - never
-    // hand-tuned here. bumpOnBase/bumpOnEmission ARE whatever the asset
-    // bakes in; bumpOffBase/bumpOffEmission are those same values times the
-    // dim factors above. Defaults below only cover the case FindBumpSlot()
-    // never runs (no character found), so the fields are never left at
-    // Color.clear.
-    Color bumpOnEmission = Color.white * 2.6f;
-    Color bumpOnBase = Color.white;
-    Color bumpOffEmission = Color.white * 0.02f;
-    Color bumpOffBase = new Color(0.16f, 0.17f, 0.19f);
+    // EMISSION ONLY. This script does not touch _BaseColor / _Color at all -
+    // whatever colour you paint the material in the Inspector is what it
+    // stays, lit or not. It used to also override the base colour for the
+    // OFF state, which is exactly backwards: an "off" that overrides your
+    // own colour choice with a computed grey is not off, it is a second
+    // artist fighting the first one. Toggling the actual light source is
+    // "off" enough - the material underneath needs no opinion of its own.
+    //
+    // bumpOnEmission is read once from the asset in FindBumpSlot(), so ON
+    // always matches whatever PlayerFbxSetupTool baked in. OFF is simply
+    // black - not a dim fraction of ON, a literal zero. No emission, no glow,
+    // full stop.
+    Color bumpOnEmission = Color.white * 2.6f;   // overwritten from the asset
 
     public bool IsOn { get; private set; }
 
@@ -143,8 +136,6 @@ public class PlayerHeadlamp : MonoBehaviour
     int bumpSlot = -1;
     MaterialPropertyBlock bumpBlock;
 
-    static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-    static readonly int ColorId = Shader.PropertyToID("_Color");
     static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
     // Old behaviour, kept as a fallback ONLY. If no rigged character can be
@@ -254,29 +245,12 @@ public class PlayerHeadlamp : MonoBehaviour
                 bumpSlot = i;
 
                 // Read ON straight from the asset - PlayerFbxSetupTool bakes
-                // it white and bright already, so this script does not carry
-                // a second copy of that colour to go stale against it.
-                // OFF is derived, not guessed: the same colour, scaled down,
-                // so lit and unlit always agree on WHICH colour the bulb is
-                // and differ only in how bright it is.
-                if (mats[i].HasProperty(BaseColorId))
-                {
-                    bumpOnBase = mats[i].GetColor(BaseColorId);
-
-                    // Color * float scales ALPHA too, not just RGB. The
-                    // material is Opaque so alpha is currently unread, but
-                    // scaling it down to 0.18 anyway is a transparency bug
-                    // waiting for someone to tick Alpha Clipping on. Alpha
-                    // pinned to the source colour's own instead.
-                    bumpOffBase = bumpOnBase * offBaseDim;
-                    bumpOffBase.a = bumpOnBase.a;
-                }
-
+                // it bright already, so this script does not carry a second
+                // copy of that colour to go stale against it. Whatever you
+                // paint the base colour as in the Inspector, THIS is what ON
+                // reproduces - nothing here touches base colour at all.
                 if (mats[i].HasProperty(EmissionColorId))
-                {
                     bumpOnEmission = mats[i].GetColor(EmissionColorId);
-                    bumpOffEmission = bumpOnEmission * offGlowDim;
-                }
 
                 return;
             }
@@ -318,16 +292,14 @@ public class PlayerHeadlamp : MonoBehaviour
             if (bumpBlock == null) bumpBlock = new MaterialPropertyBlock();
             bumpRenderer.GetPropertyBlock(bumpBlock, bumpSlot);
 
-            // Base colour written every time, on AND off, not just on. A
+            // EMISSION ONLY. Written every time, on AND off, not just on - a
             // MaterialPropertyBlock override holds whatever was last set
-            // until something sets it again - it does not fall back to the
-            // material's own value on its own - so writing only the ON case
-            // would leave the bump permanently white the first time it was
-            // ever switched on, no matter how many times it was switched
-            // off again after.
-            bumpBlock.SetColor(BaseColorId, on ? bumpOnBase : bumpOffBase);
-            bumpBlock.SetColor(ColorId, on ? bumpOnBase : bumpOffBase);
-            bumpBlock.SetColor(EmissionColorId, on ? bumpOnEmission : bumpOffEmission);
+            // until something sets it again, so writing only the ON case
+            // would leave the bump permanently lit the first time it was
+            // ever switched on. Base colour is never touched here at all;
+            // whatever the material's own _BaseColor is stays exactly that,
+            // lit or not.
+            bumpBlock.SetColor(EmissionColorId, on ? bumpOnEmission : Color.black);
 
             bumpRenderer.SetPropertyBlock(bumpBlock, bumpSlot);
         }

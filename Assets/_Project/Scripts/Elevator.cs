@@ -307,6 +307,38 @@ public class Elevator : MonoBehaviour
         }
     }
 
+    // ------------------------------------------------------------------
+    // THROWAWAY HUD.
+    //
+    // Step 6 replaces every line of this with the real dashboard. It exists
+    // now for one reason: without it there is no way to tell a lift that is
+    // refusing to move from a lift that never received the keypress, and
+    // "nothing happened" is the least debuggable sentence in games.
+    // ------------------------------------------------------------------
+
+    void OnGUI()
+    {
+        if (!RunHudGate.ShouldDrawGameplayHud()) return;
+
+        var style = new GUIStyle(GUI.skin.label) { fontSize = 15 };
+        style.normal.textColor = IsMoving
+            ? new Color(1f, 0.75f, 0.3f)
+            : new Color(0.55f, 0.9f, 1f);
+
+        string state = IsMoving
+            ? $"MOVING  {CurrentFloor} -> {TargetFloor}"
+            : $"FLOOR {CurrentFloor}" + (CurrentFloor == 0 ? "  (surface)" : "");
+
+        GUI.Label(new Rect(24f, Screen.height - 74f, 520f, 22f),
+                  $"ELEVATOR   {state}", style);
+
+        var hint = new GUIStyle(GUI.skin.label) { fontSize = 13 };
+        hint.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
+        GUI.Label(new Rect(24f, Screen.height - 52f, 520f, 22f),
+                  $"PageUp  go up          PageDown  go down          " +
+                  $"doors {(DoorsLocked ? "LOCKED" : "open")}", hint);
+    }
+
     void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(0.3f, 0.9f, 1f, 0.35f);

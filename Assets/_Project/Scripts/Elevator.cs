@@ -422,8 +422,8 @@ public class Elevator : MonoBehaviour
         hint.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
         string side = activeSide.StartsWith("Side_") ? activeSide.Substring(5) : activeSide;
 
-        GUI.Label(new Rect(24f, Screen.height - 52f, 640f, 22f),
-                  $"PageUp  go up          PageDown  go down          " +
+        GUI.Label(new Rect(24f, Screen.height - 52f, 700f, 22f),
+                  $"F at the panel          PageUp / PageDown  (debug)          " +
                   $"doors {(DoorsLocked ? "LOCKED" : "open " + side.ToUpper())}", hint);
     }
 

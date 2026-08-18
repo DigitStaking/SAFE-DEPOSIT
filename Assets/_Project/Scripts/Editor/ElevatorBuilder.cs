@@ -324,6 +324,11 @@ public static class ElevatorBuilder
         // Standing position: back from the panel, at eye height, looking at it.
         var look = Anchor("DashboardAnchor", dash.transform, new Vector3(0f, 0.42f, 0.95f));
         look.transform.localRotation = Quaternion.Euler(12f, 180f, 0f);
+
+        // Step 5. Finds its Elevator via GetComponentInParent and its anchor
+        // by name at runtime, so it does not care that the root does not have
+        // Elevator on it yet at this point in the build.
+        dash.AddComponent<ElevatorDashboard>();
     }
 
     // ------------------------------------------------------------------

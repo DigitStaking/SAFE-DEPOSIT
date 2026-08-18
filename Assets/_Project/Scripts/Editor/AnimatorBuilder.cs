@@ -425,11 +425,32 @@ public static class AnimatorBuilder
             t.AddCondition(AnimatorConditionMode.If, 0, "Grounded");
             t.duration = 0.1f; t.hasExitTime = false;
         }
-        if (jump != null && fall == null)
+        // ---- JUMP MUST HAVE AN EXIT THAT A NORMAL HOP ACTUALLY TAKES ----
+        //
+        // This block used to be guarded by `fall == null`: it was the fallback
+        // for a project with no Falling clip, because the real exit from
+        // JumpUp was the unconditional 70%-exit-time hop into Falling.
+        //
+        // Gating that hop on VelY turned JumpUp into a DEAD END for every jump
+        // that never reaches -8 m/s - which is every normal jump. The
+        // character froze mid-air in the tuck pose. An Animator dead end is
+        // silent: nothing logs, the character simply stops.
+        //
+        // The VelY guard is not optional. Coyote time holds Grounded true for
+        // 0.15s after the feet leave the floor, so a bare Grounded check would
+        // fire on the takeoff frame and cancel the jump before it started. At
+        // takeoff VelY is about +4.6, so this waits until you are coming down.
+        if (jump != null)
         {
             var t = jump.AddTransition(afterAir);
             t.AddCondition(AnimatorConditionMode.If, 0, "Grounded");
+            t.AddCondition(AnimatorConditionMode.Less, 1f, "VelY");
             t.duration = 0.1f; t.hasExitTime = false;
+
+            // Belt and braces: whatever the conditions do, the clip running
+            // out always leaves the state. Never leave an air state without an
+            // unconditional way home.
+            Exit(jump, afterAir, 0.95f, 0.15f);
         }
         if (land != null) Exit(land, loco, 0.75f, 0.15f);
 

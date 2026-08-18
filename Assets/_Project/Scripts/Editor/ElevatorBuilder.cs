@@ -217,6 +217,13 @@ public static class ElevatorBuilder
         bridge.length = BridgeLength;
         bridge.width = BridgeWidth;
 
+        // Step 8. capacity/playerMass already default to the economy doc's
+        // own numbers (550, 70) - set explicitly anyway, the same "two files
+        // agree on a number in writing" habit floorHeight above follows.
+        var deck = root.AddComponent<ElevatorDeck>();
+        deck.capacity = 550f;
+        deck.playerMass = 70f;
+
         SaveAsPrefab(root);
 
         Undo.RegisterCreatedObjectUndo(root, "Build Elevator Car");
@@ -370,11 +377,15 @@ public static class ElevatorBuilder
 
         // ---- the screen ----
         //
+        // Grown from 0.22 to 0.25 tall for Step 8's load line - bottom edge
+        // held at 0.09 (flush with the keypad's own top boundary) so it only
+        // grows UPWARD, into the margin the fascia already had to spare.
+        //
         // Front face lands at z = 0.026. Everything drawn ON the screen must
         // sit in FRONT of that or the box hides it - the readout was at 0.012
-        // and the white slab ate the bottom half of the number.
-        Box("Screen", face.transform, new Vector3(0f, 0.20f, 0.021f),
-            new Vector3(0.78f, 0.22f, 0.01f), screen);
+        // once and the white slab ate the bottom half of the number.
+        Box("Screen", face.transform, new Vector3(0f, 0.215f, 0.021f),
+            new Vector3(0.78f, 0.25f, 0.01f), screen);
 
         // Real world-space text, not a canvas. The panel is an object in a
         // room, so its readout has to be lit by the cage light, hidden when
@@ -384,11 +395,17 @@ public static class ElevatorBuilder
         // TextMesh rather than TextMeshPro: TMP's runtime ships with the
         // project but its essential assets are a manual import, and a missing
         // font renders nothing at all with no error.
-        Label("FloorText", face.transform, new Vector3(0f, 0.20f, 0.034f),
+        Label("FloorText", face.transform, new Vector3(0f, 0.275f, 0.034f),
               "--", 0.0070f, new Color(0.35f, 0.92f, 1f), bold: true);
 
-        // Step 8 hangs the load gauge here.
-        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.20f, 0.04f));
+        // Step 8: the load gauge, smaller, sitting under the floor number.
+        // ElevatorDeck.cs drives both its text and colour every frame -
+        // green/amber/red, matching the gauge the spec's dashboard mockup
+        // describes.
+        Label("LoadText", face.transform, new Vector3(0f, 0.145f, 0.034f),
+              "--/---", 0.0045f, new Color(0.4f, 0.9f, 0.55f), bold: true);
+
+        Anchor("ScreenAnchor", face.transform, new Vector3(0f, 0.215f, 0.04f));
 
         // ---- STEP 6: numeric keypad, left. UP / DOWN, right. ----
         //

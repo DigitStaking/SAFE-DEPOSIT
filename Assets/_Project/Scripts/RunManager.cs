@@ -241,11 +241,11 @@ public class RunManager : MonoBehaviour
         {
             if (c == null) continue;
 
-            // Cargo on the elevator deck joins this list in Step 8.
             switch (c.State)
             {
                 case Carryable.CarryState.Stowed:
                 case Carryable.CarryState.Held:
+                case Carryable.CarryState.OnDeck:
                     total += c.value;
                     break;
             }

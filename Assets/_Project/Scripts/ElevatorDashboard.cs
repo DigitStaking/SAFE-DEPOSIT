@@ -55,6 +55,11 @@ public class ElevatorDashboard : MonoBehaviour
              "retract warning. Found automatically if left empty.")]
     public ElevatorBridge bridge;
 
+    [Tooltip("Step 8. Checked before any departure - overloaded rejects " +
+             "immediately rather than spending a 5-second warning on a trip " +
+             "that was never going to leave. Found automatically if left empty.")]
+    public ElevatorDeck deck;
+
     [Tooltip("Where the camera sits while you are using the panel. " +
              "ElevatorBuilder makes this as DashboardAnchor.")]
     public Transform viewAnchor;
@@ -103,12 +108,15 @@ public class ElevatorDashboard : MonoBehaviour
     {
         if (elevator == null) elevator = GetComponentInParent<Elevator>();
         if (bridge == null) bridge = GetComponentInParent<ElevatorBridge>();
+        if (deck == null) deck = GetComponentInParent<ElevatorDeck>();
         if (viewAnchor == null) viewAnchor = transform.Find("DashboardAnchor");
 
         if (elevator == null)
             Debug.LogError("[Dashboard] No Elevator found in parents.");
         if (bridge == null)
             Debug.LogError("[Dashboard] No ElevatorBridge found in parents.");
+        if (deck == null)
+            Debug.LogError("[Dashboard] No ElevatorDeck found in parents.");
         if (viewAnchor == null)
             Debug.LogError("[Dashboard] No DashboardAnchor - run Build Elevator Car.");
 
@@ -225,14 +233,18 @@ public class ElevatorDashboard : MonoBehaviour
             // directly - see ElevatorBridge.cs for why. The button still
             // reads elevator.IsMoving/CurrentFloor for its own Interactable
             // state above; only the ACTION of pressing it changed.
+            //
+            // Step 8: checked here too, not just in TryGo() - "It will not
+            // move while overloaded" applies to the slow crawl exactly as
+            // much as it does to GO.
             case ElevatorButton.Kind.Up:
                 entryBuffer = "";
-                bridge.RequestGoUp();
+                if (!RejectIfOverloaded()) bridge.RequestGoUp();
                 break;
 
             case ElevatorButton.Kind.Down:
                 entryBuffer = "";
-                bridge.RequestGoDown();
+                if (!RejectIfOverloaded()) bridge.RequestGoDown();
                 break;
 
             case ElevatorButton.Kind.Digit:
@@ -267,12 +279,27 @@ public class ElevatorDashboard : MonoBehaviour
         if (floor > elevator.lowestFloor) { Reject($"NO FLOOR {floor:00}"); return; }
         if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }
         if (floor > 0 && floor > Campaign.DeepestReachableFloor) { Reject($"{floor:00} BEYOND CABLE"); return; }
+        if (RejectIfOverloaded()) return;
 
         // fast: true is the whole point of Step 6 - this is what makes GO
         // different from just pressing DOWN repeatedly. Routed through the
         // bridge (Step 7) the same as Up/Down, so a numeric-entry departure
         // gets the same retract warning a call-button departure does.
         bridge.RequestGoToFloor(floor, fast: true);
+    }
+
+    /// <summary>
+    /// Step 8. Checked before EVERY departure - Up, Down and GO alike -
+    /// rather than left to Elevator or Bridge, so it can reject immediately
+    /// with a reason instead of spending a 5-second warning on a trip the
+    /// car was never going to make. "It will not move while overloaded" per
+    /// the spec; this is where that rule actually lives.
+    /// </summary>
+    bool RejectIfOverloaded()
+    {
+        if (deck == null || !deck.IsOverloaded) return false;
+        Reject("OVERLOADED");
+        return true;
     }
 
     void Reject(string message)

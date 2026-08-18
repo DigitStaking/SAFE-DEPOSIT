@@ -75,6 +75,13 @@ public class Elevator : MonoBehaviour
     /// <summary>Doors are locked whenever the car is not stopped at a floor.</summary>
     public bool DoorsLocked => IsMoving;
 
+    /// <summary>
+    /// Everyone and everything GatherRiders found inside the car THIS
+    /// physics step. Step 8's ElevatorDeck reads this to count crew mass
+    /// rather than running a second overlap query for the same answer.
+    /// </summary>
+    public IReadOnlyList<Rigidbody> Riders => riders;
+
     Rigidbody rb;
 
     // Ride volume, derived from the car's own geometry rather than restated
@@ -277,6 +284,15 @@ public class Elevator : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Gathered every physics step now, moving or not - Step 8's
+        // ElevatorDeck needs a live "who is inside right now" answer while
+        // the car is sitting still at a floor, not only during the seconds
+        // it happens to be travelling. This used to live further down,
+        // inside the IsMoving block; the ORDER relative to the position
+        // update below is unchanged (still gathered before the move), only
+        // WHETHER it also runs on a stationary frame is new.
+        GatherRiders();
+
         if (!IsMoving) return;
 
         float target = FloorY(TargetFloor);
@@ -286,11 +302,6 @@ public class Elevator : MonoBehaviour
         Vector3 from = rb.position;
         Vector3 to = new Vector3(from.x, newY, from.z);
         Vector3 delta = to - from;
-
-        // ORDER MATTERS. Gather riders while they are still standing on the
-        // floor's OLD position - do it after the move and anyone the car is
-        // dropping away from has already been left behind by a frame.
-        GatherRiders();
 
         // ==============================================================
         // THE CAR AND ITS RIDERS MUST MOVE IN THE SAME INSTANT.

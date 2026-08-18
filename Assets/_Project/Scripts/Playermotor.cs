@@ -114,6 +114,19 @@ public class PlayerMotor : MonoBehaviour
 
         rb.isKinematic = false;
 
+        // PLAYER_MASS from ECONOMY_AND_CAMPAIGN.md - the same 70 the elevator
+        // load gauge charges per player (ElevatorDeck.playerMass). Nothing
+        // here ever set this, so it sat at Unity's default of 1kg: a person
+        // who is nominally 70kg was colliding as if they weighed 1, which is
+        // why walking into a 34kg filing cabinet could shove it around
+        // without even picking it up. ForceMode.VelocityChange in
+        // ApplyMovement() below is deliberately mass-independent for the
+        // player's OWN acceleration - that part is correct and unrelated -
+        // but the actual COLLISION response between two Rigidbodies is not,
+        // and it needs a real mass to weigh correctly against loot that
+        // already has one.
+        rb.mass = 70f;
+
         // We turn the body ourselves via MoveRotation, so X and Z must be
         // frozen (no toppling) but Y must stay free.
         rb.constraints = RigidbodyConstraints.FreezeRotationX |

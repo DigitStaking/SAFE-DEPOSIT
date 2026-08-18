@@ -1,5 +1,11 @@
 // PlayerCarry.cs  -  SAFE DEPOSIT
-// E: pickup / drop / place on deck. Held items follow camera in LateUpdate.
+// E: pickup / drop. Held items follow camera in LateUpdate.
+//
+// Step 8 briefly required carrying it to a marked deck square and pressing E
+// there specifically. Reverted after playtest: it made the crew argue about
+// exact positioning instead of just piling loot wherever there was room.
+// ElevatorDeck.cs now counts anything physically inside the car, so a plain
+// drop is enough - see Carryable.CarryState.Free for where that is decided.
 
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -15,11 +21,6 @@ public class PlayerCarry : MonoBehaviour
     public float pickupRange = 2.5f;
     public float pickupRadius = 0.4f;
 
-    [Header("Deck (Step 8)")]
-    [Tooltip("How far from the elevator's DeckAnchor, in X/Z, counts as " +
-             "'on the deck' for placing cargo there instead of just dropping it.")]
-    public float deckPlaceRange = 1.5f;
-
     public bool IsCarrying => held != null;
 
     public float CarriedMass =>
@@ -34,7 +35,6 @@ public class PlayerCarry : MonoBehaviour
     Rigidbody rb;
     Transform cam;
     PlayerBackpack backpack;
-    Transform deckAnchor;
 
     void Awake()
     {
@@ -45,11 +45,6 @@ public class PlayerCarry : MonoBehaviour
     void Start()
     {
         if (Camera.main != null) cam = Camera.main.transform;
-
-        // Single-player lookup, same caveat as everywhere else this pattern
-        // appears: Phase C replaces this with a player registry.
-        var deck = Object.FindFirstObjectByType<ElevatorDeck>();
-        if (deck != null) deckAnchor = deck.DeckAnchor;
     }
 
     void Update()
@@ -99,8 +94,7 @@ public class PlayerCarry : MonoBehaviour
             return;
         }
 
-        if (NearDeck(out Vector3 placePos)) PlaceOnDeck(placePos);
-        else DropHeld();
+        DropHeld();
     }
 
     Carryable FindTarget()
@@ -124,10 +118,6 @@ public class PlayerCarry : MonoBehaviour
 
     void PickUp(Carryable item)
     {
-        // Taking cargo back off the deck - a crew that overestimated what
-        // they could afford needs to be able to change their mind.
-        if (item.State == Carryable.CarryState.OnDeck) item.RemoveFromDeck();
-
         // Small items auto-stow if pack has room.
         if (item.CanStow && backpack != null && backpack.TryStow(item)) return;
 
@@ -139,34 +129,6 @@ public class PlayerCarry : MonoBehaviour
     {
         if (held == null) return;
         held.Drop(rb.linearVelocity);
-        held = null;
-    }
-
-    /// <summary>
-    /// Within deckPlaceRange of DeckAnchor on X/Z. The car never rotates, so
-    /// a plain axis-aligned box check is exact - no need to transform into
-    /// the deck's local space.
-    /// </summary>
-    bool NearDeck(out Vector3 placePos)
-    {
-        placePos = default;
-        if (deckAnchor == null) return false;
-
-        Vector3 feet = rb.position;
-        if (Mathf.Abs(feet.x - deckAnchor.position.x) > deckPlaceRange) return false;
-        if (Mathf.Abs(feet.z - deckAnchor.position.z) > deckPlaceRange) return false;
-
-        // At your feet, at deck height - not snapped to the anchor's own
-        // position, so cargo spreads out across the deck instead of
-        // stacking on one point.
-        placePos = new Vector3(feet.x, deckAnchor.position.y, feet.z);
-        return true;
-    }
-
-    void PlaceOnDeck(Vector3 pos)
-    {
-        if (held == null || deckAnchor == null) return;
-        held.PlaceOnDeck(deckAnchor, pos);
         held = null;
     }
 
@@ -185,17 +147,14 @@ public class PlayerCarry : MonoBehaviour
 
         if (held != null)
         {
-            bool onDeck = NearDeck(out _);
             prompt = $"carrying {held.name}  ({held.Mass:0}kg, {held.Weight})" +
                      (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP") +
-                     (onDeck ? "\nE  place on deck - counts toward load" : "\nE  drop it");
-            colour = onDeck ? new Color(0.5f, 0.95f, 0.6f)
-                   : held.AllowsJumping ? Color.white : new Color(1f, 0.6f, 0.25f);
+                     "\nE  drop it - counts toward the elevator's load once it is inside the car";
+            colour = held.AllowsJumping ? Color.white : new Color(1f, 0.6f, 0.25f);
         }
         else if (lookingAt != null)
         {
-            string verb = lookingAt.State == Carryable.CarryState.OnDeck ? "take off the deck" : "pick up";
-            prompt = $"E  {verb} {lookingAt.name}   ({lookingAt.Mass:0}kg, {lookingAt.Weight})";
+            prompt = $"E  pick up {lookingAt.name}   ({lookingAt.Mass:0}kg, {lookingAt.Weight})";
         }
 
         if (prompt == null) return;

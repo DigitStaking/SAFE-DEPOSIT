@@ -241,11 +241,15 @@ public class RunManager : MonoBehaviour
         {
             if (c == null) continue;
 
+            // Free-but-inside-the-elevator loot does NOT count here yet - this
+            // method predates the elevator entirely and still only knows
+            // about a player's own hands and pack. Step 10 (extraction) has
+            // to teach it "or sitting anywhere in the car when it reaches
+            // the surface", the same rule ElevatorDeck.cs now uses for load.
             switch (c.State)
             {
                 case Carryable.CarryState.Stowed:
                 case Carryable.CarryState.Held:
-                case Carryable.CarryState.OnDeck:
                     total += c.value;
                     break;
             }

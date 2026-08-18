@@ -5,37 +5,36 @@
 // ====================================================================
 // ELEVATOR_SPEC STEP 8 - CARGO AND LOAD.
 //
-// Load = 70kg per player currently inside the car, plus the mass of every
-// item deliberately placed on the deck (Carryable.PlaceOnDeck, called from
-// PlayerCarry when you press E near DeckAnchor). Overloading blocks
-// departure: ElevatorDashboard checks IsOverloaded before it will even
-// start a Bridge request.
+// Load = 70kg per player currently inside the car, plus whatever they are
+// personally holding or wearing, plus the mass of anything else lying loose
+// anywhere inside the car - the marked deck square is a visual suggestion
+// for where to pile things, not a mechanical requirement. Overloading blocks
+// departure: ElevatorDashboard checks IsOverloaded before it will even start
+// a Bridge request.
 //
 // ====================================================================
-// WHY "ON DECK" IS A DELIBERATE ACTION, NOT AMBIENT POSITION
+// REVISED AFTER PLAYTEST: DROPPED THE "DELIBERATE PLACEMENT" RULE.
 //
-// The obvious alternative was: anything physically inside the car counts,
-// full stop - checked the same way Elevator already checks who is riding
-// it. That is wrong for the reason ElevatorBuilder already called out when
-// the deck markings themselves were built, back in Step 3: "so that nobody
-// argues about whether the crate they dumped in a doorway counts." If mere
-// presence counts, four players carrying a heavy statue around a 4x4m room
-// have to agree in real time on where the car's boundary even is. Placing
-// it - E, near the marked square - is a clear, deliberate, UNDOABLE action.
-// You always know whether something counts, because you are the one who
-// put it there, and you can take it back.
+// The first version of this file required carrying an item to the marked
+// deck square specifically and pressing E there, on the reasoning that
+// ambient position would make four players argue about where the car's
+// boundary was. In practice the opposite happened - a hard placement
+// requirement made the crew argue about ALIGNMENT instead, and "just let me
+// drop it, it is obviously inside the elevator" is a completely reasonable
+// thing to want.
 //
-// This falls out almost for free, mechanically: OnDeck cargo is kinematic
-// and PARENTED under DeckAnchor (see Carryable.PlaceOnDeck), so it rides
-// the car through ordinary transform hierarchy - it needs no help from
-// Elevator's rider-teleport system. This script just enumerates
-// DeckAnchor's own children every frame rather than running a second
-// physics query for the same information.
+// So: anything WHOSE RIGIDBODY Elevator's own overlap query finds inside the
+// car counts, full stop - the exact same query FixedUpdate already runs
+// every physics step to carry riders when the car moves (see
+// Elevator.Riders). No new physics query, no deck-anchor bookkeeping, no
+// separate CarryState. A dropped Carryable is State.Free, non-kinematic,
+// and therefore already exactly what that overlap box was built to find.
 //
-// Crew mass is different: a PLAYER cannot be "placed", so that half of the
-// total is read from Elevator.Riders - the same overlap query FixedUpdate
-// already runs every physics step to carry people when the car moves, now
-// also read here for the far cheaper question of who is simply present.
+// The one thing that query CANNOT see is anything a player is personally
+// holding or wearing - Held and Stowed items go kinematic specifically so
+// they stop colliding with anything, which also makes them invisible to an
+// overlap box. So a player's own carried mass (PlayerCarry.CarriedMass) is
+// added on top, once per player found riding the car.
 // ====================================================================
 
 using UnityEngine;
@@ -48,29 +47,20 @@ public class ElevatorDeck : MonoBehaviour
              "for now it is the flat starting number and nothing else changes.")]
     public float capacity = 550f;
 
-    [Tooltip("PLAYER_MASS from the economy doc - charged per player currently " +
-             "inside the car, regardless of what they are personally carrying.")]
+    [Tooltip("PLAYER_MASS from the economy doc - the player's own body, " +
+             "separate from whatever they are personally carrying.")]
     public float playerMass = 70f;
 
     public float CurrentLoad { get; private set; }
     public bool IsOverloaded => CurrentLoad > capacity;
 
-    /// <summary>Where PlayerCarry parents anything placed as cargo.</summary>
-    public Transform DeckAnchor { get; private set; }
-
     Elevator elevator;
     TextMesh loadText;
-
-    static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     void Awake() => elevator = GetComponent<Elevator>();
 
     void Start()
     {
-        DeckAnchor = transform.Find("Car/Deck/DeckAnchor");
-        if (DeckAnchor == null)
-            Debug.LogWarning("[Deck] No DeckAnchor - run Build Elevator Car.");
-
         var t = transform.Find("Car/Dashboard/Face/LoadText");
         if (t != null) loadText = t.GetComponent<TextMesh>();
     }
@@ -81,20 +71,38 @@ public class ElevatorDeck : MonoBehaviour
         UpdateReadout();
     }
 
+    /// <summary>
+    /// One pass over Elevator.Riders. Each entry is either a player's own
+    /// Rigidbody (charge playerMass plus whatever PlayerCarry says they are
+    /// holding or wearing) or a loose Carryable's Rigidbody (charge its own
+    /// mass) - never both, since a player and their held item are two
+    /// separate GameObjects. Survivors are not built yet; their mass adds
+    /// here the same way once they exist - they are cargo that happens to
+    /// walk itself on.
+    /// </summary>
     void RecomputeLoad()
     {
         float total = 0f;
 
         if (elevator != null)
+        {
             foreach (var rb in elevator.Riders)
-                if (rb != null && rb.GetComponent<PlayerMotor>() != null)
-                    total += playerMass;
+            {
+                if (rb == null) continue;
 
-        // Survivors are not built yet. Their mass adds here the same way
-        // once they exist - they are cargo that happens to walk itself on.
-        if (DeckAnchor != null)
-            foreach (var c in DeckAnchor.GetComponentsInChildren<Carryable>())
-                if (c != null) total += c.Mass;
+                var motor = rb.GetComponent<PlayerMotor>();
+                if (motor != null)
+                {
+                    total += playerMass;
+                    var carry = rb.GetComponent<PlayerCarry>();
+                    if (carry != null) total += carry.CarriedMass;
+                    continue;
+                }
+
+                var cargo = rb.GetComponent<Carryable>();
+                if (cargo != null) total += cargo.Mass;
+            }
+        }
 
         CurrentLoad = total;
     }

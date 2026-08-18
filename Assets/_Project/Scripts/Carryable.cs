@@ -27,10 +27,14 @@ public class Carryable : MonoBehaviour
 
     public enum CarryState
     {
-        Free,     // lying in the world
+        Free,     // lying in the world - counts toward the elevator's load
+                  // the moment it is physically inside the car, wherever
+                  // that is. See ElevatorDeck.cs - reverted from a Stow-like
+                  // deliberate-placement design after playtest: forcing a
+                  // marked square made the crew argue about positioning
+                  // instead of just piling loot wherever there was room.
         Held,     // in a player's hands
-        Stowed,   // in a player's backpack - small items only
-        OnDeck    // placed as cargo - counts toward the elevator's load
+        Stowed    // in a player's backpack - small items only
     }
 
     [Header("Value")]
@@ -134,47 +138,6 @@ public class Carryable : MonoBehaviour
     }
 
     public void Unstow()
-    {
-        transform.SetParent(null, true);
-        State = CarryState.Free;
-        body.isKinematic = false;
-        SetCollidersEnabled(true);
-        SetRenderersEnabled(true);
-        SetLayerRecursive(gameObject, lootLayer);
-    }
-
-    // --------------------------------------------------------------------
-    // CARGO DECK  (Step 8)
-    //
-    // Deliberate, like Stow - not "anything physically inside the car
-    // counts". Parented under DeckAnchor, so it rides the car through
-    // ordinary transform hierarchy and ElevatorDeck can count the load by
-    // enumerating DeckAnchor's own children, no second physics query needed.
-    //
-    // Unlike Stow, the renderer stays ON. This is cargo on open display in
-    // the middle of the room, not something zipped into a bag - the whole
-    // point of the deck markings is that everyone can see the pile grow.
-    // --------------------------------------------------------------------
-
-    /// <summary>
-    /// worldPosition is set BEFORE parenting, so the item lands exactly
-    /// where the caller (PlayerCarry) computed - typically the player's own
-    /// feet, at deck height - rather than snapping to the anchor's origin.
-    /// </summary>
-    public void PlaceOnDeck(Transform deckAnchor, Vector3 worldPosition)
-    {
-        transform.position = worldPosition;
-        transform.rotation = Quaternion.identity;
-        transform.SetParent(deckAnchor, true);
-
-        State = CarryState.OnDeck;
-        body.isKinematic = true;
-        SetCollidersEnabled(true);
-        SetCollidersAsTriggers(false);
-        SetRenderersEnabled(true);
-    }
-
-    public void RemoveFromDeck()
     {
         transform.SetParent(null, true);
         State = CarryState.Free;

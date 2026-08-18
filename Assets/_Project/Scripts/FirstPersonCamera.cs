@@ -162,7 +162,22 @@ public class FirstPersonCamera : MonoBehaviour
 
     void ApplyPosition()
     {
-        Vector3 eye = target.position + eyeOffset;
+        // Rotate the offset by yaw before adding it.
+        //
+        // This was `target.position + eyeOffset`, which added it in WORLD
+        // space - so the 0.12 "forward" component always pointed along world
+        // +Z no matter which way you were facing. The camera therefore sat
+        // 12cm in FRONT of your face looking one way and 12cm BEHIND it
+        // looking the other: a 24cm swing.
+        //
+        // FirstPersonHands builds its targets from cam.position and then
+        // clamps them to arm's reach from the shoulder, so that swing was
+        // the whole "hands vanish walking forward, look huge walking back,
+        // drift sideways when strafing" bug.
+        //
+        // Yaw only, never pitch - the eye must not slide forward when you
+        // look down, or the view pushes into your own chest.
+        Vector3 eye = target.position + Quaternion.Euler(0f, yaw, 0f) * eyeOffset;
 
         if (enableHeadBob && motor.IsGrounded && targetBody != null)
         {

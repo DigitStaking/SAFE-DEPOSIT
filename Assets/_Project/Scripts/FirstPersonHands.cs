@@ -71,10 +71,26 @@ public class FirstPersonHands : MonoBehaviour
     public Transform cameraTransform;
 
     [Header("Where the hands sit, in CAMERA space")]
+    // WE WERE HERE FRAMING: wide, low and CLOSE.
+    //
+    // Their hands sit in the bottom corners and read big, which is what makes
+    // them feel like your hands rather than a distant character's. Three
+    // numbers do all the work:
+    //
+    //   z 0.34  close to the eye. This is the one that controls SIZE - the
+    //           nearer the hand, the larger it draws. 0.52 put them at arm's
+    //           length, which reads small and detached.
+    //   x 0.36  wide, so they frame the view from the corners instead of
+    //           meeting in the middle like a zombie.
+    //   y 0.22  low enough to stay out of the way of what you are looking at.
+    //
+    // Do not push z below about 0.30: the arm has roughly 0.5 m of reach from
+    // the shoulder, and once the target is closer than the elbow can fold the
+    // IK starts folding the arm through the chest.
     [Tooltip("x = right, y = up, z = forward, in metres from the eye. " +
-             "Increase z to push them away, lower y to drop them out of the way.")]
-    public Vector3 leftHand  = new Vector3(-0.24f, -0.30f, 0.52f);
-    public Vector3 rightHand = new Vector3( 0.24f, -0.30f, 0.52f);
+             "z is SIZE: smaller = closer = bigger hands. Keep z above 0.30.")]
+    public Vector3 leftHand  = new Vector3(-0.36f, -0.22f, 0.34f);
+    public Vector3 rightHand = new Vector3( 0.36f, -0.22f, 0.34f);
 
     [Header("Visibility")]
     [Tooltip("LEAVE AT 1. Anything lower blends the hands back toward the walk " +

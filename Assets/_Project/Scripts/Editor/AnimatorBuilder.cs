@@ -158,9 +158,18 @@ public static class AnimatorBuilder
             // "Feet" re-bases the clip so the lowest foot sits on y = 0. That
             // is right for anything standing on ground, and wrong for anything
             // hanging or airborne, where the feet are supposed to dangle.
-            bool airborne = lower.Contains("jump")  || lower.Contains("falling") ||
-                            lower.Contains("climb") || lower.Contains("hang")    ||
-                            lower.Contains("rope");
+            // WAS: jump / falling / climb / hang / rope all counted as
+            // airborne, which kept the clip's authored height instead of
+            // re-basing the feet to y = 0.
+            //
+            // That existed for the rope: hanging thirty metres up, your feet
+            // are SUPPOSED to dangle. The rope is gone, and the only clips
+            // still matching were Jumping Up and Falling Idle - where keeping
+            // Mixamo's authored root height just floats the character above
+            // the floor, because the Rigidbody already owns world position.
+            //
+            // Nothing hangs any more, so nothing needs to dangle.
+            bool airborne = false;
 
             // Compare against the settings actually APPLIED, not Unity's
             // defaults - defaultClipAnimations always reports the defaults, so

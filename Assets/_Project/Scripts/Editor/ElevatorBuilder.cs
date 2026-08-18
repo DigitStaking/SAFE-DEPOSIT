@@ -517,6 +517,12 @@ public static class ElevatorBuilder
             new Vector3(0.38f, 0.03f, 0.38f), glow);
 
         Anchor("ScannerAnchor", scan.transform, new Vector3(0f, 1.0f, 0f));
+
+        // Step 9. Builds its own floating readout at runtime - there is
+        // nothing to position by hand and nothing to see in the editor, so
+        // it does not belong in this file. The plinth and pad above are the
+        // parts that ARE builder geometry.
+        scan.AddComponent<PriceScanner>();
     }
 
     // ------------------------------------------------------------------

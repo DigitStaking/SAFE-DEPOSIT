@@ -23,6 +23,13 @@ public class PlayerCarry : MonoBehaviour
 
     public bool IsCarrying => held != null;
 
+    /// <summary>
+    /// What is in the player's hands right now, or null. Read-only on
+    /// purpose - PriceScanner (Step 9) needs to inspect it, but only this
+    /// script may change what is being carried.
+    /// </summary>
+    public Carryable Held => held;
+
     public float CarriedMass =>
         (held != null ? held.Mass : 0f) +
         (backpack != null ? backpack.TotalMass : 0f);

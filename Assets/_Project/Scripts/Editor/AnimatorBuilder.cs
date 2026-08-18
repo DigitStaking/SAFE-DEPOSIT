@@ -62,7 +62,11 @@ public static class AnimatorBuilder
         // ---- base layer, air ----
         new Slot { Key="JumpUp",    Match=new[]{"jumping up","jump up","jumping","jump"}, Not=new[]{"down"} },
         new Slot { Key="Fall",      Match=new[]{"falling idle","falling"}, Not=new[]{"landing","death","back"} },
-        new Slot { Key="Land",      Match=new[]{"hard landing","falling to landing","landing","land"} },
+        // Land / Hard Landing removed - the landing pose is gone, JumpUp and
+        // Falling both return straight to locomotion now. The clip itself is
+        // still on disk (Player@Hard Landing.fbx) and still gets imported
+        // with correct settings by the pass below, it is just never wired
+        // into a state, so nothing ever plays it.
 
         // ---- base layer, rope ----
 
@@ -364,17 +368,14 @@ public static class AnimatorBuilder
 
         sm.defaultState = loco;
 
-        // ---- Air: three states, because a jump is not a fixed length ----
-        AnimatorState jump = null, fall = null, land = null;
+        // ---- Air: two states, because a jump is not a fixed length ----
+        AnimatorState jump = null, fall = null;
 
         if (c.ContainsKey("JumpUp")) jump = sm.AddState("JumpUp", new Vector3(400, -100));
         if (jump != null) jump.motion = c["JumpUp"];
 
         if (c.ContainsKey("Fall"))   fall = sm.AddState("Falling", new Vector3(650, -100));
         if (fall != null) fall.motion = c["Fall"];
-
-        if (c.ContainsKey("Land"))   land = sm.AddState("Landing", new Vector3(650, 100));
-        if (land != null) land.motion = c["Land"];
 
         if (jump != null)
         {
@@ -418,10 +419,11 @@ public static class AnimatorBuilder
             t.duration = 0.2f; t.hasExitTime = false;
         }
 
-        var afterAir = land != null ? land : loco;
+        // Straight back to locomotion - there is no Landing state to route
+        // through any more.
         if (fall != null)
         {
-            var t = fall.AddTransition(afterAir);
+            var t = fall.AddTransition(loco);
             t.AddCondition(AnimatorConditionMode.If, 0, "Grounded");
             t.duration = 0.1f; t.hasExitTime = false;
         }
@@ -442,7 +444,7 @@ public static class AnimatorBuilder
         // takeoff VelY is about +4.6, so this waits until you are coming down.
         if (jump != null)
         {
-            var t = jump.AddTransition(afterAir);
+            var t = jump.AddTransition(loco);
             t.AddCondition(AnimatorConditionMode.If, 0, "Grounded");
             t.AddCondition(AnimatorConditionMode.Less, 1f, "VelY");
             t.duration = 0.1f; t.hasExitTime = false;
@@ -450,9 +452,8 @@ public static class AnimatorBuilder
             // Belt and braces: whatever the conditions do, the clip running
             // out always leaves the state. Never leave an air state without an
             // unconditional way home.
-            Exit(jump, afterAir, 0.95f, 0.15f);
+            Exit(jump, loco, 0.95f, 0.15f);
         }
-        if (land != null) Exit(land, loco, 0.75f, 0.15f);
 
         // ---- Downed ----
         //

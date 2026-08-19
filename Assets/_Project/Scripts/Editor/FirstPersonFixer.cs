@@ -36,11 +36,6 @@ public static class FirstPersonFixer
     static readonly Vector3 LeftHand  = new Vector3(-0.24f, -0.30f, 0.52f);
     static readonly Vector3 RightHand = new Vector3( 0.24f, -0.30f, 0.52f);
     static readonly Vector3 EyeOffset = new Vector3( 0f,     1.65f, 0.12f);
-
-    // Downed: eye height only. Everything else about the eye stays as it is
-    // standing, so there is one number to tune and it is this one.
-    const float DownedEyeHeight = 1.0f;
-    const float DownedBlendTime = 0.45f;
     const float BaseFov  = 75f;
     const float NearClip = 0.3f;   // 0.05 exposes the inside of your own skull
 
@@ -92,10 +87,8 @@ public static class FirstPersonFixer
         // ---- 3. the camera ------------------------------------------
         foreach (var fp in Object.FindObjectsByType<FirstPersonCamera>(FindObjectsSortMode.None))
         {
-            fp.eyeOffset       = EyeOffset;
-            fp.downedEyeHeight = DownedEyeHeight;
-            fp.downedBlendTime = DownedBlendTime;
-            fp.baseFov         = BaseFov;
+            fp.eyeOffset = EyeOffset;
+            fp.baseFov   = BaseFov;
 
             var c = fp.GetComponent<Camera>();
             if (c != null)
@@ -107,7 +100,7 @@ public static class FirstPersonFixer
 
             EditorUtility.SetDirty(fp);
             log.AppendLine($"<b>CAMERA</b> '{fp.name}' eyeOffset {EyeOffset}, " +
-                           $"downed eye y {DownedEyeHeight}, fov {BaseFov}, near {NearClip}");
+                           $"fov {BaseFov}, near {NearClip}");
         }
 
         if (motors.Length > 0)

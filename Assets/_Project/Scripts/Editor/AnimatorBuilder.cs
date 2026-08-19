@@ -160,8 +160,11 @@ public static class AnimatorBuilder
             // metres up - bake that in and the feet never reach the floor.
             //
             // "Feet" re-bases the clip so the lowest foot sits on y = 0. That
-            // is right for anything standing on ground, and wrong for anything
-            // hanging or airborne, where the feet are supposed to dangle.
+            // is right for anything standing on its feet, and wrong for
+            // anything whose feet are not what is touching the floor -
+            // airborne clips, and kneeling. ("airborne" below is really "do
+            // not measure from the feet"; it kept its name because renaming it
+            // would churn the file for nothing.)
             // WHY JUMP AND FALL MUST STAY ON "Original".
             //
             // "Feet" does not measure once - it re-bases EVERY FRAME so the
@@ -176,9 +179,22 @@ public static class AnimatorBuilder
             // whole clip. The Rigidbody owns world position anyway, so a
             // constant offset is harmless where a per-frame one is not.
             //
-            // climb / hang / rope are gone with the rope. jump and falling
-            // are the only airborne clips left, and they still need this.
-            bool airborne = lower.Contains("jump") || lower.Contains("falling");
+            // KNEELING NEEDS THE SAME TREATMENT, FOR THE SAME REASON.
+            //
+            // "Feet" re-bases so the LOWEST FOOT sits on y = 0. On a kneel the
+            // character is on their knees and the feet are tucked up behind
+            // them - often HIGHER than the knees. Unity dutifully shoves the
+            // whole body down to bring those raised feet to the floor, and the
+            // character sinks through it to the waist. Exactly the airborne
+            // problem wearing different clothes: the feet are not what is
+            // touching the ground, so they are the wrong thing to measure.
+            //
+            // The knees are on the floor and "Original" keeps the authored
+            // height, which is where the animator put them.
+            //
+            // climb / hang / rope are gone with the rope.
+            bool airborne = lower.Contains("jump") || lower.Contains("falling")
+                         || lower.Contains("kneel");
 
             // Compare against the settings actually APPLIED, not Unity's
             // defaults - defaultClipAnimations always reports the defaults, so

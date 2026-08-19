@@ -266,11 +266,11 @@ public static class GrayboxBuilder
     // Resources, and these live in Assets/_Project/Prefabs/Loot. An editor
     // script can resolve them by path, so it does, once, at build time.
     //
-    // A tier with no prefabName, or one whose asset is missing, is left null
-    // on purpose - LootSpawner falls back to a tier-coloured box, which is
-    // what the Rare tier uses deliberately (there is no model for a vial of
-    // insulin, and a small bright cube reads better than a mislabelled
-    // crate).
+    // All five tiers now have a placeholder built by LootPrefabBuilder, so
+    // the warning below should never fire in a healthy project - if it does,
+    // run SAFE DEPOSIT -> Props -> Build Placeholder Loot Prefabs. A missing
+    // asset is not fatal: LootSpawner falls back to a tier-coloured box, so
+    // the economy still works while the art does not.
     // ------------------------------------------------------------------
 
     static void AttachLootSpawner(GameObject lootRoot)

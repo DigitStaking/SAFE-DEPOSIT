@@ -83,31 +83,31 @@ public class LootSpawner : MonoBehaviour
         new Tier {
             label = "Bulk", minValue = 15, maxValue = 30, minMass = 20f, maxMass = 35f,
             size = 0.75f, colour = new Color(0.62f, 0.42f, 0.28f),
-            prefabName = "Prop_FilingCabinet",
+            prefabName = "Prop_LootBulk",
             names = new[] { "Canned_Goods", "Flour_Sacks", "Bottled_Water", "Dried_Beans" },
         },
         new Tier {
             label = "Common", minValue = 35, maxValue = 60, minMass = 10f, maxMass = 20f,
             size = 0.55f, colour = new Color(0.70f, 0.68f, 0.60f),
-            prefabName = "Prop_Crate",
+            prefabName = "Prop_LootCommon",
             names = new[] { "Dried_Stores", "Cooking_Fuel", "Salt", "Coffee" },
         },
         new Tier {
             label = "Good", minValue = 70, maxValue = 120, minMass = 4f, maxMass = 10f,
             size = 0.40f, colour = new Color(0.45f, 0.80f, 0.50f),
-            prefabName = "Prop_Crate",
+            prefabName = "Prop_LootGood",
             names = new[] { "Vitamins", "Sealed_Rations", "Water_Purifier_Tabs" },
         },
         new Tier {
             label = "Rare", minValue = 150, maxValue = 300, minMass = 1f, maxMass = 3f,
             size = 0.26f, colour = new Color(1f, 0.82f, 0.25f),
-            prefabName = "",
+            prefabName = "Prop_LootRare",
             names = new[] { "Antibiotics", "Insulin", "Seed_Bank_Vials", "Baby_Formula" },
         },
         new Tier {
             label = "BulkHeavy", minValue = 250, maxValue = 400, minMass = 120f, maxMass = 250f,
             size = 1.5f, colour = new Color(0.40f, 0.44f, 0.52f),
-            prefabName = "Prop_VendingMachine",
+            prefabName = "Prop_LootBulkHeavy",
             names = new[] { "Ration_Pallet", "Water_Tank", "Sealed_Freezer_Unit" },
         },
     };
@@ -125,6 +125,13 @@ public class LootSpawner : MonoBehaviour
 
     [Header("Placement")]
     public float roomMargin = 1.2f;
+
+    [Tooltip("Clear space between two items, on top of their own half-widths. " +
+             "Stops loot spawning inside its neighbour and being shoved on top " +
+             "of it by the physics solver.")]
+    public float itemSpacing = 0.5f;
+
+    readonly List<(Vector3 pos, float size)> placed = new List<(Vector3, float)>();
 
     void Start()
     {
@@ -169,6 +176,14 @@ public class LootSpawner : MonoBehaviour
     {
         int spawned = 0;
 
+        // Where this floor's items have already landed, in LEVEL-local space.
+        // Without this every position was an independent random draw with no
+        // memory: two items rolling near each other spawned interpenetrating,
+        // and physics resolved the overlap by shoving one on top of the
+        // other. That is the stack-on-a-vending-machine problem - it was
+        // never a spread problem, it was a collision one.
+        placed.Clear();
+
         // Hard cap purely as a safety net against a mis-tuned tier table
         // making this loop very long; the budget is the real terminator.
         for (int guard = 0; guard < 40 && budget > 0f; guard++)
@@ -194,6 +209,7 @@ public class LootSpawner : MonoBehaviour
         float mass = Random.Range(t.minMass, t.maxMass);
 
         GameObject go = t.prefab != null ? Instantiate(t.prefab) : null;
+        bool fromPrefab = go != null;
 
         if (go == null)
         {
@@ -216,13 +232,34 @@ public class LootSpawner : MonoBehaviour
         // Somewhere in the room, in the LEVEL's local space then converted to
         // world - so loot lands correctly inside rooms whichever of the four
         // directions that floor's doorway faces.
-        float half = 7f;             // GrayboxBuilder.ShaftInner * 0.5
-        float roomDepth = 6f;        // GrayboxBuilder.RoomDepth
-        Vector3 local = new Vector3(
-            Random.Range(half + roomMargin, half + roomDepth - roomMargin * 0.5f),
-            t.size * 0.5f + 0.15f,
-            Random.Range(-half + roomMargin, half - roomMargin));
+        //
+        // Rejection sampling against everything already on this floor: draw a
+        // spot, keep it if it clears its neighbours, otherwise draw again.
+        // Twenty attempts then give up and take the last one - a floor that
+        // is genuinely too full to place cleanly should still get its item
+        // rather than silently drop it and quietly cost the crew money.
+        const float half = 7f;        // GrayboxBuilder.ShaftInner * 0.5
+        const float roomDepth = 6f;   // GrayboxBuilder.RoomDepth
 
+        // LootPrefabBuilder authors every prefab standing ON its own origin,
+        // so its pivot is the BASE. A CreatePrimitive cube's pivot is its
+        // CENTRE. Using one height for both would drop the prefabs in from
+        // half their own height up, and the bounce would scatter them out of
+        // the spacing just computed for them.
+        float restY = fromPrefab ? 0.04f : t.size * 0.5f + 0.04f;
+
+        Vector3 local = Vector3.zero;
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            local = new Vector3(
+                Random.Range(half + roomMargin, half + roomDepth - roomMargin * 0.5f),
+                restY,
+                Random.Range(-half + roomMargin, half - roomMargin));
+
+            if (IsClear(local, t.size)) break;
+        }
+
+        placed.Add((local, t.size));
         go.transform.position = level.TransformPoint(local);
         go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
@@ -238,6 +275,24 @@ public class LootSpawner : MonoBehaviour
 
         int lootLayer = LayerMask.NameToLayer("Loot");
         if (lootLayer >= 0) SetLayerRecursive(go, lootLayer);
+    }
+
+    /// <summary>
+    /// True if a box of this size at this spot clears everything already
+    /// placed on the floor. Compared on X/Z only - two items at the same
+    /// spot but different heights is still a stack, which is the thing being
+    /// prevented.
+    /// </summary>
+    bool IsClear(Vector3 local, float size)
+    {
+        foreach (var (pos, otherSize) in placed)
+        {
+            float needed = (size + otherSize) * 0.5f + itemSpacing;
+            float dx = local.x - pos.x;
+            float dz = local.z - pos.z;
+            if (dx * dx + dz * dz < needed * needed) return false;
+        }
+        return true;
     }
 
     static void SetLayerRecursive(GameObject go, int layer)

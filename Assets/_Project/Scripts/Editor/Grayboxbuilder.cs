@@ -93,17 +93,21 @@ public static class GrayboxBuilder
         270f,  90f,   0f, 270f, 180f,
     };
 
-    // Loot: real prop prefabs when present, cubes only as fallback.
-        // Mass/value match PropImporter table.
-        static readonly (string prefab, string name, float mass, float size, int value)[] LootTable =
-        {
-            ("Prop_Crate",          "Cash_Crate",      6f,  0.6f,  220),
-            ("Prop_FilingCabinet",  "Filing_Cabinet", 34f,  1.1f,  450),
-            ("Prop_VendingMachine", "Vending_Machine",140f, 1.6f, 1600),
-        };
+    // LOOT IS NO LONGER BUILT HERE.
+    //
+    // It used to be three fixed items per floor - a cash crate, a filing
+    // cabinet, a vending machine at 220/450/1600 - which was rope-era office
+    // furniture priced above an entire round's income (round 1 pays 400
+    // TOTAL). Both the objects and the numbers predate the food-and-medicine
+    // economy in ECONOMY_AND_CAMPAIGN.md Part 3.
+    //
+    // LootSpawner.cs now does it at RUNTIME instead, because the budget
+    // depends on the round: SpawnValue(R) = LootValue(R) x 1.4. Editor-time
+    // loot is identical every round forever, which makes the economy
+    // impossible to test across a campaign.
+    const string LootPrefabDir = "Assets/_Project/Prefabs/Loot";
 
     const string GrayMaterialPath = "Assets/_Project/Materials/M_Graybox.mat";
-    const string LootMaterialPath = "Assets/_Project/Materials/M_Loot.mat";
     const string RootName = "SHAFT";
     const string LootRootName = "LOOT";
 
@@ -120,13 +124,14 @@ public static class GrayboxBuilder
         float totalDrop = FloorHeight * LevelCount;      // 20.0 full depth
 
         Material gray = GetOrCreateMaterial(GrayMaterialPath, new Color(0.5f, 0.5f, 0.5f));
-        Material loot = GetOrCreateMaterial(LootMaterialPath, new Color(0.85f, 0.6f, 0.2f));
 
         var root = new GameObject(RootName);
         root.transform.position = Vector3.zero;
 
+        // Empty at build time. LootSpawner fills it in Start(), per round.
         var lootRoot = new GameObject(LootRootName);
         lootRoot.transform.position = Vector3.zero;
+        AttachLootSpawner(lootRoot);
 
         // Cap slab, now SurfaceHeadroom above zero rather than sitting on it,
         // so the car has somewhere to be when it parks at floor 0. Its BOTTOM
@@ -178,7 +183,6 @@ public static class GrayboxBuilder
                 0f, LevelRotations[i % LevelRotations.Length], 0f);
 
             BuildLevel(level.transform, half, wallMid, wallSpan, gray);
-            SpawnLoot(level.transform, lootRoot.transform, half, loot, i);
         }
 
         int envLayer = LayerMask.NameToLayer("Environment");
@@ -190,8 +194,8 @@ public static class GrayboxBuilder
         Undo.RegisterCreatedObjectUndo(root, "Build Graybox Shaft");
         Selection.activeGameObject = root;
 
-        Debug.Log($"[Graybox] {LevelCount} levels, {totalDrop}m drop, " +
-                  $"{LevelCount * LootTable.Length} loot items.");
+        Debug.Log($"[Graybox] {LevelCount} levels, {totalDrop}m drop. " +
+                  "Loot is spawned at runtime by LootSpawner, per round.");
     }
 
     // ------------------------------------------------------------------
@@ -256,74 +260,39 @@ public static class GrayboxBuilder
     // ------------------------------------------------------------------
     // LOOT
     //
-    // Parented to a separate LOOT root rather than to the level, because
-    // level geometry is marked Static (never moves) and loot very much
-    // moves. Mixing them would break batching and confuse the editor.
+    // Nothing is spawned here any more - see the note by LootPrefabDir. All
+    // this does is hand LootSpawner the prefab REFERENCES it cannot look up
+    // for itself: Resources.Load only reads from a folder literally named
+    // Resources, and these live in Assets/_Project/Prefabs/Loot. An editor
+    // script can resolve them by path, so it does, once, at build time.
     //
-    // Positions are worked out in the LEVEL's local space and then converted
-    // to world, so loot lands correctly inside rotated rooms.
+    // A tier with no prefabName, or one whose asset is missing, is left null
+    // on purpose - LootSpawner falls back to a tier-coloured box, which is
+    // what the Rare tier uses deliberately (there is no model for a vial of
+    // insulin, and a small bright cube reads better than a mislabelled
+    // crate).
     // ------------------------------------------------------------------
 
-    static void SpawnLoot(Transform level, Transform lootRoot, float half, Material mat, int levelIndex)
+    static void AttachLootSpawner(GameObject lootRoot)
+    {
+        var spawner = lootRoot.AddComponent<LootSpawner>();
+
+        var tiers = spawner.tiers;
+        for (int i = 0; i < tiers.Length; i++)
         {
-            int lootLayer = LayerMask.NameToLayer("Loot");
+            if (string.IsNullOrEmpty(tiers[i].prefabName)) continue;
 
-            for (int i = 0; i < LootTable.Length; i++)
-            {
-                var entry = LootTable[i];
+            string path = $"{LootPrefabDir}/{tiers[i].prefabName}.prefab";
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
 
-                float x = half + WallThick + 1.2f + i * 1.9f;
-                float z = -2.2f + i * 2.2f;
-                Vector3 local = new Vector3(x, entry.size * 0.5f + 0.1f, z);
-                Vector3 world = level.TransformPoint(local);
+            if (prefab == null)
+                Debug.LogWarning($"[Graybox] Loot prefab not found: {path} - " +
+                                 $"tier '{tiers[i].label}' will use a coloured box.");
 
-                GameObject go = null;
-                string prefabPath = $"Assets/_Project/Prefabs/Loot/{entry.prefab}.prefab";
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-                if (prefab != null)
-                {
-                    go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-                    go.name = $"{entry.name}_L{levelIndex + 1:00}";
-                    go.transform.SetParent(lootRoot, false);
-                    go.transform.position = world;
-                    go.transform.rotation = level.rotation;
-
-                    // Keep prefab collider/rigidbody; force mass/value in case
-                    // the prefab was authored with different numbers.
-                    var rb = go.GetComponent<Rigidbody>();
-                    if (rb == null) rb = go.AddComponent<Rigidbody>();
-                    rb.mass = entry.mass;
-                    rb.interpolation = RigidbodyInterpolation.Interpolate;
-                    rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-
-                    var carryable = go.GetComponent<Carryable>();
-                    if (carryable == null) carryable = go.AddComponent<Carryable>();
-                    carryable.value = entry.value;
-                }
-                else
-                {
-                    // Fallback cube if loot prefabs are missing.
-                    go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    go.name = $"{entry.name}_L{levelIndex + 1:00}";
-                    go.transform.SetParent(lootRoot, false);
-                    go.transform.position = world;
-                    go.transform.rotation = level.rotation;
-                    go.transform.localScale = Vector3.one * entry.size;
-                    if (mat != null) go.GetComponent<MeshRenderer>().sharedMaterial = mat;
-
-                    var rb = go.AddComponent<Rigidbody>();
-                    rb.mass = entry.mass;
-                    rb.interpolation = RigidbodyInterpolation.Interpolate;
-                    rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-
-                    var carryable = go.AddComponent<Carryable>();
-                    carryable.value = entry.value;
-                }
-
-                if (lootLayer >= 0 && go != null)
-                    SetLayerRecursive(go, lootLayer);
-            }
+            tiers[i].prefab = prefab;
         }
+        spawner.tiers = tiers;
+    }
 
     // ------------------------------------------------------------------
     // HELPERS

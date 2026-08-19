@@ -3,39 +3,34 @@
 // Goes on: the LOOT root, added by GrayboxBuilder.
 //
 // ====================================================================
-// THE BUDGET SPAWNER  (ECONOMY_AND_CAMPAIGN.md Part 4b)
+// THREE ITEMS PER FLOOR, AT THREE FIXED SLOTS.
 //
-// Each floor gets a VALUE budget in points. Items are drawn at random and
-// their price deducted until the budget runs out. That single rule produces
-// every situation the design wants without a special case for any of them:
+// This is the shape GrayboxBuilder used before this file existed, restored
+// on request after two attempts at scattering loot randomly both failed:
 //
-//   a floor that rolls two Bulk-heavies - $300 in 200kg, take one, come
-//   back for the other
-//   a floor that rolls a Rare - $300 in 3kg, take everything, laugh
-//   a floor of all Bulk - heavy, cheap, genuinely not worth the space
+//   attempt 1  independent random draws with no memory of each other, so
+//              items spawned interpenetrating and the physics solver
+//              resolved the overlap by stacking them
+//   attempt 2  rejection sampling plus a raycast to verify the floor -
+//              which STILL stacked, because each fix only traded one
+//              failure mode for another
 //
-// ====================================================================
-// WHY THE BUDGET IS IN VALUE AND NEVER IN MASS
+// Fixed slots cannot overlap, cannot miss the floor, and cannot stack.
+// Those three bugs are impossible by construction rather than avoided by
+// checking for them, and "impossible" is worth more here than "clever".
 //
-// The doc is explicit and it is the whole trick: "Because mass is the thing
-// you want to vary. Budget the money, let the kilos fall where they may,
-// and the variance you asked for appears on its own."
-//
-// Budget by mass instead and every floor is worth the same amount for the
-// same weight, which is the one outcome that makes the whole $/kg skill
-// curve meaningless.
+// What stays random is WHAT lands in each slot, which is where the variety
+// actually mattered: three Bulk is a cheap heavy floor you might skip, a
+// Rare is a light rich one you strip in seconds.
 //
 // ====================================================================
 // WHY THIS IS RUNTIME AND NOT PART OF GrayboxBuilder
 //
-// The budget depends on the ROUND - SpawnValue(R) = LootValue(R) x 1.4 -
-// and RunManager reloads the scene between rounds. Editor-time loot would
-// be identical every round forever, which makes the economy impossible to
-// test across a campaign. Spawning in Start() means every reload re-rolls
-// against the current round's budget, which is exactly the intent.
-//
-// It also gets "a floor you strip stays stripped" for free: sealed rooms
-// are skipped, and Campaign remembers which those are.
+// The tier draw depends on the ROUND - richer floors as income grows - and
+// RunManager reloads the scene between rounds. Editor-time loot would be
+// identical every round forever, which makes the economy impossible to test
+// across a campaign. Spawning in Start() re-rolls per round, and skipping
+// sealed rooms gets "a floor you strip stays stripped" for free.
 // ====================================================================
 
 using System.Collections.Generic;
@@ -46,14 +41,11 @@ public class LootSpawner : MonoBehaviour
     // ------------------------------------------------------------------
     // THE FIVE TIERS, straight off ECONOMY_AND_CAMPAIGN.md Part 3.
     //
-    // Food and medicine, not office furniture. The doc's reasoning, which
-    // is worth keeping in front of whoever tunes these next: "A crate of
-    // beans is heavy and nearly worthless. A box of antibiotics is the size
-    // of a book and worth six crates. Learning to read a room and take the
-    // DENSE things is the mastery."
-    //
-    // It is also what makes the moral line land: "the medicine you're
-    // selling to the mafia is medicine somebody in this building needs."
+    // Food and medicine, not office furniture. The doc's reasoning, worth
+    // keeping in front of whoever tunes these next: "A crate of beans is
+    // heavy and nearly worthless. A box of antibiotics is the size of a book
+    // and worth six crates. Learning to read a room and take the DENSE
+    // things is the mastery."
     // ------------------------------------------------------------------
 
     [System.Serializable]
@@ -112,26 +104,43 @@ public class LootSpawner : MonoBehaviour
         },
     };
 
-    [Header("Budget")]
-    [Tooltip("SpawnValue(R) = LootValue(R) x this. 1.4 means roughly 40% more " +
-             "value on the floor than the cable can lift - ECONOMY Part 4b. " +
-             "You can never clear a round, and what is left is always the " +
-             "heavy awkward thing nobody wanted to carry.")]
+    [Header("How much")]
+    [Tooltip("Items per floor. Three is what the graybox always used and what " +
+             "reads as 'a room with things in it' without becoming a warehouse.")]
+    public int itemsPerFloor = 3;
+
+    [Tooltip("SpawnValue(R) = LootValue(R) x this - ECONOMY Part 4b. Above 1 " +
+             "means more value on the floor than the cable can lift, so you can " +
+             "never clear a round and what is left is always the heavy awkward " +
+             "thing nobody wanted to carry.")]
     public float spawnMultiplier = 1.4f;
 
     [Tooltip("Per-floor budget varies by this either way, so two floors worth " +
-             "the same money can be completely different problems.")]
+             "roughly the same money can still be different problems.")]
     public float floorVariance = 0.2f;
 
-    [Header("Placement")]
-    public float roomMargin = 1.2f;
+    // ------------------------------------------------------------------
+    // THE THREE SLOTS, in the LEVEL's own local space.
+    //
+    // The room runs x 7.5..13.5 and z -7..7 (GrayboxBuilder: ShaftInner 14,
+    // RoomDepth 6), so these sit comfortably inside it with metres to spare
+    // on every side, and 4m apart down its length - far enough that even a
+    // 1.5m pallet next to another 1.5m pallet cannot touch.
+    //
+    // Local space, not world, so they land correctly whichever of the four
+    // directions that floor's doorway happens to face.
+    // ------------------------------------------------------------------
+    static readonly Vector2[] Slots =
+    {
+        new Vector2(10.2f, -4f),
+        new Vector2( 9.4f,  0f),
+        new Vector2(11.0f,  4f),
+    };
 
-    [Tooltip("Clear space between two items, on top of their own half-widths. " +
-             "Stops loot spawning inside its neighbour and being shoved on top " +
-             "of it by the physics solver.")]
-    public float itemSpacing = 0.5f;
-
-    readonly List<(Vector3 pos, float size)> placed = new List<(Vector3, float)>();
+    [Tooltip("Random offset applied to each slot so a room looks arranged " +
+             "rather than laid out on a grid. Kept well under the 4m gap " +
+             "between slots, so jitter can never close it.")]
+    public float slotJitter = 0.9f;
 
     void Start()
     {
@@ -142,61 +151,47 @@ public class LootSpawner : MonoBehaviour
             return;
         }
 
-        // Only floors the cable can actually reach. Spawning loot into rooms
-        // nobody can visit would inflate what "is on the floor" means and
-        // quietly break the budget maths for the floors that count.
-        var open = new List<Transform>();
-        for (int floor = 1; floor <= Campaign.DeepestReachableFloor; floor++)
+        // EVERY floor gets loot, not only the reachable ones. The building is
+        // full of food whether or not your cable is long enough yet, and a
+        // floor you finally reach in round 8 should have something in it.
+        var levels = new List<Transform>();
+        for (int floor = 1; floor <= 99; floor++)
         {
-            if (Campaign.DestroyedRooms.Contains(floor)) continue;
             var level = shaft.transform.Find($"Level_{floor:00}");
-            if (level != null) open.Add(level);
+            if (level == null) break;                                  // ran out of floors
+            if (Campaign.DestroyedRooms.Contains(floor)) continue;     // sealed - stays stripped
+            levels.Add(level);
         }
 
-        if (open.Count == 0) return;
+        if (levels.Count == 0) return;
 
-        float spawnValue = Campaign.Income * spawnMultiplier;
-        float perFloor = spawnValue / open.Count;
+        // Budget is divided by the REACHABLE floor count, not the total, so
+        // the money actually within reach this round matches the economy's
+        // LootValue(R) rather than being spread thin across twenty floors
+        // the crew cannot visit.
+        int reachable = Mathf.Max(1, Campaign.DeepestReachableFloor);
+        float perFloor = Campaign.Income * spawnMultiplier / reachable;
 
         int total = 0;
-        foreach (var level in open)
+        foreach (var level in levels)
             total += FillFloor(level, perFloor * Random.Range(1f - floorVariance, 1f + floorVariance));
 
-        Debug.Log($"[Loot] round {Campaign.RunNumber}: ~${spawnValue:0} across " +
-                  $"{open.Count} floors, {total} items. Cable lifts ~${Campaign.Income}.");
+        Debug.Log($"[Loot] round {Campaign.RunNumber}: {total} items across " +
+                  $"{levels.Count} floors, ~${perFloor:0} per floor. " +
+                  $"Cable reaches floor {Campaign.DeepestReachableFloor}, lifts ~${Campaign.Income}.");
     }
 
-    /// <summary>
-    /// Draw tiers at random, deduct each one's price, stop when the budget
-    /// is spent. Deliberately NOT "pick items until the total is closest to
-    /// the budget" - a random draw against a running total is what produces
-    /// the lopsided floors the design wants.
-    /// </summary>
     int FillFloor(Transform level, float budget)
     {
         int spawned = 0;
+        int slots = Mathf.Min(itemsPerFloor, Slots.Length);
 
-        // Where this floor's items have already landed, in LEVEL-local space.
-        // Without this every position was an independent random draw with no
-        // memory: two items rolling near each other spawned interpenetrating,
-        // and physics resolved the overlap by shoving one on top of the
-        // other. That is the stack-on-a-vending-machine problem - it was
-        // never a spread problem, it was a collision one.
-        placed.Clear();
-
-        // Hard cap purely as a safety net against a mis-tuned tier table
-        // making this loop very long; the budget is the real terminator.
-        for (int guard = 0; guard < 40 && budget > 0f; guard++)
+        for (int slot = 0; slot < slots; slot++)
         {
-            Tier t = tiers[Random.Range(0, tiers.Length)];
+            Tier t = PickTier(budget);
             int value = Random.Range(t.minValue, t.maxValue + 1);
 
-            // Affordable, or the first item on an empty floor - a floor that
-            // rolled nothing at all would just be a bare room, which reads
-            // as a bug rather than as bad luck.
-            if (value > budget && spawned > 0) continue;
-
-            if (!SpawnItem(t, value, level)) continue;
+            SpawnItem(t, value, level, slot);
             budget -= value;
             spawned++;
         }
@@ -204,7 +199,29 @@ public class LootSpawner : MonoBehaviour
         return spawned;
     }
 
-    bool SpawnItem(Tier t, int value, Transform level)
+    /// <summary>
+    /// A tier this floor can still afford, or the cheapest one if it cannot
+    /// afford any. The floor always gets its three items - the budget decides
+    /// how GOOD they are, never how many, so a poor floor is three sacks of
+    /// flour rather than an empty room.
+    /// </summary>
+    Tier PickTier(float budget)
+    {
+        var affordable = new List<int>();
+        int cheapest = 0;
+
+        for (int i = 0; i < tiers.Length; i++)
+        {
+            if (tiers[i].minValue <= budget) affordable.Add(i);
+            if (tiers[i].minValue < tiers[cheapest].minValue) cheapest = i;
+        }
+
+        return affordable.Count > 0
+            ? tiers[affordable[Random.Range(0, affordable.Count)]]
+            : tiers[cheapest];
+    }
+
+    void SpawnItem(Tier t, int value, Transform level, int slot)
     {
         float mass = Random.Range(t.minMass, t.maxMass);
 
@@ -225,68 +242,27 @@ public class LootSpawner : MonoBehaviour
             }
         }
 
-        string flavour = t.names[Random.Range(0, t.names.Length)];
-        go.name = $"{flavour}_{t.label}";
+        go.name = $"{t.names[Random.Range(0, t.names.Length)]}_{t.label}";
         go.transform.SetParent(transform, true);
-
-        // Candidate spots are drawn in the LEVEL's local space, so they work
-        // whichever of the four directions that floor's doorway faces.
-        const float half = 7f;        // GrayboxBuilder.ShaftInner * 0.5
-        const float roomDepth = 6f;   // GrayboxBuilder.RoomDepth
 
         // LootPrefabBuilder authors every prefab standing ON its own origin,
         // so its pivot is the BASE. A CreatePrimitive cube's pivot is its
-        // CENTRE.
-        float pivotLift = fromPrefab ? 0f : t.size * 0.5f;
+        // CENTRE. The room floor's top surface is local y = 0, so a prefab
+        // sits at ~0 and a cube has to be lifted by half its height.
+        float y = fromPrefab ? 0.05f : t.size * 0.5f + 0.05f;
 
-        // EVERY SPOT IS VERIFIED BY RAYCAST, not trusted from arithmetic.
-        //
-        // The previous version computed a position from ShaftInner and
-        // RoomDepth and assumed the floor was underneath it. Loot still
-        // ended up on the elevator roof, which means the assumption was
-        // wrong somewhere - and rather than hunt for which constant drifted,
-        // this now just asks the physics engine where the floor actually is.
-        //
-        // hit.transform.IsChildOf(level) is the important half: it is not
-        // enough to hit SOMETHING, it has to be THIS floor's own geometry.
-        // A spot over the shaft void hits the elevator roof or a lower
-        // level, fails that test, and gets redrawn - which is precisely the
-        // bug, caught by construction instead of by arithmetic.
-        Vector3 world = Vector3.zero;
-        bool found = false;
+        Vector2 s = Slots[slot];
+        Vector3 local = new Vector3(
+            s.x + Random.Range(-slotJitter, slotJitter),
+            y,
+            s.y + Random.Range(-slotJitter, slotJitter));
 
-        for (int attempt = 0; attempt < 30 && !found; attempt++)
-        {
-            Vector3 local = new Vector3(
-                Random.Range(half + roomMargin, half + roomDepth - roomMargin * 0.5f),
-                0f,
-                Random.Range(-half + roomMargin, half - roomMargin));
+        go.transform.position = level.TransformPoint(local);
 
-            if (!IsClear(local, t.size)) continue;
-
-            // Cast from head height down through where the floor should be.
-            Vector3 from = level.TransformPoint(local + Vector3.up * 2.5f);
-            if (!Physics.Raycast(from, Vector3.down, out RaycastHit hit, 6f,
-                                 ~0, QueryTriggerInteraction.Ignore)) continue;
-
-            if (!hit.transform.IsChildOf(level)) continue;
-
-            placed.Add((local, t.size));
-            world = hit.point + Vector3.up * (pivotLift + 0.03f);
-            found = true;
-        }
-
-        if (!found)
-        {
-            // Nowhere on this floor passed. Better to drop the item than to
-            // leave it somewhere it does not belong - a missing crate is a
-            // smaller lie than one embedded in a wall.
-            Destroy(go);
-            return false;
-        }
-
-        go.transform.position = world;
-        go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        // Random spin about the level's own up, so items look dropped rather
+        // than placed - but built on the LEVEL's rotation, so a rotated floor
+        // does not tip its loot over.
+        go.transform.rotation = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
         var rb = go.GetComponent<Rigidbody>();
         if (rb == null) rb = go.AddComponent<Rigidbody>();
@@ -300,26 +276,6 @@ public class LootSpawner : MonoBehaviour
 
         int lootLayer = LayerMask.NameToLayer("Loot");
         if (lootLayer >= 0) SetLayerRecursive(go, lootLayer);
-
-        return true;
-    }
-
-    /// <summary>
-    /// True if a box of this size at this spot clears everything already
-    /// placed on the floor. Compared on X/Z only - two items at the same
-    /// spot but different heights is still a stack, which is the thing being
-    /// prevented.
-    /// </summary>
-    bool IsClear(Vector3 local, float size)
-    {
-        foreach (var (pos, otherSize) in placed)
-        {
-            float needed = (size + otherSize) * 0.5f + itemSpacing;
-            float dx = local.x - pos.x;
-            float dz = local.z - pos.z;
-            if (dx * dx + dz * dz < needed * needed) return false;
-        }
-        return true;
     }
 
     static void SetLayerRecursive(GameObject go, int layer)

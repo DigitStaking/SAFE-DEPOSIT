@@ -135,6 +135,12 @@ public class PlayerHealth : MonoBehaviour
     float lastHitTime = -99f;
     string lastCause = "";
 
+    // Diagnostic only. Two guesses at why the kneel sinks have now cost more
+    // than one measurement will - the same lesson the loot bug wrote into
+    // ROADMAP's KNOWN ISSUES. So: measure, then set the number.
+    Animator anim;
+    Transform hips, footL, footR;
+
     // --------------------------------------------------------------------
 
     /// <summary>
@@ -169,6 +175,34 @@ public class PlayerHealth : MonoBehaviour
     // someone to call it on a timer. Leaving the file with no upward path at
     // all is what makes "the number never climbs back" testable rather than a
     // promise.
+
+    void Awake()
+    {
+        anim = GetComponentInChildren<Animator>(true);
+        if (anim != null && anim.isHuman)
+        {
+            hips  = anim.GetBoneTransform(HumanBodyBones.Hips);
+            footL = anim.GetBoneTransform(HumanBodyBones.LeftFoot);
+            footR = anim.GetBoneTransform(HumanBodyBones.RightFoot);
+        }
+    }
+
+    /// <summary>
+    /// How far the lowest foot is BELOW the player's pivot, in metres. The
+    /// pivot is at floor level, so a positive number is how far the pose has
+    /// sunk through the floor. 0 means the clip is sitting correctly.
+    /// </summary>
+    public float SinkDepth
+    {
+        get
+        {
+            float lowest = float.MaxValue;
+            if (footL != null) lowest = Mathf.Min(lowest, footL.position.y);
+            if (footR != null) lowest = Mathf.Min(lowest, footR.position.y);
+            if (lowest == float.MaxValue) return 0f;
+            return transform.position.y - lowest;
+        }
+    }
 
     void Update()
     {
@@ -244,8 +278,20 @@ public class PlayerHealth : MonoBehaviour
         {
             var hint = new GUIStyle(GUI.skin.label) { fontSize = 11 };
             hint.normal.textColor = new Color(1f, 1f, 1f, 0.35f);
-            GUI.Label(new Rect(24f, Screen.height - 96f, 520f, 18f),
-                      $"debug:  H  -{debugDamage} HP     Shift+H  restore", hint);
+            string line = $"debug:  H  -{debugDamage} HP     Shift+H  restore";
+
+            // While downed, print how far the pose has sunk through the floor.
+            // Read this off the screen and the clip's Y offset is no longer a
+            // guess - it is that number.
+            if (IsDowned && (footL != null || footR != null))
+            {
+                float sink = SinkDepth;
+                line += $"     sink {sink:0.000}m";
+                if (hips != null)
+                    line += $"   hips {hips.position.y - transform.position.y:0.000}m";
+            }
+
+            GUI.Label(new Rect(24f, Screen.height - 96f, 520f, 18f), line, hint);
         }
     }
 }

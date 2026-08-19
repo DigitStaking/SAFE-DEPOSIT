@@ -31,6 +31,11 @@ public static class AnimatorBuilder
     // cycle plays at the wrong rate and the feet slide.
     public const float WalkSpeed = 4.5f;
 
+    // Lifts the kneel clip so it sits ON the floor instead of through it.
+    // See the note where it is used. Set from PlayerHealth's measured
+    // "sink" readout; 0 until that number is known.
+    public const float KneelYOffset = 0f;
+
     // ------------------------------------------------------------------
     // CLIP SLOTS
     //
@@ -196,6 +201,24 @@ public static class AnimatorBuilder
             bool airborne = lower.Contains("jump") || lower.Contains("falling")
                          || lower.Contains("kneel");
 
+            bool kneel = lower.Contains("kneel");
+
+            // ROOT HEIGHT OFFSET FOR THE KNEEL (the "Offset" field under Root
+            // Transform Position (Y) in the import inspector).
+            //
+            // Neither Feet nor Original lands this clip on the floor on its
+            // own, and the reason is retargeting: this is a STOCKY rig with
+            // short legs - FirstPersonHands measures its arm reach at 0.5m -
+            // and the clip was authored on standard proportions. Unity
+            // retargets the POSE faithfully and the absolute height comes out
+            // wrong for the shorter skeleton.
+            //
+            // So the last correction is an explicit offset, and it is a
+            // MEASURED number rather than another guess: PlayerHealth's debug
+            // HUD prints "sink 0.xxx m" while downed, which is exactly how far
+            // the lowest foot is under the floor. Put that number here.
+            float yOffset = kneel ? KneelYOffset : 0f;
+
             // Compare against the settings actually APPLIED, not Unity's
             // defaults - defaultClipAnimations always reports the defaults, so
             // testing those would reimport every file on every run.
@@ -203,7 +226,8 @@ public static class AnimatorBuilder
             bool settingsOk = applied.Length > 0 &&
                               applied.All(x => x.loopTime == loop &&
                                                x.heightFromFeet == !airborne &&
-                                               x.keepOriginalPositionY == airborne);
+                                               x.keepOriginalPositionY == airborne &&
+                                               Mathf.Approximately(x.level, yOffset));
 
             bool needsWork = imp.animationType != ModelImporterAnimationType.Human ||
                              imp.avatarSetup   != ModelImporterAvatarSetup.CopyFromOther ||
@@ -233,6 +257,9 @@ public static class AnimatorBuilder
                 c.lockRootHeightY    = true;
                 c.keepOriginalPositionY = airborne;
                 c.heightFromFeet        = !airborne;
+
+                // "level" is the Offset field under Root Transform Position (Y).
+                c.level = yOffset;
 
                 // Horizontal: bake in and re-centre, so the clip plays in place
                 // and the Rigidbody does all the travelling.

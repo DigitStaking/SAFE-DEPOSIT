@@ -247,6 +247,35 @@ So the cuts are decided now, in advance, not in April:
 
 ---
 
+# KNOWN ISSUES — carried, not forgotten
+
+### Loot ends up on the elevator roof · deferred 19 Aug 2026
+
+Three fixes attempted, none of them it. Recorded so the next attempt does
+not re-tread the same ground.
+
+**Ruled out:**
+- Stale loot saved into `Prototype.unity` — the scene contains a `LOOT`
+  root but **zero** `Carryable` components and no loot object names
+- Slot coordinates — verified numerically as x 9.3–11.9, z ±4.9, against a
+  room of x 7.5–13.5, z ±7. Inside, with metres of margin
+- Slot overlap — worst-case gap with both items jittered toward each other
+  is 2.2 m against a 1.5 m biggest item
+- Spawn height — the room floor's top surface is local y = 0 and items are
+  placed at y = 0.05
+
+**Still open.** Something is moving loot *after* it spawns, or
+`level.TransformPoint` is not landing where the arithmetic says. The next
+thing to try is the cheap one that was skipped: log each item's **world**
+position immediately after placement and compare it against the room's
+actual world bounds, rather than reasoning about local space again.
+
+Not blocking Phase 2 — the economy is testable with loot in slightly the
+wrong place, and three attempts at guessing have cost more than one
+measurement will.
+
+---
+
 # THE FOUR RULES, WHICH HAVE NOT CHANGED
 
 1. **One step per session.**

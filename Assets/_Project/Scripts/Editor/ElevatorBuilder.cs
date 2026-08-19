@@ -221,12 +221,11 @@ public static class ElevatorBuilder
         bridge.length = BridgeLength;
         bridge.width = BridgeWidth;
 
-        // Step 8. capacity/playerMass already default to the economy doc's
-        // own numbers (550, 70) - set explicitly anyway, the same "two files
-        // agree on a number in writing" habit floorHeight above follows.
-        var deck = root.AddComponent<ElevatorDeck>();
-        deck.capacity = 550f;
-        deck.playerMass = 70f;
+        // Step 8. Nothing to configure - capacity and player mass are read
+        // from Campaign at runtime now (Phase 2 Step 1), because capacity is
+        // something the crew BUYS and a number baked into this prefab could
+        // never grow.
+        root.AddComponent<ElevatorDeck>();
 
         SaveAsPrefab(root);
 

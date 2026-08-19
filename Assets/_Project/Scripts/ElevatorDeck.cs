@@ -42,17 +42,22 @@ using UnityEngine;
 [RequireComponent(typeof(Elevator))]
 public class ElevatorDeck : MonoBehaviour
 {
-    [Header("Capacity - ECONOMY_AND_CAMPAIGN.md BASE_CAPACITY")]
-    [Tooltip("550 base. Step 12 wires this to Campaign's upgraded capacity; " +
-             "for now it is the flat starting number and nothing else changes.")]
-    public float capacity = 550f;
-
-    [Tooltip("PLAYER_MASS from the economy doc - the player's own body, " +
-             "separate from whatever they are personally carrying.")]
-    public float playerMass = 70f;
+    // CAPACITY AND PLAYER MASS BOTH COME FROM Campaign NOW.
+    //
+    // They used to be serialized fields on this component, set to 550 and 70
+    // by ElevatorBuilder. That was fine while capacity was a constant and
+    // wrong the moment it stopped being one: Phase 2 Step 1 lets the crew BUY
+    // capacity, and a number baked into a prefab cannot grow. Worse, a
+    // serialized copy would have silently overridden every purchase - the
+    // shop would take the money and the gauge would not move.
+    //
+    // Reading Campaign directly means there is one capacity in the game and
+    // the gauge cannot disagree with what was paid for.
 
     public float CurrentLoad { get; private set; }
-    public bool IsOverloaded => CurrentLoad > capacity;
+
+    public float Capacity => Campaign.Capacity;
+    public bool IsOverloaded => CurrentLoad > Capacity;
 
     Elevator elevator;
     TextMesh loadText;
@@ -93,7 +98,7 @@ public class ElevatorDeck : MonoBehaviour
                 var motor = rb.GetComponent<PlayerMotor>();
                 if (motor != null)
                 {
-                    total += playerMass;
+                    total += Campaign.PlayerMass;
                     var carry = rb.GetComponent<PlayerCarry>();
                     if (carry != null) total += carry.CarriedMass;
                     continue;
@@ -111,13 +116,13 @@ public class ElevatorDeck : MonoBehaviour
     {
         if (loadText == null) return;
 
-        loadText.text = $"{CurrentLoad:0}/{capacity:0}";
+        loadText.text = $"{CurrentLoad:0}/{Capacity:0}";
 
         // A hard blink over capacity, matching the same alarm language
         // ElevatorBridge already uses for its own warning state - one
         // vocabulary for "something here needs your attention right now."
         bool flash = Mathf.FloorToInt(Time.time * 4f) % 2 == 0;
-        float frac = capacity > 0f ? CurrentLoad / capacity : 0f;
+        float frac = Capacity > 0f ? CurrentLoad / Capacity : 0f;
 
         loadText.color = IsOverloaded
             ? (flash ? new Color(1f, 0.2f, 0.15f) : new Color(1f, 0.6f, 0.5f))

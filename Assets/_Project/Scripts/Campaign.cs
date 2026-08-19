@@ -91,6 +91,30 @@ public static class Campaign
 
     public const int BackpackSlotBaseCost = 120;
 
+    // ---- CAPACITY (ECONOMY_AND_CAMPAIGN.md Part 4) ----
+    //
+    // "Capacity is not optional and it is not a power fantasy - it is a TAX
+    // you pay to keep taking everything. Fall behind on upgrades and you
+    // start leaving loot on the floor of a building that's being demolished."
+
+    /// <summary>Total mass the cable lifts: crew + cargo + survivors.</summary>
+    public const float BaseCapacity = 550f;
+
+    /// <summary>What one upgrade adds. The doc measures these in PEOPLE, not
+    /// kilos: the 2nd upgrade is "we can save someone without losing money",
+    /// the 3rd is "we can save HIM".</summary>
+    public const float CapacityStep = 50f;
+
+    public const int CapacityBaseCost = 50;
+    public const float CapacityCostGrowth = 1.25f;
+
+    /// <summary>Nine across fifty rounds, per ECONOMY Part 4.</summary>
+    public const int MaxCapacityUpgrades = 9;
+
+    /// <summary>PLAYER_MASS. One number, read by ElevatorDeck's load sum and
+    /// by PlayerMotor's Rigidbody, so the gauge and the physics agree.</summary>
+    public const float PlayerMass = 70f;
+
     /// <summary>
     /// Rooms sealed when you surface: exactly one, the room whose charge was
     /// counting down as you left. The OTHERS are sealed mid-run, one per
@@ -105,6 +129,7 @@ public static class Campaign
     public static float CableLength = StartingCable;
     public static int RunNumber = 1;
     public static int BackpackSlots = 2;
+    public static int CapacityUpgrades;
     public static bool CampaignOver;
     public static string EpitaphReason = "";
 
@@ -151,6 +176,29 @@ public static class Campaign
     public static int CableChunkCost => ScaledPrice(CableChunkBaseCost);
     public static int BackpackSlotCost => ScaledPrice(BackpackSlotBaseCost);
 
+    /// <summary>What the cable lifts right now, upgrades included.</summary>
+    public static float Capacity => BaseCapacity + CapacityStep * CapacityUpgrades;
+
+    /// <summary>
+    /// 50 x 1.25^n, where n is how many you already own.
+    ///
+    /// NOT run through ScaledPrice, unlike every other shop item, and that is
+    /// deliberate rather than an oversight: ECONOMY Part 4 states the total
+    /// outright - "Nine upgrades across fifty rounds cost 1,290 total" - and
+    /// 1,290 is exactly the sum of 50 x 1.25^n for n = 0..8 with no round
+    /// scaling applied. Multiplying by g as well would roughly triple it and
+    /// contradict the doc's own arithmetic.
+    ///
+    /// The doc IS ambiguous here - its shop table labels these "Cost (R1)",
+    /// which would imply scaling - so this is worth revisiting in Phase 7
+    /// when the full shop is built. Until then the stated total wins over the
+    /// implied one, because it is the number the design was reasoned against.
+    /// </summary>
+    public static int CapacityUpgradeCost =>
+        Mathf.RoundToInt(CapacityBaseCost * Mathf.Pow(CapacityCostGrowth, CapacityUpgrades));
+
+    public static bool CapacityMaxed => CapacityUpgrades >= MaxCapacityUpgrades;
+
     public static int DeepestReachableFloor =>
         Mathf.FloorToInt(CableLength / FloorHeight);
 
@@ -174,6 +222,7 @@ public static class Campaign
         CableLength = StartingCable;
         RunNumber = 1;
         BackpackSlots = 2;
+        CapacityUpgrades = 0;
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();
@@ -236,6 +285,14 @@ public static class Campaign
         if (Money < CableChunkCost) return false;
         Money -= CableChunkCost;
         CableLength += CableChunk;
+        return true;
+    }
+
+    public static bool BuyCapacity()
+    {
+        if (CapacityMaxed || Money < CapacityUpgradeCost) return false;
+        Money -= CapacityUpgradeCost;
+        CapacityUpgrades++;
         return true;
     }
 

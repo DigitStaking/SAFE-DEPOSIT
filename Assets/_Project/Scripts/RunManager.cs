@@ -571,6 +571,7 @@ public class RunManager : MonoBehaviour
 
         GUI.Label(new Rect(0f, y + 34f, Screen.width, 22f),
             $"cable {Campaign.CableLength:0}m reaches floor {Campaign.DeepestReachableFloor}" +
+            $"      capacity {Campaign.Capacity:0}kg" +
             $"      sealed rooms: {Campaign.DestroyedRooms.Count}" +
             $"      live rooms in reach: {Campaign.LiveRoomsInReach}", status);
 
@@ -584,17 +585,38 @@ public class RunManager : MonoBehaviour
 
         float by = y + 92f;
 
+        // Three buttons now, so they get a row of their own rather than the
+        // two-wide pair this used to be.
+        const float bw = 210f, gap = 10f;
+        float bx = cx - (bw * 3f + gap * 2f) * 0.5f;
+
         // ---- cable ----
         GUI.enabled = Campaign.Money >= Campaign.CableChunkCost;
-        if (GUI.Button(new Rect(cx - 250f, by, 240f, 40f),
+        if (GUI.Button(new Rect(bx, by, bw, 40f),
                        $"+{Campaign.CableChunk}m cable   ({Campaign.CableChunkCost})"))
         {
             Campaign.BuyCable();
         }
 
+        // ---- capacity ----
+        //
+        // ECONOMY Part 4 measures these in PEOPLE rather than kilos, which is
+        // why the label says what the upgrade actually BUYS: the second one
+        // is "we can save someone without losing money", the third is "we can
+        // save HIM". Shown as the resulting capacity, not as "+50kg", for the
+        // same reason.
+        GUI.enabled = !Campaign.CapacityMaxed && Campaign.Money >= Campaign.CapacityUpgradeCost;
+        string capLabel = Campaign.CapacityMaxed
+            ? $"capacity {Campaign.Capacity:0}kg   MAX"
+            : $"capacity → {Campaign.Capacity + Campaign.CapacityStep:0}kg   ({Campaign.CapacityUpgradeCost})";
+        if (GUI.Button(new Rect(bx + bw + gap, by, bw, 40f), capLabel))
+        {
+            Campaign.BuyCapacity();
+        }
+
         // ---- backpack ----
         GUI.enabled = Campaign.Money >= Campaign.BackpackSlotCost && Campaign.BackpackSlots < 6;
-        if (GUI.Button(new Rect(cx + 10f, by, 240f, 40f),
+        if (GUI.Button(new Rect(bx + (bw + gap) * 2f, by, bw, 40f),
                        $"+1 pack slot   ({Campaign.BackpackSlotCost})"))
         {
             Campaign.BuyBackpackSlot();

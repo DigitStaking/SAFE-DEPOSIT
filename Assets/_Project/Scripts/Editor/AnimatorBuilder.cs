@@ -227,7 +227,7 @@ public static class AnimatorBuilder
                               applied.All(x => x.loopTime == loop &&
                                                x.heightFromFeet == !airborne &&
                                                x.keepOriginalPositionY == airborne &&
-                                               Mathf.Approximately(x.level, yOffset));
+                                               Mathf.Approximately(x.heightOffset, yOffset));
 
             bool needsWork = imp.animationType != ModelImporterAnimationType.Human ||
                              imp.avatarSetup   != ModelImporterAvatarSetup.CopyFromOther ||
@@ -258,8 +258,10 @@ public static class AnimatorBuilder
                 c.keepOriginalPositionY = airborne;
                 c.heightFromFeet        = !airborne;
 
-                // "level" is the Offset field under Root Transform Position (Y).
-                c.level = yOffset;
+                // The Offset field under Root Transform Position (Y). It is
+                // serialised in the .meta as "level"; the C# property is
+                // heightOffset.
+                c.heightOffset = yOffset;
 
                 // Horizontal: bake in and re-centre, so the clip plays in place
                 // and the Rigidbody does all the travelling.

@@ -64,7 +64,7 @@ by adding the one cargo that can object to being left behind.
 | 2 | ✅ Health — 100 HP, **no regeneration, ever** |
 | 3 | Fall damage |
 | 4 | ✅ Injury states — the limp *(done early; see Step 2)* |
-| 5 | Downed and bleed-out |
+| 5 | ◐ Downed — kneel + all input locked; bleed-out clock still owed |
 | 6 | ★ **A downed player is a `Carryable`** |
 | 7 | Revive — med spray, or carry them out |
 | 8 | Lost |

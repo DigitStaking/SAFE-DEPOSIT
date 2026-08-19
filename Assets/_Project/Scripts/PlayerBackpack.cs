@@ -51,6 +51,7 @@ public class PlayerBackpack : MonoBehaviour
     readonly List<Carryable> items = new List<Carryable>();
     Rigidbody rb;
     PlayerCarry carry;
+    PlayerHealth health;
     Transform packVisual;
     float lastSelectFlash;
 
@@ -58,6 +59,7 @@ public class PlayerBackpack : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         carry = GetComponent<PlayerCarry>();
+        health = GetComponent<PlayerHealth>();
 
         if (backAnchor == null)
         {
@@ -105,6 +107,10 @@ public class PlayerBackpack : MonoBehaviour
         // Number keys 1-6 select / withdraw that slot.
         var kb = Keyboard.current;
         if (kb == null) return;
+
+        // Nothing comes out of the pack while you are on the floor. Same rule
+        // as PlayerCarry: downed means no interaction of any kind.
+        if (health != null && health.IsDowned) return;
 
         if (kb.digit1Key.wasPressedThisFrame || kb.numpad1Key.wasPressedThisFrame) UseSlot(0);
         if (kb.digit2Key.wasPressedThisFrame || kb.numpad2Key.wasPressedThisFrame) UseSlot(1);
@@ -193,7 +199,12 @@ public class PlayerBackpack : MonoBehaviour
 
     void OnDropPack(InputValue value)
     {
-        if (value.isPressed) DropAll();
+        if (!value.isPressed) return;
+
+        // The one exception: the pack CAN come off while downed. If it could
+        // not, the crew would be carrying your loot as well as you, and the
+        // point of the load gauge is that they get to choose.
+        DropAll();
     }
 
     void Reposition()

@@ -46,9 +46,13 @@
 // and a HUD that lies is worse than one that says nothing. The same
 // multiplier that makes Hurt slow makes Downed motionless.
 //
-// What is still missing at 0 HP is Step 5: the 90-second bleed-out clock,
-// the prone pose, the locked view, and being a Carryable. Right now you are
-// simply rooted where you stand.
+// At 0 HP you now also KNEEL, and cannot emote, pick anything up, or pull
+// from the pack. None of that is new code in the animator: the Downed bool,
+// the kneel state, the emote guard and the arm-IK release were all built in
+// Phase 1 and had simply never been told when. PlayerHealth is the when.
+//
+// What is still missing is Step 5: the 90-second bleed-out clock, the locked
+// view, and being a Carryable so somebody can pick you up.
 // ====================================================================
 
 using UnityEngine;

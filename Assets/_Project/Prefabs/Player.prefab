@@ -379,7 +379,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 512
   groundCheckDistance: 0.25
-  speedMultiplier: 1
+  externalSpeedLock: 1
   coyoteTime: 0.15
 --- !u!114 &1637748967432123577
 MonoBehaviour:
@@ -499,6 +499,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   debugKeys: 1
   debugDamage: 10
+  hurtSpeed: 0.78
+  criticalSpeed: 0.52
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0

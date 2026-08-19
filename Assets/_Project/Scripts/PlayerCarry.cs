@@ -42,11 +42,13 @@ public class PlayerCarry : MonoBehaviour
     Rigidbody rb;
     Transform cam;
     PlayerBackpack backpack;
+    PlayerHealth health;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
         backpack = GetComponent<PlayerBackpack>();
+        health = GetComponent<PlayerHealth>();
     }
 
     void Start()
@@ -82,6 +84,16 @@ public class PlayerCarry : MonoBehaviour
     void OnInteract(InputValue value)
     {
         if (!value.isPressed) return;
+
+        // PHASE2_SPEC: while downed you "cannot move, look freely, or
+        // interact". Dropping is allowed - if you go down holding a crate it
+        // has to leave your hands, or the load gauge charges the crew for a
+        // box nobody can reach.
+        if (health != null && health.IsDowned)
+        {
+            if (held != null) DropHeld();
+            return;
+        }
 
         if (held == null)
         {

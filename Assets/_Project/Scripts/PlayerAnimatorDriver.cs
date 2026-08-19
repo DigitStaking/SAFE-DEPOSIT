@@ -62,6 +62,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
     PlayerMotor motor;
     PlayerCarry carry;
+    PlayerHealth health;
     PlayerBackpack pack;
     Rigidbody rb;
 
@@ -75,6 +76,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
     {
         motor  = GetComponent<PlayerMotor>();
         carry  = GetComponent<PlayerCarry>();
+        health = GetComponent<PlayerHealth>();
         pack   = GetComponent<PlayerBackpack>();
         rb     = GetComponent<Rigidbody>();
 
@@ -189,6 +191,23 @@ public class PlayerAnimatorDriver : MonoBehaviour
         }
 
         // ---------------------------------------------------------------
+        // DOWNED
+        //
+        // The kneel state, the Downed bool and the emote guard have all been
+        // sitting in this file and in AnimatorBuilder since Phase 1, waiting
+        // for something to say WHEN. PlayerHealth is that something.
+        //
+        // POLLED every frame rather than driven by PlayerHealth's Downed
+        // EVENT, and the reason is Campaign: HP survives a scene reload, so a
+        // player who bled out last run is still at 0 when the next scene
+        // loads - and the event fired in a scene that no longer exists. An
+        // event-driven version puts a 0-HP player back on their feet every
+        // time the level rebuilds. Polling a value cannot miss an edge.
+        // ---------------------------------------------------------------
+        if (health != null && downed != health.IsDowned)
+            SetDowned(health.IsDowned);
+
+        // ---------------------------------------------------------------
         // EMOTES
         // ---------------------------------------------------------------
         if (emotesEnabled) ReadEmoteKeys();
@@ -238,7 +257,12 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
     /// <summary>
     /// Knocked down, waiting for a teammate. NOT death - pass false to revive.
-    /// Call from RunManager / traps.
+    ///
+    /// When a PlayerHealth is present it drives this from Update and is the
+    /// only writer, so calling it by hand will simply be corrected on the next
+    /// frame. That is deliberate: HP is the single source of truth for whether
+    /// you are down, and the alternative is two systems assigning one flag -
+    /// exactly the bug that PlayerMotor.speedMultiplier turned out to be.
     /// </summary>
     public void SetDowned(bool value)
     {

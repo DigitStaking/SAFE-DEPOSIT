@@ -33,9 +33,36 @@ public static class FirstPersonFixer
     const string PlayerFbx      = "Assets/_Project/Models/Player.fbx";
 
     // ---- THE KNOWN-GOOD NUMBERS -------------------------------------
-    static readonly Vector3 LeftHand  = new Vector3(-0.24f, -0.30f, 0.52f);
-    static readonly Vector3 RightHand = new Vector3( 0.24f, -0.30f, 0.52f);
-    static readonly Vector3 EyeOffset = new Vector3( 0f,     1.65f, 0.12f);
+    // EYE HEIGHT IS THE USER'S NUMBER. 1.25, not 1.65.
+    //
+    // This file exists to stop hand-tuned values drifting, and it did the
+    // opposite here: it carried a 1.65 that was never asked for, so running
+    // "Fix First Person Setup" to attach an unrelated component silently
+    // raised the camera 40cm on both the prefab and the open scene. A tool
+    // that resets everything must only hold values somebody actually chose.
+    static readonly Vector3 EyeOffset = new Vector3( 0f, 1.25f, 0.12f);
+
+    // HANDS ARE ANCHORED IN WORLD HEIGHT, NOT TO THE EYE.
+    //
+    // FirstPersonHands places its IK targets RELATIVE TO THE EYE, so a fixed
+    // y offset moves the hands whenever the camera moves - which is how a
+    // camera change mangled the arms. The hands do not care where the eye is;
+    // they care where the SHOULDER is, and the shoulder is on the body at
+    // about 1.42 no matter what the camera does.
+    //
+    // So the tuned quantity is the world height (1.35, ~7cm below the
+    // shoulder, which is what makes the elbows hang instead of flaring), and
+    // the eye-relative offset is DERIVED from it. Change EyeOffset.y now and
+    // the hands stay exactly where they were.
+    //
+    // This is not a re-tune of the arms - they are still the Phase 1 interim
+    // and still parked until Block 8. It restores the height they were tuned
+    // at and stops the camera dragging them off it.
+    const float HandWorldY = 1.35f;
+    static float HandY => HandWorldY - EyeOffset.y;
+
+    static Vector3 LeftHand  => new Vector3(-0.24f, HandY, 0.52f);
+    static Vector3 RightHand => new Vector3( 0.24f, HandY, 0.52f);
     const float BaseFov  = 75f;
     const float NearClip = 0.3f;   // 0.05 exposes the inside of your own skull
 

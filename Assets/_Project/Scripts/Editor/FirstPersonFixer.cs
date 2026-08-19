@@ -203,6 +203,18 @@ public static class FirstPersonFixer
             }
         }
 
+        // ---- health (Phase 2 Step 2) --------------------------------
+        // Attached here rather than by hand for the reason at the top of this
+        // file: a component dragged onto the scene instance only is a
+        // component that vanishes the next time the prefab is applied.
+        var health = root.GetComponent<PlayerHealth>();
+        if (health == null)
+        {
+            health = root.AddComponent<PlayerHealth>();
+            log.AppendLine("  added PlayerHealth");
+        }
+        health.enabled = true;
+
         // ---- the driver ---------------------------------------------
         var drv = root.GetComponent<PlayerAnimatorDriver>();
         if (drv == null) drv = root.AddComponent<PlayerAnimatorDriver>();

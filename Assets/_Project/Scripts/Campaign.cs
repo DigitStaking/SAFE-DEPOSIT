@@ -115,6 +115,30 @@ public static class Campaign
     /// by PlayerMotor's Rigidbody, so the gauge and the physics agree.</summary>
     public const float PlayerMass = 70f;
 
+    // ---- HEALTH (PHASE2_SPEC Part 2) ----
+    //
+    // "100 HP. No regeneration. Ever."
+    //
+    // HP LIVES HERE, NOT ON THE PLAYER, and that is the whole decision of
+    // Step 2. RunManager.ReloadScene() rebuilds the scene between runs, so a
+    // field on a MonoBehaviour is back at 100 every round no matter what
+    // happened last round. ECONOMY Part 5 sells a Bandage in the SHOP for 10
+    // - and a shop item that heals you is meaningless if surfacing already
+    // did. So damage is campaign state, exactly like Money, and the only way
+    // back up is something you paid for.
+    //
+    // Nothing in this file or in PlayerHealth ever adds to this number on a
+    // timer. There is no regeneration path to disable later because one was
+    // never written.
+
+    public const int MaxHealth = 100;
+
+    /// <summary>
+    /// Current HP, 0-100. Phase 3 makes this per-player along with the rest
+    /// of Campaign; until then there is one crew member and this is theirs.
+    /// </summary>
+    public static int Health = MaxHealth;
+
     /// <summary>
     /// Rooms sealed when you surface: exactly one, the room whose charge was
     /// counting down as you left. The OTHERS are sealed mid-run, one per
@@ -223,6 +247,7 @@ public static class Campaign
         RunNumber = 1;
         BackpackSlots = 2;
         CapacityUpgrades = 0;
+        Health = MaxHealth;
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();

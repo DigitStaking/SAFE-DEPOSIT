@@ -36,29 +36,23 @@ public class FirstPersonCamera : MonoBehaviour
              "the WORLD should look like from standing height, nothing else.")]
     public Vector3 eyeOffset = new Vector3(0f, 1.60f, 0.12f);
 
-    // ---- DOWNED: THE EYE LEAVES THE PIVOT AND RIDES THE FACE ----
+    // ---- DOWNED: JUST THE EYE HEIGHT ----
     //
-    // Standing, the camera is a fixed offset above the player's pivot and
-    // deliberately ignores the skeleton - riding the head bone while walking
-    // inherits every footstep in the walk cycle, which is nausea, not
-    // immersion.
+    // Tried riding the Head bone so the view would land exactly on the
+    // animated face. It put the camera somewhere outside and below the body
+    // and it is not worth chasing: the head bone is shrunk to 0.0001 by the
+    // body cull, it is re-posed by IK after this script runs, and the kneel
+    // clip moves it in ways nothing here can predict.
     //
-    // Kneeling is the opposite case. There IS no fixed offset that is
-    // correct, because the whole point is that the body folded: the face
-    // ends up lower AND further forward AND tipped, and only the animation
-    // knows by how much. Guessing a number would put the view somewhere the
-    // character's face is not, and would need re-guessing the moment the
-    // clip changed.
-    //
-    // So while downed the eye is placed from the Head BONE, blended in over
-    // downedBlendTime so going down is a fall rather than a cut. The small
-    // idle motion of the kneel clip comes through as breathing, which is
-    // free and worth having.
+    // A plain Y is the right tool. One number, visible in the Inspector,
+    // tuned by looking at it. Everything else about the eye - the yaw
+    // rotation, the forward 0.12 - stays exactly as it is standing, so there
+    // is only ever one value to argue with.
 
-    [Tooltip("Offset from the HEAD BONE while downed, in the bone's own " +
-             "space. Small forward push so the near plane is not inside the " +
-             "character's own face.")]
-    public Vector3 downedEyeOffset = new Vector3(0f, 0.02f, 0.14f);
+    [Tooltip("Eye height while downed. Standing is eyeOffset.y (1.65). " +
+             "Tune this against the kneel pose until the view sits on the " +
+             "character's face.")]
+    public float downedEyeHeight = 1.0f;
 
     [Tooltip("Seconds to sink into and rise out of the kneeling view.")]
     public float downedBlendTime = 0.45f;
@@ -135,19 +129,14 @@ public class FirstPersonCamera : MonoBehaviour
         {
             if (target == null) return transform.position;
 
-            Vector3 standing = target.position
-                             + Quaternion.Euler(0f, yaw, 0f) * eyeOffset
-                             + Vector3.up * bobOffset;
+            // Y is the only thing that changes. Lerped from the standing
+            // height rather than swapped, so going down is a fall.
+            Vector3 offset = eyeOffset;
+            offset.y = Mathf.Lerp(eyeOffset.y, downedEyeHeight, downedBlend);
 
-            if (downedBlend <= 0.001f || headBone == null) return standing;
-
-            // TransformDirection, never TransformPoint. LocalFirstPersonBodyCull
-            // shrinks the Head bone to 0.0001 to hide your own skull, and scale
-            // is inherited by TransformPoint - which would collapse this offset
-            // to nothing. TransformDirection applies rotation only.
-            Vector3 kneeling = headBone.position + headBone.TransformDirection(downedEyeOffset);
-
-            return Vector3.Lerp(standing, kneeling, downedBlend);
+            return target.position
+                 + Quaternion.Euler(0f, yaw, 0f) * offset
+                 + Vector3.up * bobOffset;
         }
     }
 
@@ -157,7 +146,6 @@ public class FirstPersonCamera : MonoBehaviour
     Rigidbody targetBody;
     Camera cam;
     PlayerHealth health;
-    Transform headBone;
     float downedBlend;
 
     float yaw, pitch, bobTimer, currentTilt, bobOffset;
@@ -174,10 +162,6 @@ public class FirstPersonCamera : MonoBehaviour
         motor = target.GetComponent<PlayerMotor>();
         targetBody = target.GetComponent<Rigidbody>();
         health = target.GetComponent<PlayerHealth>();
-
-        var anim = target.GetComponentInChildren<Animator>(true);
-        if (anim != null && anim.isHuman)
-            headBone = anim.GetBoneTransform(HumanBodyBones.Head);
 
         // Already downed on the frame the scene loads - Campaign.Health
         // survives a reload, so start folded rather than blending down from

@@ -251,7 +251,7 @@ GameObject:
   - component: {fileID: 5375318575559357809}
   - component: {fileID: 6582672556996034115}
   - component: {fileID: 2370876444229263645}
-  - component: {fileID: 5362268134946503382}
+  - component: {fileID: 1428181967781404197}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -467,14 +467,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5905128192338178620}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 56394b2f2a3e2b84a91d668cf62d0750, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LocalFirstPersonBodyCull
   headShrink: 0.0001
-  shrinkNeck: 1
-  hideLegs: 1
+  shrinkNeck: 0
+  hideLegs: 0
   hideOwnShadow: 1
   armsRendererName: arm
   hideNameParts:
@@ -485,7 +485,7 @@ MonoBehaviour:
   thirdPersonToggle: 118
   thirdPersonDistance: 3.2
   thirdPersonHeight: 1.4
---- !u!114 &5362268134946503382
+--- !u!114 &1428181967781404197
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -494,11 +494,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 5905128192338178620}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5befa43c52f340d45a3c911524ed9b10, type: 3}
+  m_Script: {fileID: 11500000, guid: c0c3df10343a5a64599b5cbf22378af9, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerNoShadow
-  suppressShadow: 1
-  stillReceiveShadows: 1
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  debugKeys: 1
+  debugDamage: 10
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -622,9 +622,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonHands
   cameraTransform: {fileID: 0}
-  leftHand: {x: -0.26, y: -0.24, z: 0.32}
-  rightHand: {x: 0.26, y: -0.24, z: 0.32}
-  handWeight: 0.4
+  leftHand: {x: -0.24, y: -0.3, z: 0.52}
+  rightHand: {x: 0.24, y: -0.3, z: 0.52}
+  handWeight: 1
   keepInFrame: 1
   frameMargin: 0.06
   freeArmsDuringActions: 0

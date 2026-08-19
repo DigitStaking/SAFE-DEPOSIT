@@ -529,10 +529,14 @@ public class ElevatorDashboard : MonoBehaviour
         //
         // Disabling PlayerInput stops new input arriving - but PlayerMotor
         // CACHES the last move vector, so if you press F mid-stride it keeps
-        // walking into the wall forever. Zeroing speedMultiplier is what
+        // walking into the wall forever. Zeroing the external lock is what
         // actually stops the body.
+        //
+        // externalSpeedLock, NOT the old shared speedMultiplier: releasing
+        // used to assign 1, which would have healed a limp on the way out of
+        // the panel. This field is only ever ours.
         if (playerInput != null) playerInput.enabled = false;
-        if (motor != null) motor.speedMultiplier = 0f;
+        if (motor != null) motor.externalSpeedLock = 0f;
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -550,7 +554,7 @@ public class ElevatorDashboard : MonoBehaviour
         state = State.Idle;
 
         if (playerInput != null) playerInput.enabled = true;
-        if (motor != null) motor.speedMultiplier = 1f;
+        if (motor != null) motor.externalSpeedLock = 1f;   // releases OUR lock only
         if (fpCam != null) fpCam.enabled = true;
 
         Cursor.lockState = CursorLockMode.Locked;

@@ -5,7 +5,8 @@
 // instance, so there is nothing to drag.
 //
 // ====================================================================
-// PHASE 2 STEP 2 - HEALTH. 100 HP, NO REGENERATION, EVER.
+// PHASE 2 STEPS 2 AND 4 - HEALTH, AND THE LIMP.
+// 100 HP, NO REGENERATION, EVER.
 //
 // PHASE2_SPEC Part 2 is blunt about why: "damage is permanent within a run,
 // so a bad fall on floor 3 is still with you on floor 12. The only way back
@@ -38,11 +39,16 @@
 // ====================================================================
 // WHAT THIS STEP DELIBERATELY DOES NOT DO
 //
-// Nothing damages you yet - that is Step 3 (falling). Nothing SLOWS you yet -
-// that is Step 4 (the limp). Hitting 0 does not put you on the floor - that
-// is Step 5 (downed and bleed-out). This step is the number, the rules that
-// only ever move it downward, the readout, and the two seams the next three
-// steps plug into: TakeDamage() and the Downed event.
+// Nothing damages you yet - that is Step 3 (falling).
+//
+// Step 4's limp IS here (SpeedFactor below), pulled forward because the
+// readout was claiming DOWNED at 0 HP while you walked around at full speed,
+// and a HUD that lies is worse than one that says nothing. The same
+// multiplier that makes Hurt slow makes Downed motionless.
+//
+// What is still missing at 0 HP is Step 5: the 90-second bleed-out clock,
+// the prone pose, the locked view, and being a Carryable. Right now you are
+// simply rooted where you stand.
 // ====================================================================
 
 using UnityEngine;
@@ -56,8 +62,8 @@ public class PlayerHealth : MonoBehaviour
     public bool debugKeys = true;
     public int debugDamage = 10;
 
-    /// <summary>Health as the spec's states. Presentation only in this step -
-    /// Step 4 attaches the limp and the breathing to Hurt/Critical.</summary>
+    /// <summary>Health as the spec's states. Drives SpeedFactor below;
+    /// the heavy breathing and the vignette are still to come.</summary>
     public enum Condition { Fine, Hurt, Critical, Downed }
 
     public int Current => Campaign.Health;
@@ -72,6 +78,42 @@ public class PlayerHealth : MonoBehaviour
         Campaign.Health <= 25 ? Condition.Critical :
         Campaign.Health <= 50 ? Condition.Hurt :
                                 Condition.Fine;
+
+    // ---- THE LIMP (PHASE2_SPEC Step 4) ----
+    //
+    // "Done when: you can tell someone is hurt without looking at a number."
+    //
+    // STEPPED, not a smooth ramp, and deliberately so. A continuous curve is
+    // more realistic and completely unreadable - you cannot tell 0.91 from
+    // 0.87, so nothing ever announces itself. A step change is a MOMENT: the
+    // one where crossing 50 makes your own body feel different, which is the
+    // only warning you get before Critical.
+    //
+    // PlayerMotor reads this every frame rather than having it pushed, so it
+    // cannot be overwritten by the dashboard releasing you or by putting a
+    // crate down. See the note above PlayerMotor.externalSpeedLock.
+
+    [Header("The limp")]
+    [Tooltip("Speed at 50-26 HP. A limp you notice.")]
+    [Range(0.3f, 1f)] public float hurtSpeed = 0.78f;
+
+    [Tooltip("Speed at 25-1 HP. Slow enough that the collapse clock becomes " +
+             "a real problem.")]
+    [Range(0.2f, 1f)] public float criticalSpeed = 0.52f;
+
+    /// <summary>
+    /// Multiplied into PlayerMotor's top speed. 0 while downed - being downed
+    /// is not a speed penalty, it is the absence of standing up, and it is
+    /// what makes the DOWNED readout tell the truth before Step 5 builds the
+    /// bleed-out on top of it.
+    /// </summary>
+    public float SpeedFactor => State switch
+    {
+        Condition.Downed   => 0f,
+        Condition.Critical => criticalSpeed,
+        Condition.Hurt     => hurtSpeed,
+        _                  => 1f,
+    };
 
     // ---- THE SEAMS FOR STEPS 3, 4 AND 5 ----
     //
@@ -182,6 +224,11 @@ public class PlayerHealth : MonoBehaviour
             ? $"HP  0 / {Max}   DOWNED"
             : $"HP  {Current} / {Max}" +
               (State == Condition.Fine ? "" : $"   {State.ToString().ToUpper()}");
+
+        // The speed penalty, spelled out. Feeling slower is the point, but
+        // while tuning hurtSpeed and criticalSpeed you need the number too.
+        if (!IsDowned && SpeedFactor < 1f)
+            label += $"   speed {SpeedFactor * 100f:0}%";
 
         if (!string.IsNullOrEmpty(lastCause) && since < 3f)
             label += $"   ({lastCause})";

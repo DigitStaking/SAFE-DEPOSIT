@@ -67,10 +67,39 @@ public class PlayerMotor : MonoBehaviour
              "forgiving on stairs and small bumps.")]
     public float groundCheckDistance = 0.25f;
 
-    // Scales top speed. Other systems write here rather than changing
-    // moveSpeed, so the tuned Inspector value always stays the real one.
-    // Carry weight and injury will drive this.
-    [HideInInspector] public float speedMultiplier = 1f;
+    // ---- TOP SPEED IS A PRODUCT, NOT A FIELD (Phase 2 Step 4) ----
+    //
+    // This used to be one shared float that anything could assign. Three
+    // things want a say in how fast you walk - a hard external lock, your
+    // injuries, and what you are carrying - and one variable can only hold
+    // the opinion of whoever wrote to it last. That is not a tuning problem,
+    // it is a correctness one:
+    //
+    //   * ElevatorDashboard set it to 0 on entry and 1 on exit. Walking away
+    //     from the panel would have handed a crawling, 8-HP player their full
+    //     speed back, because 1 is an ASSIGNMENT and not a release.
+    //   * PlayerCarry.SpeedMultiplier has existed since Phase 1 and was never
+    //     read by movement at all - only by PlayerAnimatorDriver. A 200kg
+    //     cabinet ANIMATED heavy while you walked at full speed. Step 6's
+    //     "feel the speed penalty" was never going to work.
+    //
+    // So the external lock keeps a field of its own, injury and carry weight
+    // are READ FROM THEIR OWNERS every frame rather than pushed here, and the
+    // three multiply. Nothing can overwrite anything else's opinion because
+    // nobody stores anybody else's.
+
+    /// <summary>Hard stop from something that took control of you outright -
+    /// the dashboard. 0 = frozen, 1 = released. Not for injury or weight.</summary>
+    [HideInInspector] public float externalSpeedLock = 1f;
+
+    /// <summary>1 while healthy, less while hurt, 0 while downed.</summary>
+    public float InjuryFactor => health != null ? health.SpeedFactor : 1f;
+
+    /// <summary>1 empty-handed, ~0.7 heavy, ~0.45 massive.</summary>
+    public float CarryFactor => carry != null ? carry.SpeedMultiplier : 1f;
+
+    /// <summary>What actually scales moveSpeed.</summary>
+    public float SpeedMultiplier => externalSpeedLock * InjuryFactor * CarryFactor;
 
     [Tooltip("Seconds after leaving the ground during which you still count as " +
              "grounded. Classic 'coyote time' - it makes jumping off a ledge " +
@@ -98,6 +127,7 @@ public class PlayerMotor : MonoBehaviour
     CapsuleCollider capsule;
     PlayerInput playerInput;
     PlayerCarry carry;
+    PlayerHealth health;
     Transform cam;
 
     Vector2 moveInput;
@@ -111,6 +141,7 @@ public class PlayerMotor : MonoBehaviour
         capsule = GetComponent<CapsuleCollider>();
         playerInput = GetComponent<PlayerInput>();
         carry = GetComponent<PlayerCarry>();
+        health = GetComponent<PlayerHealth>();
 
         rb.isKinematic = false;
 
@@ -173,6 +204,9 @@ public class PlayerMotor : MonoBehaviour
         // back to the elevator.
         if (carry != null && !carry.CanJump) return;
 
+        // Downed is not a speed penalty, it is the absence of standing up.
+        if (health != null && health.IsDowned) return;
+
         // Queued, not acted on immediately. Input arrives on the render frame
         // but physics runs on its own clock; acting here would sometimes miss
         // a physics step and drop the input entirely.
@@ -222,7 +256,7 @@ public class PlayerMotor : MonoBehaviour
         if (wish.sqrMagnitude > 1f) wish.Normalize();   // no faster on diagonals
 
         // 1. the velocity we want
-        Vector3 targetVelocity = wish * moveSpeed * speedMultiplier;
+        Vector3 targetVelocity = wish * moveSpeed * SpeedMultiplier;
 
         // 2. the horizontal velocity we have. Vertical is excluded so this
         //    never fights gravity or a jump.

@@ -20,6 +20,7 @@ Last updated: 14 Aug 2026, after the elevator decision.
 | **`PUZZLES.md`** | all 25 puzzles, the lock/key/modifier kit, placement rules |
 | **`ELEVATOR_SPEC.md`** | the elevator, and the 12-step build order — **all 12 done, 19 Aug 2026** |
 | **`PHASE2_SPEC.md`** | mass, health, downed, Lost, rescue, cable fray — the 10-step build order for Block 2 |
+| **`ROADMAP.md`** | **start here for "where are we going" — all ten phases, and where voice and audio land** |
 | **`DEMO_PLAN.md`** | schedule to Next Fest, consistency check, cut list — **rewritten 18 Aug 2026 for the elevator** |
 | **`ANIMATIONS.md`** | animation system, clip list, two-layer Animator |
 
@@ -29,7 +30,10 @@ Last updated: 14 Aug 2026, after the elevator decision.
 |---|---|---|
 | `ROPE_AND_PLATFORM.md` | `ELEVATOR_SPEC.md` | the platform became the elevator |
 | `BUILD_PLAN.md` | `DEMO_PLAN.md` | older schedule |
-| `ROADMAP.md` | `DEMO_PLAN.md` | pre-dates most of the design |
+
+**`ROADMAP.md` was rewritten on 19 Aug 2026** and is authoritative again — it
+is now the phase-by-phase map from here to submission. The rope-era version it
+replaced is in git history at `0df8199` if it is ever wanted.
 
 ## Sections of `GAME_DESIGN.md` that are now obsolete
 

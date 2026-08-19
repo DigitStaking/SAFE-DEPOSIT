@@ -1,214 +1,260 @@
-# SAFE DEPOSIT — Master Plan (build + ship)
+# SAFE DEPOSIT — The Whole Road
 
-Last updated: 2026-08-06  
-Stack: Unity 6.3 LTS, URP, PEAK-style flat art, online co-op FP  
-Project path: `C:\Users\Digitstak\SAFE DEPOSIT`
+Every phase from here to submitting the demo, in order, with the step lists
+that already exist and the ones that do not yet.
 
-This file is the working agreement between Marouane and Hermes.
-Design truth lives in `GAME_DESIGN.md`. Art target = concept board (orange divers, yellow rope, absurd loot, dark shaft, **gameplay camera = first person**).
+**Target: Steam Next Fest, June 2027. Submission 31 May 2027.**
+A game appears in only one Next Fest, so this is the only shot.
 
----
+Today: **19 Aug 2026.** Phase 1 is complete.
 
-## 0. Honest status (what exists on disk)
-
-### Built and real (~4k lines C#)
-| System | Files | Notes |
-|---|---|---|
-| Graybox shaft gen | `Editor/GrayboxBuilder.cs` | 5 floors, rotated doors, loot cubes |
-| FP camera | `FirstPersonCamera.cs` | Not parented to RB — correct |
-| Motor | `PlayerMotor.cs` | Rigidbody + accel budget |
-| Main rope | `MainRope.cs` | Anchor, length, bend, load limit |
-| Tether | `PlayerTether.cs` | 2.5m swing / 10m rooms, cut = invisible |
-| Hook / pin | `RopeHook.cs` | Doorway kink |
-| Carry + pack | `Carryable`, `PlayerCarry`, `PlayerBackpack` | Weight classes |
-| Arms (proto) | `PlayerArms.cs` | Shared body, no viewmodel — keep this |
-| Run loop | `RunManager.cs` | Quota, extract, deadline |
-| Campaign | `Campaign.cs` | Money, rope length, floors destroyed |
-
-### Not built (blocks “friends can play”)
-- Netcode / second player
-- Real art (meshes, PEAK materials, lighting pass)
-- Shop UI closing the meta loop
-- Cross-room puzzles, threats, survivors, Collector
-- Audio, polish, Steam build pipeline
-- Discord / Steam page / trailer
-
-### Reality check
-You have a **strong solo vertical slice of feel** (rope + weight + run).  
-You do **not** yet have a shippable co-op game. Co-op is ~40–50% of remaining risk.
+This file is the map. `DEMO_PLAN.md` is the schedule with dates and the cut
+list; the per-phase specs hold the actual step-by-step. Where they disagree,
+the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 
 ---
 
-## 1. Product goal
+# WHERE WE ARE
 
-**One sentence:** Four friends hang on one yellow rope in a collapsing bank-shelter, arguing out loud whether to haul gold, people, or evidence before the government blows the floor.
+```
+  PHASE 1  ████████████  the elevator ...................... DONE  12/12
+  PHASE 2  ░░░░░░░░░░░░  mass, health, downed .............. next  0/10
+  PHASE 3  ░░░░░░░░░░░░  de-single-player
+  PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
+  PHASE 5  ░░░░░░░░░░░░  the room kit
+  PHASE 6  ░░░░░░░░░░░░  puzzles and traps
+  PHASE 7  ░░░░░░░░░░░░  economy and shop
+  PHASE 8  ░░░░░░░░░░░░  polish + FULL AUDIO PASS
+  PHASE 9  ░░░░░░░░░░░░  content to 20 floors
+  PHASE 10 ░░░░░░░░░░░░  ship it
+```
 
-**Why it can win:** Co-op + physics comedy + moral weight limit = **clip factory**. Free marketing is the real CAC strategy — correct instinct.
-
-**Not the goal:** Photorealism. Photoreal fights PEAK DNA and your timeline.
-
----
-
-## 2. Scope gates (do not skip)
-
-| Gate | Definition of done | Approx when* |
-|---|---|---|
-| **G0 — Solo fun** | Shop closes loop; atmosphere matches art board; 3 loot silhouettes; 1 full graybox run feels tense alone | Month 1–2 |
-| **G1 — 2P local or online** | Two bodies on one rope, load shared, extract requires both | Month 3–5 |
-| **G2 — Demo (4P)** | 4 players, 3 floors, 5 room types, 2 puzzles, 1 survivor choice, collapse, load limit. Grey-or-art OK if fun | Month 6–9 |
-| **G3 — Full 1.0** | Campaign depth, Collector, 2–3 threats, shop full, 10–15 floors of content, polish, Steam Deck | Month 16–22 |
-
-\*Assumes **you** full-time-ish on Unity + Hermes as co-dev on systems/art pipeline/tools. Slips if netcode fights you or art is blocked. Solo hobby pace ≈ ×1.5–2.
-
-**Demo is NOT an infinite run.**  
-Your design’s soul is the **ratchet** (floors die when you surface) + **quota/mafia pressure**. Infinite roguelike deletes the story and the panic.  
-Demo = short campaign slice: few runs, rope progression lite, collapse visible, “do we save them?” once.
+**Voice arrives in Phase 4. Everything else you hear arrives in Phase 8.**
+Both are called out below where they land, because "when do I get to add
+voice and everything" is the question this file was written to answer.
 
 ---
 
-## 3. Build phases (work together)
+# PHASE 1 — THE ELEVATOR ✅ DONE
 
-### Phase A — Make the graybox look like the trailer (2–4 weeks)
-- URP: dark ambient, fog, headlamp, yellow rope mat, PEAK-flat materials
-- Placeholder loot silhouettes (vending, piano, bust, extinguisher…) wired to `Carryable`
-- Shop between runs (money → rope) so campaign is playable end-to-end solo
-- ART_BIBLE.md + capsule readability test
-- **Exit:** 60s clip that looks like panel 1/5 energy even with block characters
+`ELEVATOR_SPEC.md` · 12 steps · finished 19 Aug 2026
 
-### Phase B — Netcode spine (6–12 weeks, highest risk)
-- Pick stack early: **Netcode for GameObjects (NGO) + Unity Relay/Lobby** or **FishNet** / **Mirror** — decide in week 1 of B
-- Host-authoritative rope state (one rope sim, all clients read)
-- Player spawn, tether attach, carry ownership, run timer sync
-- Voice: proximity optional later; start with Discord/Steam overlay
-- **Exit:** you + 1 friend finish a run without desync disasters
+Delete the rope, build the car, movement, dashboard, bridge, cargo and load,
+price scanner, return to surface, graybox rebuild, economy retune.
 
-### Phase C — Demo content (8–14 weeks overlapping B polish)
-- 3 floors, 5 room modules, 2 co-op puzzles (keycard + 3-handle or ledger)
-- 1 survivor choice, load limit readable UI, collapse beat
-- 4 player colors from character sheet
-- Tutorial that teaches rope in 90s without a novel
-- **Exit:** closed playtests score “would wishlist / would stream”
+**A full round plays start to finish**: descend, loot, load, RETURN, results,
+shop, repeat. Loot is the five real economy tiers on a per-round value budget.
 
-### Phase D — Steam presence (start during C, not after)
-- Steamworks page the week you have **one great clip** (even pre-demo)
-- Capsule = panel 5 composition; trailer = money shot + FP glove shot
-- Build Discord, creator key form, press kit
-- **Exit:** page live, weekly content cadence
-
-### Phase E — Full game after demo data
-- Only build systems demo players begged for
-- Collector, threats, evidence endgame, more floors
-- Localisation pass near end (EN first; FR useful for Morocco/EU)
-- **Exit:** 1.0 launch checklist green
+What it cost that was not planned: a 942 MB file silently blocking every push,
+four bugs that fell out of deleting the rope, a shaft too narrow to be
+frightening, and floor 0 sitting inside the ceiling slab.
 
 ---
 
-## 4. Marketing plan — what you got right, what to change
+# PHASE 2 — MASS, HEALTH, DOWNED
 
-### You got right
-- Wishlists first, page early, post often
-- Free keys to creators > paid spam early
-- Co-op with friends = organic reach
-- Post-launch: patch fast, stay human
-- Revenue is not sticker price (refunds, VAT, Steam 30%, art, tax)
+`PHASE2_SPEC.md` · **10 steps** · 4 weeks · *21 Sep – 18 Oct 2026*
 
-### Corrections (important)
+Turns the load gauge from an inconvenience into the argument the game is about,
+by adding the one cargo that can object to being left behind.
 
-| Your assumption | Better reality (2026) |
+| # | Step |
 |---|---|
-| Need **+20k** wishlists to be “top of trends” | **Popular Upcoming** bar moved a lot; some reports put visible slots at very high wishlist counts after Steam ranking changes. Treat **velocity + conversion + tags** as the real game. 7–12k was old indie folklore; **20k is a strong goal**, not a guarantee of “top trends.” Success ≠ only Popular Upcoming. |
-| Demo after ~4 months | Only if G1–G2 are real. **Ship demo when 4 friends laugh**, not on a calendar. 6–9 months from now is more honest given netcode. |
-| Demo = infinite run | **No** for SAFE DEPOSIT. Finite runs + collapse + rope buy = the hook. Infinite is a different game. |
-| Launch on **weekend** | Your own design said **Tue–Thu**. For Steam discovery, midweek launches usually get a cleaner algorithm window; weekends compete with AAA leisure time. Prefer **Tue–Thu**. |
-| Publishers will come and I accept | Possible after a hot demo. **Do not plan on it.** Self-publish first; only take a deal if they buy **reach you cannot**, and you keep creative control. Many co-op hits stay indie. |
-| Paid creator video after success | Yes — but **only** after organic proof. Clip-first genre: seed funny creators who already play PEAK / LC / R.E.P.O-likes. |
+| 1 | Capacity upgrades — `550 + 50n`, cost `50 × 1.25ⁿ` |
+| 2 | Health — 100 HP, **no regeneration, ever** |
+| 3 | Fall damage |
+| 4 | Injury states — the limp |
+| 5 | Downed and bleed-out |
+| 6 | ★ **A downed player is a `Carryable`** |
+| 7 | Revive — med spray, or carry them out |
+| 8 | Lost |
+| 9 | Rescue contract — `Mafia(R) × (1 + f/10)` |
+| 10 | Cable fray |
 
-### Wishlist math (directional, not promise)
-- Launch-week buy rate often cited ~5–10% of wishlist in good cases (genre/sentiment dependent).
-- 10k wishlists → rough ballpark 500–1000 copies week 1 before refunds (wildly variable).
-- Price example $17.99: after Steam ~30%, regional VAT, refunds ~10–15%, payment noise → **you might keep ~40–50% of gross** before your own costs (art, music, tools, tax). Publisher split cuts that again.
-
-### Content machine (free marketing)
-Weekly loop once page exists:
-1. One **clip** (rope fail, piano drop, betrayal cut tether)
-2. One **dev log** (screenshot + one sentence of design honesty)
-3. One **question** to audience (“gold or the guy?”)
-Platforms: X, TikTok, Instagram Reels, YouTube Shorts, Discord.  
-Tags: Co-op, Multiplayer, Horror-comedy, Physics, Extraction-adjacent — research exact Steam tags when page is drafted.
-
-### Creator seeding
-- Free keys, no script, ask for honest fun
-- Target: small–mid co-op chaos channels, not only mega streamers
-- Discord long-time members = playtest + loyalty, not only marketing
-
-### Next Fest
-- **One** Next Fest ever for this title (your design is right)
-- Enter only with a demo that already converts playtime → wishlist
+**Step 6 is why this phase exists.** `Carryable` already handles weight
+classes, two-handed carrying, the load gauge and the scanner — so a downed
+crewmate becomes 70 kg that talks, and every Phase 1 system handles them
+without knowing they are a person. Survivors in Phase 5 reuse it.
 
 ---
 
-## 5. When can we “finish”?
+# PHASE 3 — DE-SINGLE-PLAYER
 
-| Milestone | Target window | Marketing action |
-|---|---|---|
-| Atmosphere + shop solo (G0) | **~1–2 months** | Private clips only; refine art bible |
-| 2-player online stable | **~3–5 months** | First public teaser page OK if clip is god-tier |
-| **Demo freeze** | **~6–9 months** | Steam page push, creator keys, Next Fest plan |
-| Wishlist campaign peak | Demo → +3–6 months | Cadence, not silence |
-| **1.0 launch** | **~16–22 months** from now | Midweek, patch team ready day 0 |
+2 weeks · *19 Oct – 1 Nov 2026* · spec not written yet
 
-**“Finish the game” = 1.0 ≈ 18 months** if you stay scoped and netcode doesn’t eat a year.  
-**“Finish something players can love with friends” = Demo ≈ 6–9 months.**  
-That demo is what marketing actually sells.
+**Not netcode.** Removing the assumption that there is exactly one of
+everything, while the game still runs solo the whole time.
 
-If you only have nights/weekends, multiply by ~1.5–2.
+- `Camera.main` — **9 files** — each player owns its camera
+- `FindFirstObjectByType` — **9 files** — replaced with a player registry
+- `Campaign` stops being `static`
+- Input, HUD and audio become per-player
 
----
+Every script written in Phases 1 and 2 that says *"single-player lookup, Phase C
+replaces this with a player registry"* is a line item here. They were written
+that way on purpose, and they are already commented.
 
-## 6. How we work together (Unity)
-
-1. You stay in Editor (Play, feel, art placement, final calls).
-2. Hermes edits scripts, builders, materials YAML, docs, tools in `Assets/_Project`.
-3. One phase goal at a time; no feature soup.
-4. Playtest rule: if graybox isn’t funny with friends, art won’t save it.
-5. Netcode decision is a **team checkpoint** — don’t delay past Phase B start.
-6. Repo: keep git commits small; never commit `Library/`.
-
-### Immediate next sprint (start now)
-1. Phase A atmosphere (fog, lamp, mats, rope color)
-2. Shop stub so campaign loop closes
-3. Loot placeholder set matching concept props
-4. Short `ART_BIBLE.md` from concept board
-5. Then Phase B research spike: NGO vs FishNet written decision
+**Done when:** the game plays identically and nothing references a global player.
 
 ---
 
-## 7. Anti-goals (kill these if they appear)
+# PHASE 4 — NETCODE, AND PROXIMITY VOICE 🎙️
 
-- Weapons loadout / PvP shooter creep
-- Photoreal PBR bank museum
-- Infinite run demo
-- Waiting for publisher before building netcode
-- Expanding floors before 4P extract works
-- Weekend launch without a reason
-- Paid ads before organic clip proof
+7 weeks · *2 Nov – 20 Dec 2026* · spec not written yet · **★ biggest unknown**
+
+Seven weeks, down from ten — deleting the rope is what bought that. A moving
+platform is a position and a state; a 32-node simulated rope replicated at
+20 Hz was the hardest thing in the old plan.
+
+- Netcode for GameObjects + Steam transport, host-authoritative
+- Elevator state replicated: floor, moving, doors, bridge, load
+- Local prediction for your own body only
+- Players riding a moving platform stay in sync
+- Downed / revive / Lost replicated
+- Shared money, leader, **Change Leader** vote
+- Departure vote — everyone aboard, name whoever is not
+- **🎙️ PROXIMITY VOICE**
+
+**This is where voice arrives, and it is not decoration.** Half the design
+assumes it: the key-with-a-triangle puzzle exists to sell the walkie-talkie,
+the ledger is "pure voice-chat gameplay", and naming the missing crewmate on
+the departure screen only works because "three people shouting one name is the
+moment." Every puzzle in Phase 6 is built on top of it.
+
+**Done when:** three players ride together, one can carry another out, and the
+departure vote correctly names the person still in a room. **Two players first.**
 
 ---
 
-## 8. Open decisions (resolve soon)
+# PHASE 5 — THE ROOM KIT
 
-1. Netcode stack: NGO+Relay vs FishNet vs other  
-2. Online-only vs + listen server / Steam P2P  
-3. Demo includes shop or pure 3-floor raid? (Design says no shop in demo — OK)  
-4. Solo developer art: buy kitbash PEAK-like pack vs commission character  
-5. Price target band ($12.99 / $17.99 / $24.99)  
+4 weeks · *21 Dec 2026 – 17 Jan 2027* · spec not written yet
+
+The graybox becomes a real generator.
+
+- Landing → main → side → back, the fixed 3-sub-room shape
+- 6 room modules with tagged sockets (`LootAnchor`, `LockAnchor`,
+  `HazardAnchor`, `SurvivorAnchor`)
+- Floor generator arranging modules
+- The door on a different side per floor — **already working**, Phase 1 built it
+- Doors, keys, locked states
+- **Survivors**, reusing Phase 2's downed-player carrying
+
+**Done when:** ten generated floors a stranger can navigate without a map.
 
 ---
 
-## 9. Bottom line
+# PHASE 6 — PUZZLES AND TRAPS
 
-Your systems brain is ahead of most first games. Your marketing instincts are ~70% right; the fixes are: **finite demo, midweek launch bias, don’t bet the farm on Popular Upcoming or publishers, and treat co-op netcode as the critical path.**
+4 weeks · *18 Jan – 14 Feb 2027* · `PUZZLES.md`
 
-We build for **clip-native co-op fun**, ship a **tight demo**, then grow the full shelter.
+- The kit: **12 locks, 8 keys, 8 modifiers** as ScriptableObjects
+- **The 5 Tier-1 puzzles** — three fuses, key-with-a-triangle, ledger, light
+  plate, shutter relay
+- 4 traps — floor collapse, gas, lockdown, cable fray *(fray already exists
+  from Phase 2)*
+- **Every survivor behind a puzzle. No exceptions.**
 
-**Next message to start production:** confirm Phase A kickoff (atmosphere + shop + loot placeholders).
+Build the twelve locks and eight keys **once**. A puzzle is then a
+ScriptableObject naming a lock, a key, a modifier and two room sockets.
+
+**Done when:** puzzle #6 can be authored in five minutes with no new code.
+
+⚠️ **You asked for a full 25-puzzle redesign early on and we never did it** —
+Phase 1 took over. The demo needs 5 Tier-1 puzzles only, so the redesign is not
+blocking, but it is still owed before the full game.
+
+---
+
+# PHASE 7 — ECONOMY AND SHOP
+
+3 weeks · *15 Feb – 7 Mar 2027* · `ECONOMY_AND_CAMPAIGN.md`
+
+- Shop UI — leader spends, assigns items, **everyone sees what was bought**
+- ~20 of the ~35 shop items
+- The **±10% mafia randomiser** and the **speed bonus** — both deferred out of
+  Phase 1 Step 12 on purpose, because they need state rather than a constant
+- Survivor markers, screams, personal timers
+- Results screen, rooms-lost report
+
+**Done when:** ten rounds play end to end and the money is always tight.
+
+---
+
+# PHASE 8 — VERTICAL SLICE POLISH 🔊
+
+3 weeks · *8 – 28 Mar 2027*
+
+**One floor finished to shippable quality.** The milestone that tells you the
+truth, landing with weeks in hand rather than days.
+
+- **🔊 THE FULL AUDIO PASS** — cable creak under load, breathing that worsens
+  with weight, the demolition approaching, survivors screaming through
+  concrete, the bridge alarm
+- **First-person arms** — the rebuild deferred from Phase 1, on its own decision
+  note in `DEMO_PLAN.md`
+- Art pass: food-tier loot props *(replacing the placeholder prefabs)*, PEAK
+  flat shading, colour grade
+- **FEATURE FREEZE: 3 May 2027.** No new systems after this date.
+
+**This is where the game stops being silent.** Voice arrives in Phase 4;
+everything else you hear arrives here.
+
+---
+
+# PHASE 9 — CONTENT TO 20 FLOORS
+
+2 weeks · *29 Mar – 11 Apr 2027*
+
+- All 20 floors populated
+- 3 survivors, 2 documents placed
+- Demolition tuned across 10 rounds
+- **CONTENT LOCK: 17 May 2027**
+
+---
+
+# PHASE 10 — SHIP IT
+
+2 weeks · *12 – 25 Apr 2027*
+
+- Menus, settings, key rebinding, aspect ratios, crash handling
+- Steam integration, lobby, invites
+- End-of-run ledger — who carried what, who got left behind
+- **SUBMIT: 31 May 2027**
+
+---
+
+# THE BUFFER IS ~5 WEEKS
+
+Phases 2–10 total 31 weeks and finish around **26 April 2027**, against a
+31 May deadline. `MASTER.md` once claimed eight weeks of buffer; the honest
+number is five, and **netcode can still eat all of it.**
+
+So the cuts are decided now, in advance, not in April:
+
+**Cut in this order**
+1. 3 players → 2
+2. 6 room modules → 4
+3. Documents
+4. The Lost / rescue system *(Phase 2 steps 8–9)*
+5. Demolition schedule item, appraiser, night vision
+
+**Never cut**
+1. The load gauge and the weight argument — *this person or the gold*
+2. Downed players as cargo
+3. One survivor you can choose to leave behind
+4. The bridge retract countdown
+
+---
+
+# THE FOUR RULES, WHICH HAVE NOT CHANGED
+
+1. **One step per session.**
+2. **Explanation before code.**
+3. **Commit after every step.**
+4. **Read before write.**
+
+And the two things it cannot do: **drag things in the Unity editor** — so
+prefabs get built by editor scripts, which has worked every time — and **see
+your game**, so keep sending screenshots. Every layout bug in Phase 1 was found
+in one, and several were found *only* in one.

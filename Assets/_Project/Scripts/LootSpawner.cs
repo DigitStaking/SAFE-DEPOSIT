@@ -196,7 +196,7 @@ public class LootSpawner : MonoBehaviour
             // as a bug rather than as bad luck.
             if (value > budget && spawned > 0) continue;
 
-            SpawnItem(t, value, level);
+            if (!SpawnItem(t, value, level)) continue;
             budget -= value;
             spawned++;
         }
@@ -204,7 +204,7 @@ public class LootSpawner : MonoBehaviour
         return spawned;
     }
 
-    void SpawnItem(Tier t, int value, Transform level)
+    bool SpawnItem(Tier t, int value, Transform level)
     {
         float mass = Random.Range(t.minMass, t.maxMass);
 
@@ -229,38 +229,63 @@ public class LootSpawner : MonoBehaviour
         go.name = $"{flavour}_{t.label}";
         go.transform.SetParent(transform, true);
 
-        // Somewhere in the room, in the LEVEL's local space then converted to
-        // world - so loot lands correctly inside rooms whichever of the four
-        // directions that floor's doorway faces.
-        //
-        // Rejection sampling against everything already on this floor: draw a
-        // spot, keep it if it clears its neighbours, otherwise draw again.
-        // Twenty attempts then give up and take the last one - a floor that
-        // is genuinely too full to place cleanly should still get its item
-        // rather than silently drop it and quietly cost the crew money.
+        // Candidate spots are drawn in the LEVEL's local space, so they work
+        // whichever of the four directions that floor's doorway faces.
         const float half = 7f;        // GrayboxBuilder.ShaftInner * 0.5
         const float roomDepth = 6f;   // GrayboxBuilder.RoomDepth
 
         // LootPrefabBuilder authors every prefab standing ON its own origin,
         // so its pivot is the BASE. A CreatePrimitive cube's pivot is its
-        // CENTRE. Using one height for both would drop the prefabs in from
-        // half their own height up, and the bounce would scatter them out of
-        // the spacing just computed for them.
-        float restY = fromPrefab ? 0.04f : t.size * 0.5f + 0.04f;
+        // CENTRE.
+        float pivotLift = fromPrefab ? 0f : t.size * 0.5f;
 
-        Vector3 local = Vector3.zero;
-        for (int attempt = 0; attempt < 20; attempt++)
+        // EVERY SPOT IS VERIFIED BY RAYCAST, not trusted from arithmetic.
+        //
+        // The previous version computed a position from ShaftInner and
+        // RoomDepth and assumed the floor was underneath it. Loot still
+        // ended up on the elevator roof, which means the assumption was
+        // wrong somewhere - and rather than hunt for which constant drifted,
+        // this now just asks the physics engine where the floor actually is.
+        //
+        // hit.transform.IsChildOf(level) is the important half: it is not
+        // enough to hit SOMETHING, it has to be THIS floor's own geometry.
+        // A spot over the shaft void hits the elevator roof or a lower
+        // level, fails that test, and gets redrawn - which is precisely the
+        // bug, caught by construction instead of by arithmetic.
+        Vector3 world = Vector3.zero;
+        bool found = false;
+
+        for (int attempt = 0; attempt < 30 && !found; attempt++)
         {
-            local = new Vector3(
+            Vector3 local = new Vector3(
                 Random.Range(half + roomMargin, half + roomDepth - roomMargin * 0.5f),
-                restY,
+                0f,
                 Random.Range(-half + roomMargin, half - roomMargin));
 
-            if (IsClear(local, t.size)) break;
+            if (!IsClear(local, t.size)) continue;
+
+            // Cast from head height down through where the floor should be.
+            Vector3 from = level.TransformPoint(local + Vector3.up * 2.5f);
+            if (!Physics.Raycast(from, Vector3.down, out RaycastHit hit, 6f,
+                                 ~0, QueryTriggerInteraction.Ignore)) continue;
+
+            if (!hit.transform.IsChildOf(level)) continue;
+
+            placed.Add((local, t.size));
+            world = hit.point + Vector3.up * (pivotLift + 0.03f);
+            found = true;
         }
 
-        placed.Add((local, t.size));
-        go.transform.position = level.TransformPoint(local);
+        if (!found)
+        {
+            // Nowhere on this floor passed. Better to drop the item than to
+            // leave it somewhere it does not belong - a missing crate is a
+            // smaller lie than one embedded in a wall.
+            Destroy(go);
+            return false;
+        }
+
+        go.transform.position = world;
         go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
         var rb = go.GetComponent<Rigidbody>();
@@ -275,6 +300,8 @@ public class LootSpawner : MonoBehaviour
 
         int lootLayer = LayerMask.NameToLayer("Loot");
         if (lootLayer >= 0) SetLayerRecursive(go, lootLayer);
+
+        return true;
     }
 
     /// <summary>

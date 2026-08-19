@@ -36,6 +36,33 @@ public class FirstPersonCamera : MonoBehaviour
              "the WORLD should look like from standing height, nothing else.")]
     public Vector3 eyeOffset = new Vector3(0f, 1.60f, 0.12f);
 
+    // ---- DOWNED: THE EYE LEAVES THE PIVOT AND RIDES THE FACE ----
+    //
+    // Standing, the camera is a fixed offset above the player's pivot and
+    // deliberately ignores the skeleton - riding the head bone while walking
+    // inherits every footstep in the walk cycle, which is nausea, not
+    // immersion.
+    //
+    // Kneeling is the opposite case. There IS no fixed offset that is
+    // correct, because the whole point is that the body folded: the face
+    // ends up lower AND further forward AND tipped, and only the animation
+    // knows by how much. Guessing a number would put the view somewhere the
+    // character's face is not, and would need re-guessing the moment the
+    // clip changed.
+    //
+    // So while downed the eye is placed from the Head BONE, blended in over
+    // downedBlendTime so going down is a fall rather than a cut. The small
+    // idle motion of the kneel clip comes through as breathing, which is
+    // free and worth having.
+
+    [Tooltip("Offset from the HEAD BONE while downed, in the bone's own " +
+             "space. Small forward push so the near plane is not inside the " +
+             "character's own face.")]
+    public Vector3 downedEyeOffset = new Vector3(0f, 0.02f, 0.14f);
+
+    [Tooltip("Seconds to sink into and rise out of the kneeling view.")]
+    public float downedBlendTime = 0.45f;
+
     [Header("Look")]
     [Tooltip("Mouse: degrees per pixel. NOT scaled by delta time - mouse input " +
              "is already a per-frame delta.")]
@@ -102,16 +129,36 @@ public class FirstPersonCamera : MonoBehaviour
     // copies of the same arithmetic.
     // ------------------------------------------------------------------
 
-    public Vector3 EyePosition =>
-        target != null
-            ? target.position + Quaternion.Euler(0f, yaw, 0f) * eyeOffset + Vector3.up * bobOffset
-            : transform.position;
+    public Vector3 EyePosition
+    {
+        get
+        {
+            if (target == null) return transform.position;
+
+            Vector3 standing = target.position
+                             + Quaternion.Euler(0f, yaw, 0f) * eyeOffset
+                             + Vector3.up * bobOffset;
+
+            if (downedBlend <= 0.001f || headBone == null) return standing;
+
+            // TransformDirection, never TransformPoint. LocalFirstPersonBodyCull
+            // shrinks the Head bone to 0.0001 to hide your own skull, and scale
+            // is inherited by TransformPoint - which would collapse this offset
+            // to nothing. TransformDirection applies rotation only.
+            Vector3 kneeling = headBone.position + headBone.TransformDirection(downedEyeOffset);
+
+            return Vector3.Lerp(standing, kneeling, downedBlend);
+        }
+    }
 
     public Quaternion EyeRotation => Quaternion.Euler(pitch, yaw, currentTilt);
 
     PlayerMotor motor;
     Rigidbody targetBody;
     Camera cam;
+    PlayerHealth health;
+    Transform headBone;
+    float downedBlend;
 
     float yaw, pitch, bobTimer, currentTilt, bobOffset;
 
@@ -126,6 +173,16 @@ public class FirstPersonCamera : MonoBehaviour
 
         motor = target.GetComponent<PlayerMotor>();
         targetBody = target.GetComponent<Rigidbody>();
+        health = target.GetComponent<PlayerHealth>();
+
+        var anim = target.GetComponentInChildren<Animator>(true);
+        if (anim != null && anim.isHuman)
+            headBone = anim.GetBoneTransform(HumanBodyBones.Head);
+
+        // Already downed on the frame the scene loads - Campaign.Health
+        // survives a reload, so start folded rather than blending down from
+        // standing in front of the player.
+        if (health != null && health.IsDowned) downedBlend = 1f;
         cam = GetComponent<Camera>();
         if (cam != null) cam.fieldOfView = baseFov;
 
@@ -200,9 +257,19 @@ public class FirstPersonCamera : MonoBehaviour
         //
         // Yaw only, never pitch - the eye must not slide forward when you
         // look down, or the view pushes into your own chest.
+        // Drive the kneel blend first, so EyePosition below reads this
+        // frame's value rather than last frame's.
+        bool down = health != null && health.IsDowned;
+        float step = downedBlendTime > 0.001f ? Time.deltaTime / downedBlendTime : 1f;
+        downedBlend = Mathf.MoveTowards(downedBlend, down ? 1f : 0f, step);
+
         bobOffset = 0f;
 
-        if (enableHeadBob && motor.IsGrounded && targetBody != null)
+        // No walk bob while folding up. Velocity is near zero when downed so
+        // this rarely fires anyway, but the bob is a SIN wave that eases to
+        // neutral rather than snapping, and a residual centimetre of it
+        // riding on top of the head bone reads as a twitch.
+        if (enableHeadBob && downedBlend < 0.999f && motor.IsGrounded && targetBody != null)
         {
             Vector3 flat = targetBody.linearVelocity;
             flat.y = 0f;
@@ -224,7 +291,7 @@ public class FirstPersonCamera : MonoBehaviour
         }
 
         float targetTilt = 0f;
-        if (enableTilt && targetBody != null)
+        if (enableTilt && downedBlend < 0.999f && targetBody != null)
         {
             Vector3 right = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
             float lateral = Vector3.Dot(targetBody.linearVelocity, right);

@@ -18,7 +18,8 @@ Last updated: 14 Aug 2026, after the elevator decision.
 | **`GAME_DESIGN.md`** | world, story, the crew, the three cargoes, threats, art direction |
 | **`ECONOMY_AND_CAMPAIGN.md`** | the numbers. Rooms, rounds, loot, mass, shop, survivors, rescue |
 | **`PUZZLES.md`** | all 25 puzzles, the lock/key/modifier kit, placement rules |
-| **`ELEVATOR_SPEC.md`** | the elevator, and the 12-step build order |
+| **`ELEVATOR_SPEC.md`** | the elevator, and the 12-step build order — **all 12 done, 19 Aug 2026** |
+| **`PHASE2_SPEC.md`** | mass, health, downed, Lost, rescue, cable fray — the 10-step build order for Block 2 |
 | **`DEMO_PLAN.md`** | schedule to Next Fest, consistency check, cut list — **rewritten 18 Aug 2026 for the elevator** |
 | **`ANIMATIONS.md`** | animation system, clip list, two-layer Animator |
 
@@ -231,15 +232,35 @@ Paste this at the start of any new session:
 
 # 8. THE NEXT THING TO DO
 
-**Step 1 is done.** 18 Aug 2026 — the project is committed, pushed to GitHub and
-tagged `v0.1-rope-era`.
+**Phase 1 is complete.** 19 Aug 2026 — all twelve steps of `ELEVATOR_SPEC.md`
+are done. A full round plays start to finish: descend, loot, load, RETURN,
+results, shop, repeat. The economy speaks `ECONOMY_AND_CAMPAIGN.md`'s numbers
+rather than the pre-elevator prototype's, and loot is the five real tiers on a
+per-round value budget.
 
-What Step 1 actually turned out to be: the code was already committed locally,
-but `Untitled.glb` — a 942 MB unreferenced export — sat above GitHub's 100 MB
-per-file hard limit and had been silently blocking every push. The entire
-project existed on one disk. Removed from history, gitignored, pushed.
+**Next: play three rounds and answer one question — *does the money feel
+tight?*** `DEMO_PLAN.md` is right that you will know within twenty minutes, and
+that if it does not, the thing to change is `g`, not the systems.
 
-**Next: `ELEVATOR_SPEC.md` Step 2 — delete the six rope files.**
+**Then: `PHASE2_SPEC.md` Step 1 — capacity upgrades.**
+
+## What Phase 1 turned out to be
+
+Worth recording, because none of it was in the plan:
+
+- **Step 1 was not "commit everything".** The code was already committed; a
+  942 MB unreferenced `.glb` sat above GitHub's 100 MB per-file limit and had
+  been silently blocking every push, so the entire project existed on one disk.
+- **Four real bugs came out of Step 2's cleanup**, none of them rope-related:
+  a world-space eye offset, stale-frame IK, world-space hand smoothing, and a
+  skydiving pose on a 1.1 m hop.
+- **The shaft was too narrow to be frightening.** 2 m of clearance against a
+  3.7 m maximum jump — measured from `PlayerMotor`'s own constants, not
+  guessed. Now 4.9 m.
+- **Floor 0 was inside the shaft's ceiling slab**, which is why players and
+  loot were left behind on extraction. Geometry, not code.
+- **The quota was linear.** That one was in the plan, and it was still the
+  most important single line changed in the whole phase.
 
 ## Scope decision, 18 Aug 2026
 

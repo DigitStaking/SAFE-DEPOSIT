@@ -1,0 +1,217 @@
+# SAFE DEPOSIT — Phase 2: Mass, Health, Downed
+
+The elevator carries the weight argument. This phase gives it teeth: a
+**person** becomes something you can carry, and something you can lose.
+
+Corresponds to **Block 2** in `DEMO_PLAN.md` — 4 weeks, 21 Sep – 18 Oct 2026.
+Written to be handed to Claude Code **one step at a time**, exactly like
+`ELEVATOR_SPEC.md`.
+
+Last updated: 19 Aug 2026, after Phase 1 shipped.
+
+---
+
+# PART 1 — WHAT THIS PHASE IS FOR
+
+Phase 1 built a lift with a load gauge. Right now that gauge is an
+inconvenience: go over 550 kg and a button refuses you. Annoying, not moral.
+
+This phase turns it into the argument the whole game is about, by adding the
+one cargo that can object to being left behind.
+
+## The single most important thing in this phase
+
+> **A downed player is a `Carryable`.**
+
+`DEMO_PLAN.md` lists it under "never cut" and calls it "the moment people make
+videos about". It is also the cheapest big idea in the project, because
+`Carryable` already exists and already works: weight classes, two-handed
+carrying, the load gauge, the price scanner. A downed crewmate becomes 70 kg
+of cargo that talks — and every system built in Phase 1 handles them without
+knowing they are a person.
+
+That is the whole design. Everything else in this phase exists to produce that
+moment or to make it cost something.
+
+## What we are NOT building here
+
+- **Threats.** Nothing hunts you in the demo (`DEMO_PLAN.md`). Damage comes
+  from falling, from the collapse, and from traps.
+- **Netcode.** Block 4. Everything here stays single-player and must not
+  assume otherwise — no new `Camera.main` or `FindFirstObjectByType` in
+  gameplay paths beyond the ones Phase C already has to clean up.
+- **Puzzles or survivors.** Blocks 5 and 6. Survivors reuse the downed-player
+  carrying code, which is another reason to build it properly now.
+
+---
+
+# PART 2 — THE SPEC
+
+## Health
+
+**100 HP. No regeneration. Ever.**
+
+`DEMO_PLAN.md` is explicit and it is the point: damage is permanent within a
+run, so a bad fall on floor 3 is still with you on floor 12. The only way back
+is a bandage you had to buy with money you wanted for cable.
+
+| State | HP | Effect |
+|---|---|---|
+| Fine | 100–51 | nothing |
+| Hurt | 50–26 | **the limp** — slower, audible |
+| Critical | 25–1 | limp plus heavy breathing; screen edges darken |
+| **Downed** | 0 | on the floor, bleeding out, `Carryable` |
+| **Lost** | — | bleed-out completed. Gone until rescued |
+
+## Damage sources in the demo
+
+1. **Falling.** Below a safe drop, damage scales with impact speed. This is
+   the one that makes the 4.9 m shaft gap lethal rather than embarrassing.
+2. **The collapse.** Already kills outright (`RunManager.SealRoomIndex`).
+3. **Traps.** Block 6. Cable fray is the exception and lands in this phase,
+   because it belongs to the elevator.
+
+## Downed
+
+At 0 HP you do not die. You drop where you stood and start a **90-second
+bleed-out**. While downed you:
+
+- cannot move, look freely, or interact
+- **can still talk** — this is the entire reason the state exists
+- are a `Carryable` at **70 kg**, weight class Massive
+- can be revived in place with a **med spray** (35), or carried out
+
+The clock does not stop because someone picked you up. Carrying you to the lift
+is a race, not a rescue.
+
+## Lost
+
+Bleed-out completes and you are **Lost** — not dead. You are gone for the rest
+of the run and the next one, and the shop offers a **rescue contract**:
+
+```
+Rescue(R, f) = Mafia(R) × (1 + f/10)      f = the floor they were lost on
+```
+
+`ECONOMY_AND_CAMPAIGN.md` Part 5: shallow losses are recoverable, deep losses
+are a crisis costing both of your next two runs. **Partial payment carries
+over**, so the crew spends two rounds deciding, every single time they open the
+shop, whether the cable matters more than their friend.
+
+**Three deaths ends the campaign** (ECONOMY Part 7). Lost is not death — dying
+is failing to pay for the rescue.
+
+## Cable fray
+
+The one trap that belongs to the elevator, and the reason `ELEVATOR_SPEC.md`
+insisted on keeping a visible cable: *"The cable can fray under overload — your
+best trap survives."*
+
+- Riding **overloaded** frays the cable a little each trip
+- Fray is **visible on the cable itself**, above your heads
+- At 100% the cable snaps: everyone aboard is Lost, the run is over
+- A **patch kit** (15) repairs it mid-run
+
+This is the only place in the demo where greed kills you directly rather than
+by running out of time.
+
+---
+
+# PART 3 — WHAT CHANGES
+
+## New files
+
+`PlayerHealth.cs` · `DownedPlayer.cs` · `CableWear.cs` · `RescueContract.cs`
+
+## Changed
+
+| File | What changes |
+|---|---|
+| `Carryable.cs` | must tolerate a carryable that is also a player — no layer/renderer stomping |
+| `PlayerMotor.cs` | speed multiplier from injury; movement lock while downed |
+| `PlayerCarry.cs` | picking up a downed player; cannot stow one |
+| `ElevatorDeck.cs` | a carried downed player must not be double-counted (70 kg once, not twice) |
+| `Campaign.cs` | capacity upgrades, Lost roster, rescue debt |
+| `RunManager.cs` | Lost players in the results screen; three-deaths campaign end |
+| `ElevatorCable.cs` | fray visual |
+
+## Untouched
+
+Everything the elevator does. If a step in this phase requires editing
+`Elevator.cs`, `ElevatorBridge.cs` or `ElevatorDashboard.cs`, stop and ask
+whether the change belongs somewhere else — Phase 1 is finished and its
+behaviour is the baseline this phase is tested against.
+
+---
+
+# PART 4 — BUILD ORDER: TEN STEPS
+
+**One step per session.** Each ends with a game that runs and a commit.
+
+### Step 1 · Capacity upgrades
+`Campaign` gains `Capacity(n) = 550 + 50n` and `CapacityCost(n) = 50 × 1.25ⁿ`,
+a shop button, and `ElevatorDeck.capacity` reads it instead of a constant.
+**Done when:** buying an upgrade visibly raises the gauge's ceiling, and the
+cost of the next one has gone up.
+*Closes the economy loop you are testing right now — do it first for that
+reason alone.*
+
+### Step 2 · Health
+`PlayerHealth.cs` — 100 HP, no regeneration, `TakeDamage`, a HUD readout.
+Nothing damages you yet; a debug key does.
+**Done when:** a keypress takes you to 0 and the number never climbs back.
+
+### Step 3 · Fall damage
+Damage above a safe landing speed, scaled by impact. Reuses `PlayerMotor`'s
+existing grounded/velocity state — no new physics.
+**Done when:** stepping off a crate is free, falling down the shaft is not.
+
+### Step 4 · Injury states
+The limp below 50%, heavy breathing below 25%, a vignette. Speed comes from
+`PlayerMotor.speedMultiplier`, which already exists and is already respected.
+**Done when:** you can tell someone is hurt without looking at a number.
+
+### Step 5 · Downed and bleed-out
+0 HP puts you on the floor with a 90-second clock instead of ending anything.
+Movement and interaction locked, voice unaffected.
+**Done when:** the clock reaching zero does something distinct from dying.
+
+### Step 6 · A downed player is a `Carryable` ★
+**The step this phase exists for.** 70 kg, Massive, two hands, no jumping,
+counts against the load exactly like cargo.
+**Done when:** you can pick up a downed crewmate, feel the speed penalty, and
+watch the load gauge go amber as you do.
+
+### Step 7 · Revive
+Med spray revives in place at partial health. Carrying to the lift is the
+free alternative that costs time instead of money.
+**Done when:** there are two real ways to save someone and both hurt.
+
+### Step 8 · Lost
+Bleed-out completes → Lost. Removed from the run, named on the results screen,
+absent from the next one.
+**Done when:** a run can end with someone missing and the game says who.
+
+### Step 9 · Rescue contract
+`Rescue(R, f) = Mafia(R) × (1 + f/10)` in the shop, partial payment carried
+over, three deaths ends the campaign.
+**Done when:** paying for a friend visibly costs you depth.
+
+### Step 10 · Cable fray
+Overload wears the cable, fray is visible above the car, a snap ends the run,
+the patch kit repairs it.
+**Done when:** you look up at the cable before pressing GO.
+
+---
+
+# PART 5 — THE FOUR RULES (unchanged)
+
+1. **One step per session.**
+2. **Explanation before code.**
+3. **Commit after every step.**
+4. **Read before write.**
+
+And the two things it still cannot do: **drag things in the Unity editor** (so
+prefabs get built by editor scripts — that has worked every time this project
+has needed it), and **see your game** (so keep sending screenshots; every
+Phase 1 layout bug was found in one).

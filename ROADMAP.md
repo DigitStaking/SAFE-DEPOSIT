@@ -18,7 +18,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
-  PHASE 2  ████████░░░░  mass, health, downed ........ in progress  6/9
+  PHASE 2  █████████░░░  mass, health, downed ........ in progress  7/9
   PHASE 3  ░░░░░░░░░░░░  de-single-player
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
@@ -67,7 +67,7 @@ by adding the one cargo that can object to being left behind.
 | 5 | ✅ Downed and bleed-out — 90s, and it does not pause |
 | 6 | ✅ ★ **A downed player is a `Carryable`** |
 | 7 | ⏭️ Revive — **moved to Phase 4** (needs a second player) |
-| 8 | Lost |
+| 8 | ✅ Lost — a named roster, not a game over |
 | 9 | Rescue contract — `Mafia(R) × (1 + f/10)` |
 | 10 | Cable fray |
 

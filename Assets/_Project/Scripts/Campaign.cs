@@ -173,6 +173,50 @@ public static class Campaign
     /// </summary>
     public static bool PlayerLost;
 
+    // ---- THE LOST (PHASE2_SPEC Step 8) ----
+    //
+    // Bleeding out does not kill you and it does not end the campaign. It
+    // takes you OUT OF THE BUILDING'S REACH - you are still down there, and
+    // the shop will sell you a way to go and get yourself back.
+    //
+    // ECONOMY Part 5 prices it Rescue(R, f) = Mafia(R) x (1 + f/10), which is
+    // why the FLOOR is recorded and not just the fact: a shallow loss is
+    // recoverable and a deep one "is a crisis that takes both of your two
+    // runs and every purchase in between". Step 9 charges it. Step 8 is only
+    // responsible for knowing who and where.
+    //
+    // `paid` exists now and is untouched until Step 9. ECONOMY is explicit
+    // that "partial payment carries over", which means the debt has to be a
+    // running total from the moment it is created rather than a price
+    // computed fresh at the till - a crew that puts 200 toward a 372 rescue
+    // must not lose it by pressing the wrong button.
+
+    public class LostCrewMember
+    {
+        public string name;
+        public int floor;
+        public int runLost;
+        public int paid;
+    }
+
+    public static readonly List<LostCrewMember> LostCrew = new List<LostCrewMember>();
+
+    public static bool AnyoneLost => LostCrew.Count > 0;
+
+    public static void RecordLost(string who, int floor)
+    {
+        if (string.IsNullOrEmpty(who)) who = "a crewmate";
+
+        // Nobody is lost twice. Being down in the building is a state, not an
+        // event you can accumulate.
+        foreach (var m in LostCrew)
+            if (m.name == who) return;
+
+        LostCrew.Add(new LostCrewMember {
+            name = who, floor = floor, runLost = RunNumber, paid = 0,
+        });
+    }
+
     /// <summary>
     /// Rooms sealed when you surface: exactly one, the room whose charge was
     /// counting down as you left. The OTHERS are sealed mid-run, one per
@@ -333,6 +377,7 @@ public static class Campaign
         Health = MaxHealth;
         BleedOutLeft = 0f;
         PlayerLost = false;
+        LostCrew.Clear();
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();

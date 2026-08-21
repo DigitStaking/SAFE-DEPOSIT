@@ -182,6 +182,15 @@ public class RunManager : MonoBehaviour
     public void OnBleedOut()
     {
         if (State != RunState.Active) return;
+
+        // WHO, and WHERE. Both, because Step 9 prices the rescue by depth -
+        // ECONOMY: Rescue(R, f) = Mafia(R) x (1 + f/10). Losing somebody on
+        // floor 3 and losing them on floor 18 are different problems and have
+        // to be recorded as different problems.
+        var who = FindFirstObjectByType<DownedPlayer>();
+        string name = who != null ? who.gameObject.name : "a crewmate";
+        Campaign.RecordLost(name, CurrentFloorOfLift());
+
         State = RunState.Lost;
         Announce("BLED OUT - nobody came");
     }
@@ -202,12 +211,35 @@ public class RunManager : MonoBehaviour
         UpdateCollapse();
     }
 
+    /// <summary>Everyone who started the run, standing or not.</summary>
     int CrewSize
     {
         get
         {
             int n = 0;
             foreach (var m in crew) if (m != null) n++;
+            return n;
+        }
+    }
+
+    /// <summary>
+    /// Everyone still on their feet. Step 8 needs the distinction: a downed
+    /// player is still a PlayerMotor in the scene, so CrewSize never drops
+    /// when somebody goes down, and "is there anybody left to walk back in"
+    /// has to ask a different question than "how many did we bring".
+    /// </summary>
+    int CrewStanding
+    {
+        get
+        {
+            int n = 0;
+            foreach (var m in crew)
+            {
+                if (m == null) continue;
+                var h = m.GetComponent<PlayerHealth>();
+                if (h != null && h.IsDowned) continue;
+                n++;
+            }
             return n;
         }
     }
@@ -419,10 +451,10 @@ public class RunManager : MonoBehaviour
     /// Which floor the crew went down on, for the epitaph. Read from the
     /// elevator rather than tracked, because the car is where they were.
     /// </summary>
-    string LastKnownFloor()
+    int CurrentFloorOfLift()
     {
         var lift = FindFirstObjectByType<Elevator>();
-        return lift != null ? $"{lift.CurrentFloor:00}" : "??";
+        return lift != null ? lift.CurrentFloor : 0;
     }
 
     string SealedRoomsLabel()
@@ -554,12 +586,24 @@ public class RunManager : MonoBehaviour
 
             // A run nobody came back from pays nothing. The haul is still in
             // the building, on the floor next to whoever was carrying it.
-            if (State == RunState.Lost && string.IsNullOrEmpty(Campaign.EpitaphReason))
+            // BEING LOST IS NOT THE END OF THE CAMPAIGN.
+            //
+            // It used to set CampaignOver, which made Lost a synonym for dead
+            // and deleted the whole point of it. ECONOMY Part 7: "Lost is not
+            // death; dying is failing to pay for the rescue." The building
+            // still has you in it and the shop is about to offer a price.
+            //
+            // The one case that IS terminal is having nobody left to send -
+            // and that is a fact about the CREW, not about being lost. With
+            // four players the run just continues short-handed. Solo, there is
+            // nobody to walk back in, so the campaign ends here unless Step 9
+            // gives you a way to buy yourself out.
+            if (State == RunState.Lost && CrewStanding <= 0 &&
+                string.IsNullOrEmpty(Campaign.EpitaphReason))
             {
                 Campaign.CampaignOver = true;
                 Campaign.EpitaphReason =
-                    "you bled out on floor " + LastKnownFloor() +
-                    ". the haul is still down there and so are you";
+                    "there is nobody left above ground to come back for you";
             }
 
             if (State == RunState.Buried && string.IsNullOrEmpty(Campaign.EpitaphReason))
@@ -608,7 +652,34 @@ public class RunManager : MonoBehaviour
         body.normal.textColor = new Color(1f, 1f, 1f, 0.85f);
         GUI.Label(new Rect(0f, y + 54f, Screen.width, 24f),
             $"run {Campaign.RunNumber}      recovered {Recovered}      " +
-            $"quota {quota}      crew {CrewSize}", body);
+            $"quota {quota}      crew {CrewStanding}/{CrewSize}", body);
+
+        // ---- who did not come back ----
+        //
+        // PHASE2_SPEC Step 8: "a run can end with someone missing and the
+        // game says who." A count would say a problem exists; a NAME says
+        // whose problem it is, which is the same reason the departure vote
+        // names the person still in a room instead of counting heads.
+        float missingY = y + 84f;
+        if (Campaign.AnyoneLost)
+        {
+            var miss = new GUIStyle(GUI.skin.label)
+            { fontSize = 17, alignment = TextAnchor.MiddleCenter };
+            miss.normal.textColor = new Color(1f, 0.4f, 0.35f);
+
+            GUI.Label(new Rect(0f, missingY, Screen.width, 24f), "STILL DOWN THERE", miss);
+
+            miss.fontSize = 15;
+            miss.normal.textColor = new Color(1f, 0.75f, 0.7f);
+            int row = 0;
+            foreach (var m in Campaign.LostCrew)
+            {
+                GUI.Label(new Rect(0f, missingY + 26f + row * 20f, Screen.width, 20f),
+                          $"{m.name}  -  floor {m.floor:00}, run {m.runLost}", miss);
+                row++;
+            }
+            missingY += 30f + row * 20f;
+        }
 
         if (Campaign.CampaignOver)
         {
@@ -668,6 +739,26 @@ public class RunManager : MonoBehaviour
             GUI.Label(new Rect(0f, y + 56f, Screen.width, 22f),
                 "no live rooms left in cable range. buy cable or this is over.",
                 status);
+        }
+        else if (Campaign.AnyoneLost)
+        {
+            // Sits in the SHOP, not only on the results screen, and that is
+            // the point of Step 9: the person you left behind has to be in
+            // your eyeline at the moment you are deciding whether to spend
+            // their rescue on cable instead. ECONOMY: "the crew spends two
+            // rounds deciding, every single time they open the shop, whether
+            // the rope matters more than their friend."
+            status.normal.textColor = new Color(1f, 0.5f, 0.4f);
+
+            var names = new System.Text.StringBuilder();
+            foreach (var m in Campaign.LostCrew)
+            {
+                if (names.Length > 0) names.Append(", ");
+                names.Append($"{m.name} (floor {m.floor:00})");
+            }
+
+            GUI.Label(new Rect(0f, y + 56f, Screen.width, 22f),
+                $"still down there: {names}", status);
         }
 
         float by = y + 92f;

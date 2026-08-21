@@ -83,7 +83,14 @@ public class FirstPersonCamera : MonoBehaviour
     public float speedFovBoost = 12f;
     public float speedForMaxFov = 14f;
 
-    public float Yaw => yaw;
+    /// <summary>
+    /// Settable as well as readable, so DownedPlayer can hold the view inside
+    /// an arc while you are on the floor. Written rather than disabling the
+    /// camera outright: a dead camera cannot watch somebody walk toward you,
+    /// and watching is the whole of what being downed is.
+    /// </summary>
+    public float Yaw { get => yaw; set => yaw = value; }
+
     public float Pitch => pitch;
 
     // ------------------------------------------------------------------
@@ -109,13 +116,6 @@ public class FirstPersonCamera : MonoBehaviour
 
     public Quaternion EyeRotation => Quaternion.Euler(pitch, yaw, currentTilt);
 
-    /// <summary>
-    /// Readable and writable so DownedPlayer can hold the view inside an arc
-    /// while you are on the floor. Written rather than "the camera is
-    /// disabled while downed" on purpose: a dead camera cannot watch somebody
-    /// walk toward you, and watching is the whole of what being downed is.
-    /// </summary>
-    public float Yaw { get => yaw; set => yaw = value; }
 
     PlayerMotor motor;
     Rigidbody targetBody;

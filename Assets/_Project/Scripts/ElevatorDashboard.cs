@@ -179,6 +179,23 @@ public class ElevatorDashboard : MonoBehaviour
         // and then walked away to argue about the haul still arrives.
         CheckSurfaceArrival();
 
+        // ALSO outside every early return, and for the same reason.
+        //
+        // This used to live at the bottom of this method, past the
+        // `state == Idle` return - so the panel only refreshed while someone
+        // was standing at it in first person. From anywhere else in the car
+        // it showed whatever floor it had last been looked at from, which is
+        // worse than showing nothing: a crewmate glancing over from the far
+        // corner read 01 while the lift was passing 03.
+        //
+        // A floor indicator is a thing OTHER PEOPLE read. It is mounted in a
+        // shared space, at head height, in a game whose whole loop is four
+        // players shouting at each other - the one player driving it is the
+        // one who needs it least. ElevatorDeck's load gauge has always
+        // updated in its own unconditional Update, which is why nobody ever
+        // filed this bug against the load number.
+        UpdateReadout();
+
         var kb = Keyboard.current;
         if (kb == null) return;
 
@@ -197,7 +214,6 @@ public class ElevatorDashboard : MonoBehaviour
         }
 
         if (state == State.Active) UpdatePointer();
-        UpdateReadout();
     }
 
     // ------------------------------------------------------------------
@@ -563,6 +579,14 @@ public class ElevatorDashboard : MonoBehaviour
     void Release()
     {
         state = State.Idle;
+
+        // Clear on the way OUT as well as on the way in. It only mattered on
+        // entry while the readout was drawn for whoever was standing at the
+        // panel; now that it is live for the whole car, a half-typed "12_"
+        // abandoned by someone who wandered off would sit there being read as
+        // the floor by three other people.
+        entryBuffer = "";
+        statusMsg = null;
 
         if (playerInput != null) playerInput.enabled = true;
         if (motor != null) motor.externalSpeedLock = 1f;   // releases OUR lock only

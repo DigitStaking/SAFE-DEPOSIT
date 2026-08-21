@@ -91,6 +91,25 @@ public static class Campaign
 
     public const int BackpackSlotBaseCost = 120;
 
+    // ---- PER-ROUND PURCHASE CAPS ----
+    //
+    // You may buy two cable chunks and one capacity upgrade per round, no
+    // matter how rich you are.
+    //
+    // Without a cap, money converts straight into depth: bank a big haul and
+    // you can jump five floors in one shop visit, which flattens the curve
+    // the whole economy is built on. ECONOMY's 7% income against 7.2% mafia
+    // only works as a difficulty curve if depth is bought GRADUALLY - the
+    // squeeze is supposed to be felt every round, not skipped by one good
+    // run.
+    //
+    // It also gives a bad round a floor rather than a cliff: falling behind
+    // costs you a round of progress, not the campaign, because nobody could
+    // have run away with it while you were behind either.
+
+    public const int MaxCablePerRound = 2;
+    public const int MaxCapacityPerRound = 1;
+
     // ---- CAPACITY (ECONOMY_AND_CAMPAIGN.md Part 4) ----
     //
     // "Capacity is not optional and it is not a power fantasy - it is a TAX
@@ -154,6 +173,10 @@ public static class Campaign
     public static int RunNumber = 1;
     public static int BackpackSlots = 2;
     public static int CapacityUpgrades;
+
+    /// <summary>Reset by AdvanceRun. See the caps above.</summary>
+    public static int CableBoughtThisRound;
+    public static int CapacityBoughtThisRound;
     public static bool CampaignOver;
     public static string EpitaphReason = "";
 
@@ -260,6 +283,12 @@ public static class Campaign
 
     public static bool CapacityMaxed => CapacityUpgrades >= MaxCapacityUpgrades;
 
+    public static int CableLeftThisRound =>
+        Mathf.Max(0, MaxCablePerRound - CableBoughtThisRound);
+
+    public static int CapacityLeftThisRound =>
+        Mathf.Max(0, MaxCapacityPerRound - CapacityBoughtThisRound);
+
     public static int DeepestReachableFloor =>
         Mathf.FloorToInt(CableLength / FloorHeight);
 
@@ -284,6 +313,8 @@ public static class Campaign
         RunNumber = 1;
         BackpackSlots = 2;
         CapacityUpgrades = 0;
+        CableBoughtThisRound = 0;
+        CapacityBoughtThisRound = 0;
         Health = MaxHealth;
         CampaignOver = false;
         EpitaphReason = "";
@@ -318,6 +349,13 @@ public static class Campaign
     public static void AdvanceRun()
     {
         RunNumber++;
+
+        // The caps are PER ROUND, so this is where they refill. Deliberately
+        // in AdvanceRun rather than at the shop's first draw: the shop is
+        // drawn every frame it is open, and resetting there would refill the
+        // allowance while the player was still standing in it.
+        CableBoughtThisRound = 0;
+        CapacityBoughtThisRound = 0;
     }
 
     public static void SealRoom(int room1Based)
@@ -346,17 +384,21 @@ public static class Campaign
 
     public static bool BuyCable()
     {
+        if (CableLeftThisRound <= 0) return false;
         if (Money < CableChunkCost) return false;
         Money -= CableChunkCost;
         CableLength += CableChunk;
+        CableBoughtThisRound++;
         return true;
     }
 
     public static bool BuyCapacity()
     {
+        if (CapacityLeftThisRound <= 0) return false;
         if (CapacityMaxed || Money < CapacityUpgradeCost) return false;
         Money -= CapacityUpgradeCost;
         CapacityUpgrades++;
+        CapacityBoughtThisRound++;
         return true;
     }
 

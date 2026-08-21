@@ -430,15 +430,32 @@ public class RunManager : MonoBehaviour
         var style = new GUIStyle(GUI.skin.label) { fontSize = 14 };
         style.normal.textColor = new Color(1f, 1f, 1f, 0.75f);
 
+        // ----------------------------------------------------------------
+        // THE BANK BELONGS ON THIS LINE, AND NOT ONLY FOR CONVENIENCE.
+        //
+        // Campaign.Settle() pays the mafia out of MONEY PLUS THE HAUL:
+        //   Money += recovered; if (Money < owed) you are dead.
+        //
+        // So banked money counts toward the quota, and this readout used to
+        // ignore it entirely - it compared the haul alone against the number
+        // and said you were short while you were actually clear. With 170 in
+        // the bank and a 214 quota you needed 44, and the HUD said 214.
+        //
+        // Showing the bank fixes the display; comparing against bank + haul
+        // fixes the LIE. "Still need" is the only number anyone actually
+        // wants: it is the answer to "can we leave yet".
+        // ----------------------------------------------------------------
         int carried = CountRecoveredValue();
-        bool met = carried >= quota;
+        int need = Mathf.Max(0, quota - Campaign.Money - carried);
+        bool met = need <= 0;
 
         style.normal.textColor = met
             ? new Color(0.5f, 0.95f, 0.5f)
             : new Color(1f, 1f, 1f, 0.75f);
 
-        GUI.Label(new Rect(24f, 44f, 480f, 22f),
-            $"quota  {carried} / {quota}" + (met ? "   MET" : ""), style);
+        GUI.Label(new Rect(24f, 44f, 760f, 22f),
+            $"bank {Campaign.Money}   carrying {carried}   quota {quota}   " +
+            (met ? "QUOTA MET" : $"still need {need}"), style);
 
         // A COUNTDOWN, NOT A BAR. A number is something one player can shout
         // at the others; a bar is something each of them has to look at.
@@ -611,9 +628,13 @@ public class RunManager : MonoBehaviour
         float bx = cx - (bw * 3f + gap * 2f) * 0.5f;
 
         // ---- cable ----
-        GUI.enabled = Campaign.Money >= Campaign.CableChunkCost;
-        if (GUI.Button(new Rect(bx, by, bw, 40f),
-                       $"+{Campaign.CableChunk}m cable   ({Campaign.CableChunkCost})"))
+        GUI.enabled = Campaign.CableLeftThisRound > 0 &&
+                      Campaign.Money >= Campaign.CableChunkCost;
+        string cableLabel = Campaign.CableLeftThisRound > 0
+            ? $"+{Campaign.CableChunk}m cable  ({Campaign.CableChunkCost})   " +
+              $"{Campaign.CableLeftThisRound} left"
+            : "cable   none left this round";
+        if (GUI.Button(new Rect(bx, by, bw, 40f), cableLabel))
         {
             Campaign.BuyCable();
         }
@@ -625,10 +646,16 @@ public class RunManager : MonoBehaviour
         // is "we can save someone without losing money", the third is "we can
         // save HIM". Shown as the resulting capacity, not as "+50kg", for the
         // same reason.
-        GUI.enabled = !Campaign.CapacityMaxed && Campaign.Money >= Campaign.CapacityUpgradeCost;
-        string capLabel = Campaign.CapacityMaxed
-            ? $"capacity {Campaign.Capacity:0}kg   MAX"
-            : $"capacity → {Campaign.Capacity + Campaign.CapacityStep:0}kg   ({Campaign.CapacityUpgradeCost})";
+        GUI.enabled = !Campaign.CapacityMaxed &&
+                      Campaign.CapacityLeftThisRound > 0 &&
+                      Campaign.Money >= Campaign.CapacityUpgradeCost;
+        string capLabel =
+            Campaign.CapacityMaxed
+                ? $"capacity {Campaign.Capacity:0}kg   MAX"
+            : Campaign.CapacityLeftThisRound <= 0
+                ? $"capacity {Campaign.Capacity:0}kg   done this round"
+                : $"capacity → {Campaign.Capacity + Campaign.CapacityStep:0}kg   " +
+                  $"({Campaign.CapacityUpgradeCost})";
         if (GUI.Button(new Rect(bx + bw + gap, by, bw, 40f), capLabel))
         {
             Campaign.BuyCapacity();

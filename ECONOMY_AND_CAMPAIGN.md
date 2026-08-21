@@ -79,6 +79,7 @@ Mafia(R)       = 200  × m^(R-1)          the cut, non-negotiable
 Surplus(R)     = Income(R) - Mafia(R)    what you actually get to spend
 
 RopeCost(R)    = 80   × g^(R-1)          +5 m, +1 room. Max 2 buys per round
+CapCost(n)     = 50   × 1.25^n           +50 kg. Max 1 buy per round
 MassCost(n)    = 50   × 1.35^n           +50 kg. n = upgrades already owned
 ShopPrice(R)   = base × g^(R-1)          every other item scales the same way
 
@@ -336,7 +337,7 @@ Base prices are round-1. Multiply by `g^(R-1)` for later rounds.
 | Item | R1 | What it buys |
 |---|---|---|
 | **Rope +5 m (+1 room)** | **80** | depth. Max 2 per round |
-| **Capacity +50 kg** | **50 ×1.25ⁿ** | trips, which is time, which is rooms |
+| **Capacity +50 kg** | **50 ×1.25ⁿ** | trips, which is time, which is rooms. **Max 1 per round** |
 | Rope patch kit | 15 | repairs fraying mid-run |
 | Carabiner | 45 | traverse past cargo in 0.5 s not 1.2 s |
 | Pulley descender | 60 | fast controlled drop; no help going up |

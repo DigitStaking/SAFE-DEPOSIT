@@ -249,32 +249,37 @@ So the cuts are decided now, in advance, not in April:
 
 # KNOWN ISSUES — carried, not forgotten
 
-### Loot ends up on the elevator roof · deferred 19 Aug 2026
+### ~~Loot ends up on the elevator roof~~ · FIXED 21 Aug 2026
 
-Three fixes attempted, none of them it. Recorded so the next attempt does
-not re-tread the same ground.
+Four attempts, three of them wrong, and the difference on the fourth was
+that it **measured instead of reasoning**. Kept here as the worked example.
 
-**Ruled out:**
-- Stale loot saved into `Prototype.unity` — the scene contains a `LOOT`
-  root but **zero** `Carryable` components and no loot object names
-- Slot coordinates — verified numerically as x 9.3–11.9, z ±4.9, against a
-  room of x 7.5–13.5, z ±7. Inside, with metres of margin
-- Slot overlap — worst-case gap with both items jittered toward each other
-  is 2.2 m against a 1.5 m biggest item
-- Spawn height — the room floor's top surface is local y = 0 and items are
-  placed at y = 0.05
+**The bug:** the loot prefabs carry a Rigidbody, so `Instantiate` registered
+a physics body at the prefab's authored pose — the origin — before the
+spawner touched anything. `go.transform.position = …` then moved the
+*transform* and left the *body* at the origin. Enabling
+`RigidbodyInterpolation.Interpolate` straight afterwards made it permanent:
+interpolation has Unity write the transform every frame from the body's own
+pose history, and that history said origin. Every item was stomped back to
+0,0,0 and fell down the shaft, landing on the elevator roof — the only wide
+flat thing on the way down.
 
-**Still open.** Something is moving loot *after* it spawns, or
-`level.TransformPoint` is not landing where the arithmetic says. The next
-thing to try is the cheap one that was skipped: log each item's **world**
-position immediately after placement and compare it against the room's
-actual world bounds, rather than reasoning about local space again.
+**The fix:** write `rb.position` / `rb.rotation`, which move the physics
+pose and reset the interpolation history, and enable interpolation
+*afterwards* on a body already in the right place.
 
-Not blocking Phase 2 — the economy is testable with loot in slightly the
-wrong place, and three attempts at guessing have cost more than one
-measurement will.
+**Why three attempts missed it.** All three assumed a *placement* bug and
+re-derived the slot arithmetic. The arithmetic was always correct. The
+audit proved it in one run — all 60 spawn positions right — and then the
+settled positions named the real cause: every item at x≈0, z≈0 within
+centimetres, several having risen ninety metres to get there. Nothing
+pushes 60 objects onto one axis; the origin was simply where they had
+never really left.
 
----
+**The lesson, which was already written here and ignored twice:** when two
+fixes have failed, stop reasoning about the code and log the actual
+numbers. The instrument cost one commit and less time than any single
+wrong guess.
 
 # THE FOUR RULES, WHICH HAVE NOT CHANGED
 

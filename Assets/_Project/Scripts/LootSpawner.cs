@@ -369,18 +369,53 @@ public class LootSpawner : MonoBehaviour
             y,
             s.y + Random.Range(-slotJitter, slotJitter));
 
-        go.transform.position = level.TransformPoint(local);
-
         // Random spin about the level's own up, so items look dropped rather
         // than placed - but built on the LEVEL's rotation, so a rotated floor
         // does not tip its loot over.
-        go.transform.rotation = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        Vector3 world = level.TransformPoint(local);
+        Quaternion spin = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
+        // ==============================================================
+        // MOVE THE RIGIDBODY, NOT THE TRANSFORM. THIS IS THE ROOF BUG.
+        //
+        // The loot prefabs already carry a Rigidbody, so Instantiate
+        // registers a physics body at the PREFAB's authored pose - the
+        // origin - before this method touches anything. Writing
+        // go.transform.position afterwards moved the TRANSFORM and left
+        // the physics body at the origin.
+        //
+        // On its own that would still have been corrected on the next
+        // physics step. What made it permanent was setting
+        // RigidbodyInterpolation.Interpolate immediately afterwards:
+        // interpolation makes Unity WRITE THE TRANSFORM every frame from
+        // the body's own pose history, and that history said origin. So
+        // the transform was stomped straight back and every item fell
+        // down the shaft from y = 0 - landing on the elevator roof, which
+        // is the only wide flat thing on the way down.
+        //
+        // The audit is unambiguous about it: all 60 items, from all 20
+        // floors, ended up at x = 0, z = 0 within centimetres of each
+        // other, several having risen ninety-odd metres to get there.
+        // Nothing pushes 60 objects onto one axis - but the origin is
+        // exactly where they had never really left.
+        //
+        // rb.position / rb.rotation write the PHYSICS pose and reset the
+        // interpolation history, so there is nothing stale to snap back
+        // to. Interpolation is enabled afterwards, on a body that is
+        // already in the right place.
+        // ==============================================================
         var rb = go.GetComponent<Rigidbody>();
         if (rb == null) rb = go.AddComponent<Rigidbody>();
         rb.mass = mass;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+        go.transform.SetPositionAndRotation(world, spin);
+        rb.position = world;
+        rb.rotation = spin;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
 
         var carryable = go.GetComponent<Carryable>();
         if (carryable == null) carryable = go.AddComponent<Carryable>();

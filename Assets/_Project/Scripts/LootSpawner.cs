@@ -244,12 +244,25 @@ public class LootSpawner : MonoBehaviour
         var moved = new System.Text.StringBuilder();
         int n = 0, gone = 0;
 
+        // WHERE they end up is the diagnosis, so classify it rather than
+        // making someone read sixty coordinates:
+        //   above ground   - something lifted them; the elevator is the only
+        //                    thing in this game that lifts
+        //   inside the shaft - they left the room sideways and fell
+        int above = 0, inShaft = 0, elsewhere = 0;
+
         foreach (var p in placed)
         {
             if (p.t == null) { gone++; continue; }
 
             float d = Vector3.Distance(p.spawn, p.t.position);
             if (d <= auditMoveTolerance) continue;
+
+            Vector3 now = p.t.position;
+            float axis = new Vector2(now.x, now.z).magnitude;
+            if (now.y > 0f) above++;
+            else if (axis < 7f) inShaft++;
+            else elsewhere++;
 
             n++;
             Vector3 delta = p.t.position - p.spawn;
@@ -267,11 +280,16 @@ public class LootSpawner : MonoBehaviour
         }
         else
         {
+            // LogError, not LogWarning. This is the one line that decides
+            // which bug this is, and a warning is easy to scroll past.
             var report = new System.Text.StringBuilder();
             report.AppendLine($"[Loot audit] after {auditDelay}s: " +
-                              $"{n} item(s) moved, {gone} destroyed.");
+                              $"{n} of {placed.Count} moved, {gone} destroyed. " +
+                              $"Landed: {above} above ground (y>0), " +
+                              $"{inShaft} inside the shaft (within 7m of the " +
+                              $"axis), {elsewhere} other.");
             report.Append(moved);
-            Debug.LogWarning(report.ToString());
+            Debug.LogError(report.ToString());
         }
     }
 

@@ -63,10 +63,15 @@
 // ====================================================================
 // WHAT IS STILL OWED
 //
-// Step 7 adds the med spray, which calls Revive() below. Steps 8 and 9 turn
-// BledOut into the Lost roster and the rescue contract; for now it ends the
-// run with its own outcome, which is what Step 5's "does something distinct
-// from dying" asks for.
+// Steps 8 and 9 turn BledOut into the Lost roster and the rescue contract;
+// for now it ends the run with its own outcome, which is what Step 5's "does
+// something distinct from dying" asks for.
+//
+// The MED SPRAY has moved to Phase 4, with netcode, because neither way of
+// saving somebody can be tested by one person - you cannot spray yourself,
+// and carrying yourself out is not a thing. Revive() below is finished and
+// works; what is missing is a shop item that calls it and a second player to
+// call it on.
 // ====================================================================
 
 using UnityEngine;
@@ -188,9 +193,10 @@ public class DownedPlayer : MonoBehaviour
     }
 
     /// <summary>
-    /// Step 7's med spray calls this. Public now because the seam is what
-    /// makes Step 7 a small change rather than a rewrite - and because
-    /// without it there is no way to test coming back.
+    /// The med spray will call this - Phase 4, deferred with netcode because
+    /// reviving needs somebody else in the room. Finished and working now
+    /// anyway: it is the seam that makes that a small change rather than a
+    /// rewrite, and without it there is no way to test coming back at all.
     /// </summary>
     public void Revive()
     {

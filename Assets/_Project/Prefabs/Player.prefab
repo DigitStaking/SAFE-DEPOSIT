@@ -399,7 +399,7 @@ MonoBehaviour:
   holdSnapSpeed: 18
   pickupMask:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 320
   pickupRange: 2.5
   pickupRadius: 0.4
 --- !u!114 &194373251072406991

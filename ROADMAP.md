@@ -18,7 +18,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
-  PHASE 2  ███████░░░░░  mass, health, downed ....... in progress  6/10
+  PHASE 2  ████████░░░░  mass, health, downed ........ in progress  6/9
   PHASE 3  ░░░░░░░░░░░░  de-single-player
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
@@ -53,7 +53,7 @@ frightening, and floor 0 sitting inside the ceiling slab.
 
 # PHASE 2 — MASS, HEALTH, DOWNED
 
-`PHASE2_SPEC.md` · **10 steps** · 4 weeks · *21 Sep – 18 Oct 2026*
+`PHASE2_SPEC.md` · **9 steps** (7 moved to Phase 4) · 4 weeks · *21 Sep – 18 Oct 2026*
 
 Turns the load gauge from an inconvenience into the argument the game is about,
 by adding the one cargo that can object to being left behind.
@@ -66,10 +66,17 @@ by adding the one cargo that can object to being left behind.
 | 4 | ✅ Injury states — the limp *(done early; see Step 2)* |
 | 5 | ✅ Downed and bleed-out — 90s, and it does not pause |
 | 6 | ✅ ★ **A downed player is a `Carryable`** |
-| 7 | Revive — med spray, or carry them out |
+| 7 | ⏭️ Revive — **moved to Phase 4** (needs a second player) |
 | 8 | Lost |
 | 9 | Rescue contract — `Mafia(R) × (1 + f/10)` |
 | 10 | Cable fray |
+
+**Step 7 moved to Phase 4 on 21 Aug 2026.** Both ways of saving someone —
+med spray *on them*, or carrying them out — need a second player to be
+tested at all, and a rescue verified only by reading the code is not
+verified. The seam is already built and working: `DownedPlayer.Revive()`
+exists, restores you at 20 HP, drops you out of your carrier's arms and
+destroys your `Carryable`. Phase 4 attaches a purchasable med spray to it.
 
 **Step 6 is why this phase exists.** `Carryable` already handles weight
 classes, two-handed carrying, the load gauge and the scanner — so a downed
@@ -114,6 +121,12 @@ platform is a position and a state; a 32-node simulated rope replicated at
 - Shared money, leader, **Change Leader** vote
 - Departure vote — everyone aboard, name whoever is not
 - **🎙️ PROXIMITY VOICE**
+- **Revive** — deferred here from Phase 2 Step 7. Med spray (35) revives in
+  place at 20 HP; carrying them to the lift is the free alternative that
+  costs time instead of money. `DownedPlayer.Revive()` already does the work
+  — this is the shop item, the use interaction, and the first honest test of
+  it. **Do this early in the phase**, the moment two players can connect: it
+  is the cheapest possible proof that downed/carry replicates correctly.
 
 **This is where voice arrives, and it is not decoration.** Half the design
 assumes it: the key-with-a-triangle puzzle exists to sell the walkie-talkie,
@@ -121,8 +134,9 @@ the ledger is "pure voice-chat gameplay", and naming the missing crewmate on
 the departure screen only works because "three people shouting one name is the
 moment." Every puzzle in Phase 6 is built on top of it.
 
-**Done when:** three players ride together, one can carry another out, and the
-departure vote correctly names the person still in a room. **Two players first.**
+**Done when:** three players ride together, one can carry another out, one can
+spray another back onto their feet, and the departure vote correctly names the
+person still in a room. **Two players first.**
 
 ---
 

@@ -148,6 +148,9 @@ behaviour is the baseline this phase is tested against.
 
 **One step per session.** Each ends with a game that runs and a commit.
 
+Step 7 has moved to Phase 4 — see its entry below. The remaining order is
+1-6, then **8, 9, 10**, all of which are testable with one player.
+
 ### Step 1 · Capacity upgrades
 `Campaign` gains `Capacity(n) = 550 + 50n` and `CapacityCost(n) = 50 × 1.25ⁿ`,
 a shop button, and `ElevatorDeck.capacity` reads it instead of a constant.
@@ -182,10 +185,23 @@ counts against the load exactly like cargo.
 **Done when:** you can pick up a downed crewmate, feel the speed penalty, and
 watch the load gauge go amber as you do.
 
-### Step 7 · Revive
+### Step 7 · Revive — ⏭️ MOVED TO PHASE 4 (21 Aug 2026)
+
 Med spray revives in place at partial health. Carrying to the lift is the
 free alternative that costs time instead of money.
 **Done when:** there are two real ways to save someone and both hurt.
+
+**Deferred because it cannot be tested solo.** Both ways of saving someone
+need a second player — you cannot spray yourself, and carrying yourself out
+is not a thing. Building it now would mean shipping a rescue verified only by
+reading the code, in the one phase whose entire point is the moment somebody
+gets saved.
+
+**Already done, and staying:** `DownedPlayer.Revive()` restores you at 20 HP
+(Critical — still limping, one mistake from going down again), drops you out
+of your carrier's arms via `PlayerCarry.ForceDrop`, and destroys your
+`Carryable` so you stop being luggage. What Phase 4 owes is the med spray as
+a shop item, the use interaction, and a real second player to prove it.
 
 ### Step 8 · Lost
 Bleed-out completes → Lost. Removed from the run, named on the results screen,

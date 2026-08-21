@@ -267,9 +267,11 @@ public class LootSpawner : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[Loot audit] after {auditDelay}s: {n} item(s) " +
-                             $"moved, {gone} destroyed.
-{moved}");
+            var report = new System.Text.StringBuilder();
+            report.AppendLine($"[Loot audit] after {auditDelay}s: " +
+                              $"{n} item(s) moved, {gone} destroyed.");
+            report.Append(moved);
+            Debug.LogWarning(report.ToString());
         }
     }
 

@@ -160,6 +160,43 @@ public static class Campaign
     /// <summary>1-based room indices sealed forever (rubble, not deleted geometry).</summary>
     public static readonly HashSet<int> DestroyedRooms = new HashSet<int>();
 
+    // ---- THE BUILDING REMEMBERS ----
+    //
+    // Loot is generated ONCE, at the start of a campaign, and after that the
+    // building keeps whatever state the crew left it in. Take three crates
+    // off floor 4 and floor 4 has three fewer crates for the rest of the
+    // campaign. Shove a pallet into a corner and it is still in that corner
+    // next round.
+    //
+    // It has to live here because RunManager.ReloadScene() destroys every
+    // runtime object between rounds - the same reason Health and Money are
+    // here. LootSpawner writes this roster when you extract and rebuilds
+    // from it on the next load instead of rolling fresh loot.
+    //
+    // This is what turns the demolition from a timer into a LOSS. A floor
+    // that respawns is a floor you never really lost, and the whole economy
+    // assumes the opposite: "you start leaving loot on the floor of a
+    // building that's being demolished."
+
+    public class LootRecord
+    {
+        public int tier;
+        public int value;
+        public float mass;
+        public string name;
+        public Vector3 position;
+        public Quaternion rotation;
+    }
+
+    public static readonly List<LootRecord> LootRoster = new List<LootRecord>();
+
+    /// <summary>
+    /// Distinguishes "the building has been stocked and then stripped bare"
+    /// from "the building has never been stocked". Without it, an empty
+    /// roster would look like a fresh campaign and refill the whole tower.
+    /// </summary>
+    public static bool LootSeeded;
+
     // ---- THE CURVES ----
 
     /// <summary>
@@ -251,6 +288,8 @@ public static class Campaign
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();
+        LootRoster.Clear();
+        LootSeeded = false;
     }
 
     public static bool Settle(int recovered)

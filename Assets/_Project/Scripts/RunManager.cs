@@ -204,7 +204,18 @@ public class RunManager : MonoBehaviour
         // Surfacing commits the currently charged room — even if you leave
         // early. Stay longer = more timers complete mid-run = more rooms gone.
         OnExtractSeal();
-        Recovered = CountRecoveredValue();
+
+        // Order matters. OnExtractSeal has already destroyed the loot in any
+        // room that just sealed, so those items are gone before the snapshot
+        // and drop out of the campaign for good - which is the point of the
+        // demolition.
+        Recovered = CountRecoveredValue(out var sold);
+
+        // The building keeps what you did not take. Everything still standing
+        // is recorded exactly where it lies, so next round's floors are the
+        // ones this crew left behind rather than a fresh set.
+        LootSpawner.CaptureRemaining(sold);
+
         State = RunState.Extracted;
     }
 
@@ -238,9 +249,17 @@ public class RunManager : MonoBehaviour
     /// cable on the way up, its value counts on arrival. Anything else
     /// would mean loot that costs you capacity but pays nothing.
     /// </summary>
-    int CountRecoveredValue()
+    int CountRecoveredValue() => CountRecoveredValue(out _);
+
+    /// <summary>
+    /// Also hands back the exact set it paid out for, so LootSpawner can
+    /// record everything ELSE without the two ever disagreeing about whether
+    /// a given crate came home. One rule, evaluated once.
+    /// </summary>
+    int CountRecoveredValue(out HashSet<Carryable> sold)
     {
         int total = 0;
+        sold = new HashSet<Carryable>();
 
         var deckLoot = new HashSet<Carryable>();
         var lift = FindFirstObjectByType<Elevator>();
@@ -261,10 +280,11 @@ public class RunManager : MonoBehaviour
                 case Carryable.CarryState.Stowed:
                 case Carryable.CarryState.Held:
                     total += c.value;
+                    sold.Add(c);
                     break;
 
                 case Carryable.CarryState.Free:
-                    if (deckLoot.Contains(c)) total += c.value;
+                    if (deckLoot.Contains(c)) { total += c.value; sold.Add(c); }
                     break;
             }
         }

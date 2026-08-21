@@ -24,13 +24,24 @@
 // Rare is a light rich one you strip in seconds.
 //
 // ====================================================================
-// WHY THIS IS RUNTIME AND NOT PART OF GrayboxBuilder
+// STOCKED ONCE PER CAMPAIGN, THEN THE BUILDING REMEMBERS.
 //
-// The tier draw depends on the ROUND - richer floors as income grows - and
-// RunManager reloads the scene between rounds. Editor-time loot would be
-// identical every round forever, which makes the economy impossible to test
-// across a campaign. Spawning in Start() re-rolls per round, and skipping
-// sealed rooms gets "a floor you strip stays stripped" for free.
+// Loot is generated on the FIRST load of a campaign and never again. After
+// that it is restored from Campaign.LootRoster, which survives the scene
+// reload between rounds: every item comes back with the same tier, the same
+// price, the same weight, and the exact position and rotation it was left
+// in. Take three crates off floor 4 and floor 4 has three fewer crates for
+// the rest of the campaign. Shove a pallet into a corner and it is still in
+// that corner next round.
+//
+// This is not a convenience, it is what makes the demolition a LOSS. A
+// floor that refills is a floor you never really lost, and ECONOMY assumes
+// the opposite - "fall behind on upgrades and you start leaving loot on the
+// floor of a building that's being demolished" only bites if what you left
+// behind is gone for good.
+//
+// It also means the ONLY reason this is runtime rather than part of
+// GrayboxBuilder is the first roll. Everything after it is replay.
 // ====================================================================
 
 using System.Collections;
@@ -184,6 +195,24 @@ public class LootSpawner : MonoBehaviour
 
     void Start()
     {
+        // THE BUILDING IS STOCKED ONCE, AT THE START OF A CAMPAIGN.
+        //
+        // Everything after that is restored from Campaign.LootRoster, which
+        // survives the scene reload between rounds. Take three crates off
+        // floor 4 and floor 4 has three fewer crates forever; shove a pallet
+        // into a corner and it is still in that corner next round.
+        //
+        // Respawning was making the demolition meaningless. A floor that
+        // refills is a floor you never really lost, and ECONOMY assumes the
+        // opposite - "you start leaving loot on the floor of a building
+        // that's being demolished" only bites if the loot left behind is
+        // gone for good.
+        if (Campaign.LootSeeded)
+        {
+            RestoreRoster();
+            return;
+        }
+
         var shaft = GameObject.Find("SHAFT");
         if (shaft == null)
         {
@@ -220,7 +249,61 @@ public class LootSpawner : MonoBehaviour
                   $"{levels.Count} floors, ~${perFloor:0} per floor. " +
                   $"Cable reaches floor {Campaign.DeepestReachableFloor}, lifts ~${Campaign.Income}.");
 
+        Campaign.LootSeeded = true;
+        CaptureRemaining(null);      // the opening state of the building
+
         if (auditPlacement) StartCoroutine(Audit());
+    }
+
+    // ------------------------------------------------------------------
+    // RESTORE
+    // ------------------------------------------------------------------
+
+    void RestoreRoster()
+    {
+        foreach (var r in Campaign.LootRoster)
+            BuildItem(r.tier, r.value, r.mass, r.name, r.position, r.rotation);
+
+        Debug.Log($"[Loot] round {Campaign.RunNumber}: restored " +
+                  $"{Campaign.LootRoster.Count} items exactly where the last " +
+                  "crew left them. Nothing respawned.");
+
+        if (auditPlacement) StartCoroutine(Audit());
+    }
+
+    // ------------------------------------------------------------------
+    // CAPTURE
+    //
+    // Called by RunManager the moment a run is banked. Rebuilt from the LIVE
+    // objects rather than edited in place, which gets two things for free:
+    // loot destroyed by a room seal is simply not found, and loot the crew
+    // moved is recorded wherever it actually ended up.
+    //
+    // 'sold' is the exact set RunManager just paid out for - held, stowed,
+    // or loose inside the car. Passing the same set that produced the money
+    // is what stops the two ever disagreeing about whether a crate came home.
+    // ------------------------------------------------------------------
+
+    public static void CaptureRemaining(HashSet<Carryable> sold)
+    {
+        Campaign.LootRoster.Clear();
+
+        foreach (var item in FindObjectsByType<LootItem>(FindObjectsSortMode.None))
+        {
+            if (item == null) continue;
+
+            var c = item.GetComponent<Carryable>();
+            if (sold != null && c != null && sold.Contains(c)) continue;
+
+            Campaign.LootRoster.Add(new Campaign.LootRecord {
+                tier = item.tier,
+                value = c != null ? c.value : item.value,
+                mass = item.mass,
+                name = item.gameObject.name,
+                position = item.transform.position,
+                rotation = item.transform.rotation,
+            });
+        }
     }
 
     IEnumerator Audit()
@@ -300,10 +383,11 @@ public class LootSpawner : MonoBehaviour
 
         for (int slot = 0; slot < slots; slot++)
         {
-            Tier t = PickTier(budget);
+            int tierIndex = PickTier(budget);
+            Tier t = tiers[tierIndex];
             int value = Random.Range(t.minValue, t.maxValue + 1);
 
-            SpawnItem(t, value, level, slot);
+            SpawnItem(tierIndex, value, level, slot);
             budget -= value;
             spawned++;
         }
@@ -317,7 +401,7 @@ public class LootSpawner : MonoBehaviour
     /// how GOOD they are, never how many, so a poor floor is three sacks of
     /// flour rather than an empty room.
     /// </summary>
-    Tier PickTier(float budget)
+    int PickTier(float budget)
     {
         var affordable = new List<int>();
         int cheapest = 0;
@@ -329,16 +413,48 @@ public class LootSpawner : MonoBehaviour
         }
 
         return affordable.Count > 0
-            ? tiers[affordable[Random.Range(0, affordable.Count)]]
-            : tiers[cheapest];
+            ? affordable[Random.Range(0, affordable.Count)]
+            : cheapest;
     }
 
-    void SpawnItem(Tier t, int value, Transform level, int slot)
+    void SpawnItem(int tierIndex, int value, Transform level, int slot)
     {
+        Tier t = tiers[tierIndex];
         float mass = Random.Range(t.minMass, t.maxMass);
+        string name = $"{t.names[Random.Range(0, t.names.Length)]}_{t.label}";
+
+        // A prefab's pivot is its BASE (LootPrefabBuilder authors them
+        // standing on their own origin); a fallback cube's pivot is its
+        // CENTRE. The room floor's top surface is local y = 0.
+        float y = t.prefab != null ? 0.05f : t.size * 0.5f + 0.05f;
+
+        Vector2 sl = Slots[slot];
+        Vector3 local = new Vector3(
+            sl.x + Random.Range(-slotJitter, slotJitter),
+            y,
+            sl.y + Random.Range(-slotJitter, slotJitter));
+
+        // Random spin about the level's own up, so items look dropped rather
+        // than placed - but built on the LEVEL's rotation, so a rotated floor
+        // does not tip its loot over.
+        Vector3 world = level.TransformPoint(local);
+        Quaternion spin = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        BuildItem(tierIndex, value, mass, name, world, spin);
+    }
+
+    /// <summary>
+    /// Makes one item at an exact pose. The ONLY place loot is constructed,
+    /// so a restored crate is identical to a freshly rolled one - the first
+    /// spawn just decides the numbers, and every round afterwards replays
+    /// them.
+    /// </summary>
+    GameObject BuildItem(int tierIndex, int value, float mass, string name,
+                         Vector3 world, Quaternion spin)
+    {
+        Tier t = tiers[Mathf.Clamp(tierIndex, 0, tiers.Length - 1)];
 
         GameObject go = t.prefab != null ? Instantiate(t.prefab) : null;
-        bool fromPrefab = go != null;
 
         if (go == null)
         {
@@ -354,27 +470,11 @@ public class LootSpawner : MonoBehaviour
             }
         }
 
-        go.name = $"{t.names[Random.Range(0, t.names.Length)]}_{t.label}";
+        go.name = name;
         go.transform.SetParent(transform, true);
 
         // LootPrefabBuilder authors every prefab standing ON its own origin,
         // so its pivot is the BASE. A CreatePrimitive cube's pivot is its
-        // CENTRE. The room floor's top surface is local y = 0, so a prefab
-        // sits at ~0 and a cube has to be lifted by half its height.
-        float y = fromPrefab ? 0.05f : t.size * 0.5f + 0.05f;
-
-        Vector2 s = Slots[slot];
-        Vector3 local = new Vector3(
-            s.x + Random.Range(-slotJitter, slotJitter),
-            y,
-            s.y + Random.Range(-slotJitter, slotJitter));
-
-        // Random spin about the level's own up, so items look dropped rather
-        // than placed - but built on the LEVEL's rotation, so a rotated floor
-        // does not tip its loot over.
-        Vector3 world = level.TransformPoint(local);
-        Quaternion spin = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-
         // ==============================================================
         // MOVE THE RIGIDBODY, NOT THE TRANSFORM. THIS IS THE ROOF BUG.
         //
@@ -421,6 +521,15 @@ public class LootSpawner : MonoBehaviour
         if (carryable == null) carryable = go.AddComponent<Carryable>();
         carryable.value = value;
 
+        // The tag that survives the campaign. Tier and mass are what a
+        // Carryable cannot tell you, and both are needed to rebuild this
+        // exact item after the scene is destroyed.
+        var tag = go.GetComponent<LootItem>();
+        if (tag == null) tag = go.AddComponent<LootItem>();
+        tag.tier = tierIndex;
+        tag.value = value;
+        tag.mass = mass;
+
         int lootLayer = LayerMask.NameToLayer("Loot");
         if (lootLayer >= 0) SetLayerRecursive(go, lootLayer);
 
@@ -428,9 +537,11 @@ public class LootSpawner : MonoBehaviour
             placed.Add(new Placed {
                 t = go.transform,
                 spawn = go.transform.position,
-                floor = level.name,
-                slot = slot,
+                floor = go.name,
+                slot = 0,
             });
+
+        return go;
     }
 
     static void SetLayerRecursive(GameObject go, int layer)

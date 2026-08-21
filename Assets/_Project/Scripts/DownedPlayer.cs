@@ -38,9 +38,31 @@
 // holding the number was new.
 //
 // ====================================================================
+// STEP 6 - AND THE CARRYABLE APPEARS AND DISAPPEARS WITH THE STATE.
+//
+// A downed player IS a Carryable. The component is ADDED when you go down
+// and DESTROYED when you are revived, rather than sitting on the player all
+// the time switched off.
+//
+// That is not tidiness. A Carryable that exists on a healthy player is a
+// healthy player who can be picked up: PlayerCarry finds targets by
+// raycasting for the component, so a permanent one would let the crew carry
+// each other around the building at full health, and the two-handed penalty
+// would become a griefing tool rather than a rescue. Existence IS the
+// eligibility check, and there is no second flag to keep in sync with it.
+//
+// Everything else about being cargo falls out of PlayerMotor's mass, which
+// Step 1 already set to Campaign.PlayerMass = 70:
+//
+//     70kg  ->  Weight.Massive  ->  two hands, no jumping, 0.45 speed
+//
+// No special case anywhere in Carryable computes those. They are the same
+// three rules a water tank gets, which is exactly what the design wanted:
+// "every Phase 1 system handles them without knowing they are a person."
+//
+// ====================================================================
 // WHAT IS STILL OWED
 //
-// Step 6 makes a downed player a Carryable, which is what this clock is FOR.
 // Step 7 adds the med spray, which calls Revive() below. Steps 8 and 9 turn
 // BledOut into the Lost roster and the rescue contract; for now it ends the
 // run with its own outcome, which is what Step 5's "does something distinct
@@ -80,6 +102,7 @@ public class DownedPlayer : MonoBehaviour
     PlayerHealth health;
     FirstPersonCamera fpCam;
     RunManager run;
+    Carryable cargo;
 
     bool clockRunning;
     bool bledOut;
@@ -145,6 +168,8 @@ public class DownedPlayer : MonoBehaviour
 
         anchorYaw = transform.eulerAngles.y;
         anchored = true;
+
+        BecomeCargo();
     }
 
     void End()
@@ -152,6 +177,8 @@ public class DownedPlayer : MonoBehaviour
         clockRunning = false;
         anchored = false;
         Campaign.BleedOutLeft = 0f;
+
+        StopBeingCargo();
 
         if (fpCam != null)
         {
@@ -170,6 +197,46 @@ public class DownedPlayer : MonoBehaviour
         if (!IsDowned || Campaign.PlayerLost) return;
         Campaign.Health = Mathf.Clamp(reviveHealth, 1, Campaign.MaxHealth);
         End();
+    }
+
+    /// <summary>
+    /// 70kg of Massive cargo. The value, uniquely, is 0 - a person is not
+    /// loot, and RunManager.CountRecoveredValue sums Carryable.value for
+    /// everything aboard. Carrying a crewmate out must not pay the mafia.
+    /// </summary>
+    void BecomeCargo()
+    {
+        if (cargo != null) return;
+
+        cargo = GetComponent<Carryable>();
+        if (cargo == null) cargo = gameObject.AddComponent<Carryable>();
+        cargo.value = 0;
+    }
+
+    /// <summary>
+    /// Revived, so no longer luggage. Destroyed rather than disabled: a
+    /// disabled Carryable is still found by GetComponent, and the next thing
+    /// to check "can I pick this up" would say yes.
+    ///
+    /// If they are being CARRIED at the moment of revival, drop them first -
+    /// otherwise the carrier is left holding a reference to a component that
+    /// is about to vanish, and the player stands up still kinematic and
+    /// stuck to somebody's chest.
+    /// </summary>
+    void StopBeingCargo()
+    {
+        if (cargo == null) cargo = GetComponent<Carryable>();
+        if (cargo == null) return;
+
+        if (cargo.State != Carryable.CarryState.Free)
+        {
+            var carrier = Object.FindFirstObjectByType<PlayerCarry>();
+            if (carrier != null && carrier.Held == cargo) carrier.ForceDrop();
+            else cargo.Drop(Vector3.zero);
+        }
+
+        Destroy(cargo);
+        cargo = null;
     }
 
     /// <summary>

@@ -260,6 +260,31 @@ public static class FirstPersonFixer
         }
         downed.enabled = true;
 
+        // ---- pickup reach must include PEOPLE (Phase 2 Step 6) -------
+        //
+        // pickupMask was Loot only (bit 8). A downed crewmate is 70kg of
+        // Massive cargo in every respect that matters, but they are on the
+        // PLAYER layer - moving them to Loot would break their ground check
+        // and is exactly the layer-stomping PHASE2_SPEC warns against. So the
+        // reach is widened instead of the body being relabelled.
+        //
+        // Built from layer NAMES rather than the literal 320, so renumbering
+        // the layers cannot silently make crewmates unpickable.
+        var carry2 = root.GetComponent<PlayerCarry>();
+        if (carry2 != null)
+        {
+            int loot = LayerMask.NameToLayer("Loot");
+            int player = LayerMask.NameToLayer("Player");
+            int mask = 0;
+            if (loot >= 0) mask |= 1 << loot;
+            if (player >= 0) mask |= 1 << player;
+            if (mask != 0)
+            {
+                carry2.pickupMask = mask;
+                log.AppendLine($"  PlayerCarry.pickupMask = Loot + Player ({mask})");
+            }
+        }
+
         // ---- the driver ---------------------------------------------
         var drv = root.GetComponent<PlayerAnimatorDriver>();
         if (drv == null) drv = root.AddComponent<PlayerAnimatorDriver>();

@@ -98,6 +98,25 @@ public class ElevatorDeck : MonoBehaviour
                 var motor = rb.GetComponent<PlayerMotor>();
                 if (motor != null)
                 {
+                    // A DOWNED CREWMATE IS COUNTED ONCE, AND THIS `continue`
+                    // IS WHY (PHASE2_SPEC Step 6).
+                    //
+                    // From Step 6 a downed player carries a Carryable of their
+                    // own, also 70kg, so both branches below would match them.
+                    // Two cases, both already correct:
+                    //
+                    //   lying loose in the car - a live Rigidbody, so a rider.
+                    //     Charged PlayerMass here and the `continue` skips the
+                    //     cargo branch. 70 once, not 140.
+                    //
+                    //   in someone's arms - Carryable.PickUp made them
+                    //     kinematic, and GatherRiders skips kinematic bodies,
+                    //     so they are not a rider at all. Their carrier is,
+                    //     and pays PlayerMass + CarriedMass = 140 for the two
+                    //     of them.
+                    //
+                    // Anyone tempted to "simplify" these two branches into one
+                    // should read that twice first.
                     total += Campaign.PlayerMass;
                     var carry = rb.GetComponent<PlayerCarry>();
                     if (carry != null) total += carry.CarriedMass;

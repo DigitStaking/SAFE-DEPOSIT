@@ -253,6 +253,7 @@ GameObject:
   - component: {fileID: 2370876444229263645}
   - component: {fileID: 1428181967781404197}
   - component: {fileID: 9093355182975681421}
+  - component: {fileID: 8530587597057350281}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -517,6 +518,23 @@ MonoBehaviour:
   safeSpeed: 9
   damagePerSpeed: 6.5
   staggerThreshold: 20
+--- !u!114 &8530587597057350281
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 856fa7cf863374048b06e211dbea74f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DownedPlayer
+  bleedOutTime: 90
+  reviveHealth: 20
+  lookArc: 100
+  downedMinPitch: -40
+  downedMaxPitch: 25
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0

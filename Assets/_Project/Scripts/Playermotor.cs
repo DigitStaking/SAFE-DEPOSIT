@@ -247,6 +247,14 @@ public class PlayerMotor : MonoBehaviour
     {
         if (cam == null) return;
 
+        // Being carried. Carryable.PickUp turns the body kinematic so it can
+        // be positioned by the carrier, and AddForce on a kinematic body does
+        // nothing except waste a call and confuse the next person to read a
+        // profiler. The downed player is not driving anyway - SpeedFactor is
+        // already 0 - but this is the difference between "asks for zero speed"
+        // and "is not asking".
+        if (rb.isKinematic) return;
+
         // Movement is relative to where the camera looks, flattened so that
         // looking up or down never changes how fast you walk.
         Vector3 camForward = Vector3.ProjectOnPlane(cam.forward, Vector3.up).normalized;

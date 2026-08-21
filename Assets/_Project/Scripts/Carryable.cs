@@ -74,6 +74,35 @@ public class Carryable : MonoBehaviour
 
     int lootLayer = -1;
 
+    // ------------------------------------------------------------------
+    // SOME CARGO IS A PERSON (PHASE2_SPEC Step 6)
+    //
+    // A downed crewmate is 70kg of Massive cargo - two hands, no jumping,
+    // 0.45 speed, counted by the load gauge - and every one of those falls
+    // out of the mass alone with no special case. That is the whole reason
+    // the step is cheap.
+    //
+    // What does NOT fall out is the housekeeping this class does to LOOT,
+    // which would quietly wreck a player:
+    //
+    //   * SetLayerRecursive(lootLayer) on Drop would move a revived
+    //     teammate onto the Loot layer permanently - so the ground check
+    //     stops seeing them, and a third player could pick them up while
+    //     they are walking around perfectly healthy.
+    //   * SetRenderersEnabled fights LocalFirstPersonBodyCull, which owns
+    //     what the local player can see of their own body.
+    //   * ApplyPushResistance sets horizontal damping equal to MASS. At 70
+    //     that is a factor of 0.42 bled off every physics step - a healthy
+    //     player wearing it could barely walk.
+    //
+    // So the class asks whether it is attached to a person and skips exactly
+    // those three. Detected here rather than set from outside, because a flag
+    // somebody has to remember to set before Awake is a flag that will be
+    // wrong once.
+    // ------------------------------------------------------------------
+
+    public bool IsPerson { get; private set; }
+
     void Awake()
     {
         body = GetComponent<Rigidbody>();
@@ -82,7 +111,9 @@ public class Carryable : MonoBehaviour
 
         lootLayer = LayerMask.NameToLayer("Loot");
 
-        ApplyPushResistance();
+        IsPerson = GetComponent<PlayerMotor>() != null;
+
+        if (!IsPerson) ApplyPushResistance();
     }
 
     // --------------------------------------------------------------------
@@ -156,6 +187,7 @@ public class Carryable : MonoBehaviour
     /// </summary>
     void FixedUpdate()
     {
+        if (IsPerson) return;      // a person is not shoved-around furniture
         if (State != CarryState.Free) return;
 
         Vector3 v = body.linearVelocity;
@@ -190,7 +222,7 @@ public class Carryable : MonoBehaviour
         body.isKinematic = true;
         SetCollidersEnabled(false);
         SetCollidersAsTriggers(false);
-        SetRenderersEnabled(true);
+        if (!IsPerson) SetRenderersEnabled(true);
     }
 
     /// <summary>
@@ -225,20 +257,23 @@ public class Carryable : MonoBehaviour
         State = CarryState.Free;
         body.isKinematic = false;
         SetCollidersEnabled(true);
-        SetRenderersEnabled(true);
-        SetLayerRecursive(gameObject, lootLayer);
+        if (!IsPerson)
+        {
+            SetRenderersEnabled(true);
+            SetLayerRecursive(gameObject, lootLayer);
+        }
     }
 
     public void Drop(Vector3 velocity)
     {
         transform.SetParent(null, true);
-        SetRenderersEnabled(true);
+        if (!IsPerson) SetRenderersEnabled(true);
 
         State = CarryState.Free;
         body.isKinematic = false;
         SetCollidersEnabled(true);
         SetCollidersAsTriggers(false);
-        SetLayerRecursive(gameObject, lootLayer);
+        if (!IsPerson) SetLayerRecursive(gameObject, lootLayer);
 
         // Inherit the carrier's motion, so dropping something while running
         // throws it rather than parking it in mid-air.

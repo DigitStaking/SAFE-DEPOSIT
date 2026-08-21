@@ -137,11 +137,28 @@ public class PlayerCarry : MonoBehaviour
 
     void PickUp(Carryable item)
     {
-        // Small items auto-stow if pack has room.
-        if (item.CanStow && backpack != null && backpack.TryStow(item)) return;
+        // Small items auto-stow if pack has room. A person never qualifies -
+        // 70kg is Massive and CanStow is Small-only - but the guard is spelled
+        // out anyway, because "cannot stow a person" is a RULE and leaving it
+        // implicit in a mass threshold means it silently stops being true the
+        // day somebody retunes the weight classes.
+        if (!item.IsPerson && item.CanStow && backpack != null &&
+            backpack.TryStow(item)) return;
 
         item.PickUp();
         held = item;
+    }
+
+    /// <summary>
+    /// Let go without inheriting the carrier's motion. Used when a downed
+    /// crewmate is revived in your arms: they should stand up where they are,
+    /// not be thrown at whatever speed you happened to be walking.
+    /// </summary>
+    public void ForceDrop()
+    {
+        if (held == null) return;
+        held.Drop(Vector3.zero);
+        held = null;
     }
 
     void DropHeld()
@@ -166,14 +183,28 @@ public class PlayerCarry : MonoBehaviour
 
         if (held != null)
         {
-            prompt = $"carrying {held.name}  ({held.Mass:0}kg, {held.Weight})" +
-                     (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP") +
-                     "\nE  drop it - counts toward the elevator's load once it is inside the car";
-            colour = held.AllowsJumping ? Color.white : new Color(1f, 0.6f, 0.25f);
+            // A crewmate is not "Bottled_Water_Bulk (70kg, Massive)". The
+            // numbers are identical and the sentence must not be: the whole
+            // point of Step 6 is that the load gauge cannot tell the
+            // difference and the crew can.
+            prompt = held.IsPerson
+                ? $"carrying a crewmate  ({held.Mass:0}kg)   -   TOO HEAVY TO JUMP" +
+                  "\nE  put them down"
+                : $"carrying {held.name}  ({held.Mass:0}kg, {held.Weight})" +
+                  (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP") +
+                  "\nE  drop it - counts toward the elevator's load once it is inside the car";
+
+            colour = held.IsPerson
+                ? new Color(1f, 0.45f, 0.4f)
+                : held.AllowsJumping ? Color.white : new Color(1f, 0.6f, 0.25f);
         }
         else if (lookingAt != null)
         {
-            prompt = $"E  pick up {lookingAt.name}   ({lookingAt.Mass:0}kg, {lookingAt.Weight})";
+            prompt = lookingAt.IsPerson
+                ? $"E  pick them up   ({lookingAt.Mass:0}kg - both hands)"
+                : $"E  pick up {lookingAt.name}   ({lookingAt.Mass:0}kg, {lookingAt.Weight})";
+
+            if (lookingAt.IsPerson) colour = new Color(1f, 0.45f, 0.4f);
         }
 
         if (prompt == null) return;

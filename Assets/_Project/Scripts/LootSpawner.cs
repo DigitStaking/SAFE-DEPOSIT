@@ -33,6 +33,7 @@
 // sealed rooms gets "a floor you strip stays stripped" for free.
 // ====================================================================
 
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -142,6 +143,45 @@ public class LootSpawner : MonoBehaviour
              "between slots, so jitter can never close it.")]
     public float slotJitter = 0.9f;
 
+    // ------------------------------------------------------------------
+    // THE AUDIT
+    //
+    // Loot keeps ending up on the elevator roof. Three fixes have been tried
+    // by reasoning about local space and all three missed, which is what
+    // ROADMAP's KNOWN ISSUES already says to stop doing: log the WORLD
+    // position and compare it against the room's real bounds.
+    //
+    // The decisive question is not "where does it spawn" - that arithmetic
+    // has been checked twice - but "does it STAY there". So every item is
+    // recorded at spawn and re-checked once the physics has settled. The two
+    // numbers separate the only two possible causes:
+    //
+    //   spawn wrong  -> the placement maths is wrong after all
+    //   spawn right, settle wrong -> something MOVES it, and the log says
+    //                               how far and in which direction
+    // ------------------------------------------------------------------
+
+    [Header("Diagnostics")]
+    [Tooltip("Log every item's world position at spawn and again once " +
+             "physics has settled. Turn off when the roof bug is dead.")]
+    public bool auditPlacement = true;
+
+    public float auditDelay = 4f;
+
+    [Tooltip("Report an item that has moved further than this from where it " +
+             "was placed.")]
+    public float auditMoveTolerance = 1.5f;
+
+    class Placed
+    {
+        public Transform t;
+        public Vector3 spawn;
+        public string floor;
+        public int slot;
+    }
+
+    readonly List<Placed> placed = new List<Placed>();
+
     void Start()
     {
         var shaft = GameObject.Find("SHAFT");
@@ -179,6 +219,58 @@ public class LootSpawner : MonoBehaviour
         Debug.Log($"[Loot] round {Campaign.RunNumber}: {total} items across " +
                   $"{levels.Count} floors, ~${perFloor:0} per floor. " +
                   $"Cable reaches floor {Campaign.DeepestReachableFloor}, lifts ~${Campaign.Income}.");
+
+        if (auditPlacement) StartCoroutine(Audit());
+    }
+
+    IEnumerator Audit()
+    {
+        // Report the spawn positions immediately, so the log survives even if
+        // something later destroys the items.
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"[Loot audit] {placed.Count} items placed. " +
+                      "Room interior is x 7.5..13.5, z -7..7 in each LEVEL's " +
+                      "own space; world x/z depend on that level's rotation.");
+
+        foreach (var p in placed)
+        {
+            if (p.t == null) continue;
+            sb.AppendLine($"  {p.floor} slot {p.slot}  world {p.spawn:F2}  {p.t.name}");
+        }
+        Debug.Log(sb.ToString());
+
+        yield return new WaitForSeconds(auditDelay);
+
+        var moved = new System.Text.StringBuilder();
+        int n = 0, gone = 0;
+
+        foreach (var p in placed)
+        {
+            if (p.t == null) { gone++; continue; }
+
+            float d = Vector3.Distance(p.spawn, p.t.position);
+            if (d <= auditMoveTolerance) continue;
+
+            n++;
+            Vector3 delta = p.t.position - p.spawn;
+            moved.AppendLine($"  {p.floor} slot {p.slot}  {p.t.name}");
+            moved.AppendLine($"      spawned {p.spawn:F2}");
+            moved.AppendLine($"      now     {p.t.position:F2}");
+            moved.AppendLine($"      moved   {d:F2}m   delta {delta:F2}   " +
+                             $"parent now '{(p.t.parent != null ? p.t.parent.name : "none")}'");
+        }
+
+        if (n == 0 && gone == 0)
+        {
+            Debug.Log($"[Loot audit] after {auditDelay}s: nothing moved more " +
+                      $"than {auditMoveTolerance}m. Placement is not the bug.");
+        }
+        else
+        {
+            Debug.LogWarning($"[Loot audit] after {auditDelay}s: {n} item(s) " +
+                             $"moved, {gone} destroyed.
+{moved}");
+        }
     }
 
     int FillFloor(Transform level, float budget)
@@ -276,6 +368,14 @@ public class LootSpawner : MonoBehaviour
 
         int lootLayer = LayerMask.NameToLayer("Loot");
         if (lootLayer >= 0) SetLayerRecursive(go, lootLayer);
+
+        if (auditPlacement)
+            placed.Add(new Placed {
+                t = go.transform,
+                spawn = go.transform.position,
+                floor = level.name,
+                slot = slot,
+            });
     }
 
     static void SetLayerRecursive(GameObject go, int layer)

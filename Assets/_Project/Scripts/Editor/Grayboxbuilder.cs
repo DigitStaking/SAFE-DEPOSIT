@@ -118,9 +118,14 @@ public static class GrayboxBuilder
         DestroyIfPresent(LootRootName);
 
         // Derived once here, so changing ShaftInner keeps everything correct.
-        float half = ShaftInner * 0.5f;             // 4.0  inner wall face
-        float wallMid = half + WallThick * 0.5f;       // 4.25 centre of a wall
-        float wallSpan = ShaftInner + WallThick * 2f;   // 9.0  wall length incl. corners
+        // NOTE: these comments were written when ShaftInner was 8 and were
+        // never updated when the shaft was widened to 14. They said 4.0 / 4.25
+        // / 9.0 and the real values are 7.0 / 7.25 / 15.0, which is nearly
+        // enough to convince you that LootSpawner's slots sit outside the
+        // room. They do not - the room really is x 7.5..13.5.
+        float half = ShaftInner * 0.5f;                 // 7.0   inner wall face
+        float wallMid = half + WallThick * 0.5f;        // 7.25  centre of a wall
+        float wallSpan = ShaftInner + WallThick * 2f;   // 15.0  wall length incl. corners
         float totalDrop = FloorHeight * LevelCount;      // 20.0 full depth
 
         Material gray = GetOrCreateMaterial(GrayMaterialPath, new Color(0.5f, 0.5f, 0.5f));
@@ -212,13 +217,19 @@ public static class GrayboxBuilder
 
     static void BuildLevel(Transform level, float half, float wallMid, float wallSpan, Material mat)
     {
-        float sideWidth = wallSpan * 0.5f - DoorWidth * 0.5f;               // 3.5
-        float sideCenterZ = DoorWidth * 0.5f + sideWidth * 0.5f;              // 2.75
-        float lintelH = FloorHeight - DoorHeight;                         // 1.5
-        float roomFloorW = WallThick + RoomDepth;                            // 6.5
-        float roomFloorX = half + roomFloorW * 0.5f;                         // 7.25
-        float roomMidX = half + WallThick + RoomDepth * 0.5f;              // 7.5
-        float roomBackX = half + WallThick + RoomDepth + WallThick * 0.5f;  // 10.75
+        // Same stale-comment warning as above: these were written for
+        // ShaftInner 8. Values on the right are the CURRENT ones, for
+        // ShaftInner 14. The room interior therefore spans x 7.5 (inner face
+        // of the shaft's east wall) to 13.5 (inner face of the back wall),
+        // and z -7..7 - which is the range LootSpawner's slots are checked
+        // against.
+        float sideWidth = wallSpan * 0.5f - DoorWidth * 0.5f;               // 6.5
+        float sideCenterZ = DoorWidth * 0.5f + sideWidth * 0.5f;            // 4.25
+        float lintelH = FloorHeight - DoorHeight;                           // 2.5
+        float roomFloorW = WallThick + RoomDepth;                           // 6.5
+        float roomFloorX = half + roomFloorW * 0.5f;                        // 10.25
+        float roomMidX = half + WallThick + RoomDepth * 0.5f;               // 10.5
+        float roomBackX = half + WallThick + RoomDepth + WallThick * 0.5f;  // 13.75
         float midY = FloorHeight * 0.5f;                               // 2.0
 
         Box("Wall_North", level, new Vector3(0f, midY, wallMid),

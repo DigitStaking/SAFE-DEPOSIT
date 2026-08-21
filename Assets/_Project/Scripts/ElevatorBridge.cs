@@ -195,6 +195,20 @@ public class ElevatorBridge : MonoBehaviour
     {
         if (elevator.IsMoving) return;
 
+        // NEVER SPEND A RETRACT ON A TRIP THAT WILL NOT HAPPEN.
+        //
+        // Elevator.GoToFloor silently drops a request for the floor it is
+        // already parked at - correct, and harmless in isolation. It was not
+        // harmless here: by the time this class got to that call it had
+        // already run the five-second warning and pulled the bridge in, so
+        // the crew ended up sealed in a car that never moved, looking at an
+        // open shaft where their way out had been.
+        //
+        // The dashboard rejects this case out loud now, but the guard belongs
+        // at the layer that does the damage too. Anything that asks this
+        // class for a trip to nowhere gets nothing, rather than a retract.
+        if (Mathf.Clamp(floor, 0, elevator.lowestFloor) == elevator.CurrentFloor) return;
+
         // The ONE real fallback: no Bridge object exists for this side at
         // all (missing geometry). Go straight there rather than strand the
         // crew over an object that was never built.
@@ -254,15 +268,32 @@ public class ElevatorBridge : MonoBehaviour
 
                 if (warningLeft <= 0f)
                 {
+                    // ------------------------------------------------------
+                    // THE COUNTDOWN IS A DEADLINE, NOT A REQUEST.
+                    //
+                    // This used to hold at zero until the bridge was clear,
+                    // so a player standing on it could stall the lift
+                    // indefinitely - the alarm screamed and nothing ever
+                    // happened. That made the warning advisory, and an
+                    // advisory countdown is not a threat.
+                    //
+                    // It retracts now whether you are on it or not. DEMO_PLAN
+                    // lists "the bridge retract countdown" under NEVER CUT,
+                    // and the reason is precisely this: a five-second timer
+                    // you can ignore is set dressing, while one that will
+                    // drop you down the shaft is a decision every single
+                    // trip. It also makes the number on screen mean what it
+                    // says, which is the same rule the quota readout just
+                    // had to learn.
+                    //
+                    // DeckIsClear still drives the alarm below, so the
+                    // bridge is still shouting at whoever is on it - it just
+                    // no longer waits for them.
+                    // ------------------------------------------------------
                     warningLeft = 0f;
-                    if (DeckIsClear())
-                    {
-                        state = State.Retracting;
-                        // t is already 1 (fully extended) - retract shrinks
-                        // it back down over the same travelTime.
-                    }
-                    // else: held at zero, alarm keeps flashing, checked
-                    // again next frame. This is the rule, not a bug.
+                    state = State.Retracting;
+                    // t is already 1 (fully extended) - retract shrinks
+                    // it back down over the same travelTime.
                 }
                 break;
 
@@ -374,7 +405,14 @@ public class ElevatorBridge : MonoBehaviour
             ? new Color(1f, 0.25f, 0.2f)
             : new Color(1f, 0.7f, 0.2f);
 
-        GUI.Label(new Rect(0f, Screen.height * 0.14f, Screen.width, 44f),
-                  $"BRIDGE RETRACTING - {Mathf.CeilToInt(warningLeft):0}", big);
+        // Two different sentences, because they are two different problems.
+        // Off the bridge, the countdown is information: the way back is
+        // closing. ON the bridge it is an instruction, and it is the only
+        // warning anyone gets now that the retract no longer waits.
+        string line = DeckIsClear()
+            ? $"BRIDGE RETRACTING - {Mathf.CeilToInt(warningLeft):0}"
+            : $"GET OFF THE BRIDGE - {Mathf.CeilToInt(warningLeft):0}";
+
+        GUI.Label(new Rect(0f, Screen.height * 0.14f, Screen.width, 44f), line, big);
     }
 }

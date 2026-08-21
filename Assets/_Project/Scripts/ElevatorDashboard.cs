@@ -387,6 +387,17 @@ public class ElevatorDashboard : MonoBehaviour
         if (floor == 0) { Reject("USE RETURN"); return; }
 
         if (floor > elevator.lowestFloor) { Reject($"NO FLOOR {floor:00}"); return; }
+
+        // ALREADY HERE. Rejected LOUDLY rather than quietly ignored, because
+        // quietly ignored is what it used to be and it was the worst bug on
+        // the panel: Elevator.GoToFloor drops a request for the floor it is
+        // already parked at, but by then the bridge had already run its full
+        // five-second warning and retracted. The lift then never moved - so
+        // the crew was left standing in a car with the bridge gone, staring
+        // into an open shaft, with no way to call it back except pressing a
+        // DIFFERENT floor. Refusing here means the bridge is never asked.
+        if (floor == elevator.CurrentFloor) { Reject($"ALREADY ON {floor:00}"); return; }
+
         if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }
         if (floor > 0 && floor > Campaign.DeepestReachableFloor) { Reject($"{floor:00} BEYOND CABLE"); return; }
         if (RejectIfOverloaded()) return;
@@ -447,7 +458,7 @@ public class ElevatorDashboard : MonoBehaviour
         }
 
         floorText.text = elevator.IsMoving
-            ? $"{elevator.CurrentFloor} > {elevator.TargetFloor}"
+            ? $"{elevator.DisplayFloor:00}"
             : $"{elevator.CurrentFloor:00}";
 
         floorText.color = elevator.IsMoving

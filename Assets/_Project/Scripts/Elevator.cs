@@ -77,6 +77,17 @@ public class Elevator : MonoBehaviour
     public bool DoorsLocked => IsMoving;
 
     /// <summary>
+    /// The floor the car is PHYSICALLY passing right now, for the panel.
+    ///
+    /// CurrentFloor only updates on arrival - it is where the car IS in the
+    /// state-machine sense, and every gate in the game correctly asks it
+    /// "which floor are you parked at". But a real lift counts the floors off
+    /// as it passes them, and a panel that reads 01 the whole way from 1 to
+    /// 12 gives a crew watching the collapse clock nothing at all.
+    /// </summary>
+    public int DisplayFloor => IsMoving ? FloorAt(rb.position.y) : CurrentFloor;
+
+    /// <summary>
     /// Everyone and everything GatherRiders found inside the car THIS
     /// physics step. Step 8's ElevatorDeck reads this to count crew mass
     /// rather than running a second overlap query for the same answer.

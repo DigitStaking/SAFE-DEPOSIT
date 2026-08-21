@@ -54,8 +54,9 @@
 // the kneel state, the emote guard and the arm-IK release were all built in
 // Phase 1 and had simply never been told when. PlayerHealth is the when.
 //
-// What is still missing is Step 5: the 90-second bleed-out clock, the locked
-// view, and being a Carryable so somebody can pick you up.
+// The bleed-out clock and the restricted view are DownedPlayer's, Step 5.
+// What is still missing is Step 6: being a Carryable, so somebody can pick
+// you up and spend your remaining seconds carrying you to the lift.
 // ====================================================================
 
 using UnityEngine;

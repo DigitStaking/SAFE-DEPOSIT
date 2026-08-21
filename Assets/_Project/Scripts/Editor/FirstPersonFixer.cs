@@ -251,6 +251,15 @@ public static class FirstPersonFixer
         }
         fall.enabled = true;
 
+        // ---- downed / bleed-out (Phase 2 Step 5) ---------------------
+        var downed = root.GetComponent<DownedPlayer>();
+        if (downed == null)
+        {
+            downed = root.AddComponent<DownedPlayer>();
+            log.AppendLine("  added DownedPlayer");
+        }
+        downed.enabled = true;
+
         // ---- the driver ---------------------------------------------
         var drv = root.GetComponent<PlayerAnimatorDriver>();
         if (drv == null) drv = root.AddComponent<PlayerAnimatorDriver>();

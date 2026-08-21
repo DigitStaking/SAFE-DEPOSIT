@@ -159,6 +159,21 @@ public static class Campaign
     public static int Health = MaxHealth;
 
     /// <summary>
+    /// Seconds left on the bleed-out, or 0 when not downed. Here rather than
+    /// on DownedPlayer for the same reason as Health: a scene reload would
+    /// otherwise hand a dying player a fresh ninety seconds because the
+    /// component holding the number was new.
+    /// </summary>
+    public static float BleedOutLeft;
+
+    /// <summary>
+    /// The bleed-out completed. NOT death - ECONOMY Part 7 is clear that
+    /// "Lost is not death; dying is failing to pay for the rescue". Step 8
+    /// turns this into a roster and Step 9 into a price.
+    /// </summary>
+    public static bool PlayerLost;
+
+    /// <summary>
     /// Rooms sealed when you surface: exactly one, the room whose charge was
     /// counting down as you left. The OTHERS are sealed mid-run, one per
     /// completed 10-minute charge, which together produce the design's
@@ -316,6 +331,8 @@ public static class Campaign
         CableBoughtThisRound = 0;
         CapacityBoughtThisRound = 0;
         Health = MaxHealth;
+        BleedOutLeft = 0f;
+        PlayerLost = false;
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();

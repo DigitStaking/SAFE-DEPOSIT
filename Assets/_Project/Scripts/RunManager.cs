@@ -32,7 +32,14 @@ using UnityEngine;
 
 public class RunManager : MonoBehaviour
 {
-    public enum RunState { Active, Extracted, Buried }
+    // Lost is a THIRD failure, not a synonym for Buried.
+    //
+    // Buried is a body under a slab: nothing to recover, nothing to pay for.
+    // Lost is somebody still down there, alive as far as anyone knows, and
+    // ECONOMY Part 7 insists on the distinction - "Lost is not death; dying
+    // is failing to pay for the rescue." Collapsing the two would delete the
+    // rescue contract before Step 9 gets to build it.
+    public enum RunState { Active, Extracted, Buried, Lost }
 
     [Header("Quota")]
     [Tooltip("Read from Campaign at runtime - shown here for reference only. " +
@@ -160,6 +167,23 @@ public class RunManager : MonoBehaviour
             if (t == null) break;
             levels.Add(t);
         }
+    }
+
+    /// <summary>
+    /// The bleed-out completed. Ends the run distinctly from being buried:
+    /// the crew is not dead, somebody is still down there. Idempotent, like
+    /// Extract - a second call from a second listener changes nothing.
+    ///
+    /// Step 8 turns this into a named roster entry and an absence from the
+    /// next run; Step 9 prices getting them back. For now it is the outcome,
+    /// which is what Step 5 asks for: "the clock reaching zero does something
+    /// distinct from dying".
+    /// </summary>
+    public void OnBleedOut()
+    {
+        if (State != RunState.Active) return;
+        State = RunState.Lost;
+        Announce("BLED OUT - nobody came");
     }
 
     void Update()
@@ -391,6 +415,16 @@ public class RunManager : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Which floor the crew went down on, for the epitaph. Read from the
+    /// elevator rather than tracked, because the car is where they were.
+    /// </summary>
+    string LastKnownFloor()
+    {
+        var lift = FindFirstObjectByType<Elevator>();
+        return lift != null ? $"{lift.CurrentFloor:00}" : "??";
+    }
+
     string SealedRoomsLabel()
     {
         if (Campaign.DestroyedRooms.Count == 0)
@@ -517,6 +551,17 @@ public class RunManager : MonoBehaviour
         {
             settled = true;
             survivedSettlement = State == RunState.Extracted && Campaign.Settle(Recovered);
+
+            // A run nobody came back from pays nothing. The haul is still in
+            // the building, on the floor next to whoever was carrying it.
+            if (State == RunState.Lost && string.IsNullOrEmpty(Campaign.EpitaphReason))
+            {
+                Campaign.CampaignOver = true;
+                Campaign.EpitaphReason =
+                    "you bled out on floor " + LastKnownFloor() +
+                    ". the haul is still down there and so are you";
+            }
+
             if (State == RunState.Buried && string.IsNullOrEmpty(Campaign.EpitaphReason))
             {
                 Campaign.CampaignOver = true;
@@ -537,7 +582,12 @@ public class RunManager : MonoBehaviour
 
         // ---- headline ----
         string headline;
-        if (State == RunState.Buried)
+        if (State == RunState.Lost)
+        {
+            title.normal.textColor = new Color(0.8f, 0.2f, 0.2f);
+            headline = "LOST";
+        }
+        else if (State == RunState.Buried)
         {
             title.normal.textColor = new Color(1f, 0.3f, 0.25f);
             headline = "BURIED";

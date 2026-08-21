@@ -252,6 +252,7 @@ GameObject:
   - component: {fileID: 6582672556996034115}
   - component: {fileID: 2370876444229263645}
   - component: {fileID: 1428181967781404197}
+  - component: {fileID: 9093355182975681421}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -501,6 +502,21 @@ MonoBehaviour:
   debugDamage: 10
   hurtSpeed: 0.78
   criticalSpeed: 0.52
+--- !u!114 &9093355182975681421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ed6e932fc40f27479790dfaa8893e7f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFallDamage
+  safeSpeed: 9
+  damagePerSpeed: 6.5
+  staggerThreshold: 20
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0

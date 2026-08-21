@@ -18,7 +18,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
-  PHASE 2  ███░░░░░░░░░  mass, health, downed ....... in progress  3/10
+  PHASE 2  ████░░░░░░░░  mass, health, downed ....... in progress  4/10
   PHASE 3  ░░░░░░░░░░░░  de-single-player
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
@@ -62,7 +62,7 @@ by adding the one cargo that can object to being left behind.
 |---|---|
 | 1 | ✅ Capacity upgrades — `550 + 50n`, cost `50 × 1.25ⁿ` |
 | 2 | ✅ Health — 100 HP, **no regeneration, ever** |
-| 3 | Fall damage |
+| 3 | ✅ Fall damage |
 | 4 | ✅ Injury states — the limp *(done early; see Step 2)* |
 | 5 | ◐ Downed — kneel + all input locked; bleed-out clock still owed |
 | 6 | ★ **A downed player is a `Carryable`** |

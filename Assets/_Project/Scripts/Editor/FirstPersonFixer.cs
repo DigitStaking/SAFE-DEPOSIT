@@ -242,6 +242,15 @@ public static class FirstPersonFixer
         }
         health.enabled = true;
 
+        // ---- fall damage (Phase 2 Step 3) ---------------------------
+        var fall = root.GetComponent<PlayerFallDamage>();
+        if (fall == null)
+        {
+            fall = root.AddComponent<PlayerFallDamage>();
+            log.AppendLine("  added PlayerFallDamage");
+        }
+        fall.enabled = true;
+
         // ---- the driver ---------------------------------------------
         var drv = root.GetComponent<PlayerAnimatorDriver>();
         if (drv == null) drv = root.AddComponent<PlayerAnimatorDriver>();

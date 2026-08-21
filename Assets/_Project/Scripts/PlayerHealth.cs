@@ -39,7 +39,10 @@
 // ====================================================================
 // WHAT THIS STEP DELIBERATELY DOES NOT DO
 //
-// Nothing damages you yet - that is Step 3 (falling).
+// Falling is now a real damage source - see PlayerFallDamage, Step 3. The
+// debug keys below stay anyway: they are the only way to reach an exact HP
+// value on demand, which tuning the limp and testing the downed state both
+// need and a four-metre drop cannot give you.
 //
 // Step 4's limp IS here (SpeedFactor below), pulled forward because the
 // readout was claiming DOWNED at 0 HP while you walked around at full speed,
@@ -60,9 +63,10 @@ using UnityEngine.InputSystem;
 
 public class PlayerHealth : MonoBehaviour
 {
-    [Header("Debug (Step 2 only - Step 3 replaces this with falling)")]
-    [Tooltip("H damages you. Shift+H restores you. Both go away once real " +
-             "damage sources exist.")]
+    [Header("Debug")]
+    [Tooltip("H damages you. Shift+H restores you. Kept past Step 3 because " +
+             "falling cannot put you at an exact HP value on demand, and " +
+             "tuning the limp needs exactly that.")]
     public bool debugKeys = true;
     public int debugDamage = 10;
 

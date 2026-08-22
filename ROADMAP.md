@@ -18,7 +18,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
-  PHASE 2  █████████░░░  mass, health, downed ........ in progress  7/9
+  PHASE 2  ██████████░░  mass, health, downed ........ in progress  7/8
   PHASE 3  ░░░░░░░░░░░░  de-single-player
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
@@ -53,7 +53,7 @@ frightening, and floor 0 sitting inside the ceiling slab.
 
 # PHASE 2 — MASS, HEALTH, DOWNED
 
-`PHASE2_SPEC.md` · **9 steps** (7 moved to Phase 4) · 4 weeks · *21 Sep – 18 Oct 2026*
+`PHASE2_SPEC.md` · **8 steps** (7 and 9 moved to Phase 4) · 4 weeks · *21 Sep – 18 Oct 2026*
 
 Turns the load gauge from an inconvenience into the argument the game is about,
 by adding the one cargo that can object to being left behind.
@@ -68,10 +68,19 @@ by adding the one cargo that can object to being left behind.
 | 6 | ✅ ★ **A downed player is a `Carryable`** |
 | 7 | ⏭️ Revive — **moved to Phase 4** (needs a second player) |
 | 8 | ✅ Lost — a named roster, not a game over |
-| 9 | Rescue contract — `Mafia(R) × (1 + f/10)` |
+| 9 | ⏭️ Rescue contract — **moved to Phase 4** (needs a crew) |
 | 10 | Cable fray |
 
-**Step 7 moved to Phase 4 on 21 Aug 2026.** Both ways of saving someone —
+**Steps 7 and 9 moved to Phase 4 on 21 Aug 2026.** Step 9 for a subtler
+reason than Step 7: solo, the rescue is not a DECISION. The step exists to
+create one moment — *"whether the rope matters more than their friend"* — and
+that requires the run to be able to continue **without** paying. With one
+player, being lost means pay or the campaign is over, which is a paywall
+wearing the formula rather than the choice it is supposed to be. Partial
+payment carrying over is untestable for the same reason: you cannot earn the
+rest while you are the one who is missing.
+
+**Step 7 moved for a blunter one.** Both ways of saving someone —
 med spray *on them*, or carrying them out — need a second player to be
 tested at all, and a rescue verified only by reading the code is not
 verified. The seam is already built and working: `DownedPlayer.Revive()`
@@ -121,6 +130,12 @@ platform is a position and a state; a 32-node simulated rope replicated at
 - Shared money, leader, **Change Leader** vote
 - Departure vote — everyone aboard, name whoever is not
 - **🎙️ PROXIMITY VOICE**
+- **Rescue contract** — deferred here from Phase 2 Step 9.
+  `Rescue(R, f) = Mafia(R) × (1 + f/10)`, partial payment carried over, three
+  deaths ends the campaign. `Campaign.LostCrew` already records who and on
+  which floor, and carries an untouched `paid` field for exactly this.
+  Needs a crew that can keep running while somebody is still down there —
+  otherwise paying is mandatory and the decision does not exist.
 - **Revive** — deferred here from Phase 2 Step 7. Med spray (35) revives in
   place at 20 HP; carrying them to the lift is the free alternative that
   costs time instead of money. `DownedPlayer.Revive()` already does the work
@@ -262,6 +277,17 @@ So the cuts are decided now, in advance, not in April:
 ---
 
 # KNOWN ISSUES — carried, not forgotten
+
+### Solo, bleeding out ends the campaign · by design until Phase 4
+
+With one player there is nobody left above ground, so a bleed-out ends the
+run AND the campaign — "there is nobody left above ground to come back for
+you". That is not a bug and it is not the finished behaviour either. The
+rescue contract (Phase 4) is what turns it into a bill instead of a wall, and
+it needs a crew that can keep running while somebody is still down there.
+
+Until then: **Shift+H before the 90 seconds expire**, or start over.
+
 
 ### ~~Loot ends up on the elevator roof~~ · FIXED 21 Aug 2026
 

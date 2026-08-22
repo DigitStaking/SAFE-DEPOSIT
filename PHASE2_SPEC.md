@@ -148,8 +148,9 @@ behaviour is the baseline this phase is tested against.
 
 **One step per session.** Each ends with a game that runs and a commit.
 
-Step 7 has moved to Phase 4 — see its entry below. The remaining order is
-1-6, then **8, 9, 10**, all of which are testable with one player.
+Steps 7 and 9 have moved to Phase 4 — see their entries below. The remaining
+order is 1-6, then **8**, then **10**. Both are testable with one player;
+neither of the deferred ones is.
 
 ### Step 1 · Capacity upgrades
 `Campaign` gains `Capacity(n) = 550 + 50n` and `CapacityCost(n) = 50 × 1.25ⁿ`,
@@ -208,10 +209,29 @@ Bleed-out completes → Lost. Removed from the run, named on the results screen,
 absent from the next one.
 **Done when:** a run can end with someone missing and the game says who.
 
-### Step 9 · Rescue contract
+### Step 9 · Rescue contract — ⏭️ MOVED TO PHASE 4 (21 Aug 2026)
+
 `Rescue(R, f) = Mafia(R) × (1 + f/10)` in the shop, partial payment carried
 over, three deaths ends the campaign.
 **Done when:** paying for a friend visibly costs you depth.
+
+**Deferred because solo it is not a decision.** This step exists to create
+one moment — *"the crew spends two rounds deciding, every single time they
+open the shop, whether the rope matters more than their friend"* — and that
+needs the run to be able to continue **without** paying. With one player,
+being lost means pay or the campaign ends: mandatory, therefore not a choice.
+Partial payment carrying over is untestable for the same reason, since you
+cannot earn the rest of the money while you are the one who is missing.
+
+**Already done, and staying:** `Campaign.LostCrew` records who and on which
+floor, which is what the formula reads. Each entry carries a `paid` field
+that nothing touches yet, so the debt is a running total from the moment it
+is created rather than a price computed at the till.
+
+**Known before it starts:** ECONOMY's table says a round-5 loss on room 4
+costs 372; the formula gives 370. The round-10 row (823) matches exactly, so
+it is a rounding slip in one row, not a different formula. Resolve it against
+the formula when this is built.
 
 ### Step 10 · Cable fray
 Overload wears the cable, fray is visible above the car, a snap ends the run,

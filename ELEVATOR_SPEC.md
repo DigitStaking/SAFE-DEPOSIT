@@ -138,14 +138,17 @@ visible.
 | UP / DOWN buttons | **slow** — ~2 m/s | one floor, deliberate |
 
 - **Doors lock while moving.**
-- **It will not move above twice its rated load.** "WINCH STALLED" — the drum
-  physically cannot lift it, so no amount of arguing changes the answer.
-- **Between capacity and that ceiling it DOES move, and the cable frays.**
-  *(Resolved 21 Aug 2026, Phase 2 Step 10.)* This line used to read "it will
-  not move while overloaded", which contradicted the fray trap ten lines
-  above: a car that never moves overloaded can never fray under overload.
-  Overload is now a cost you defer and pay in rope, which is what makes it
-  "the only place in the demo where greed kills you directly".
+- **It will not move while overloaded.** Alarm, red gauge, nothing happens.
+- **And a ten-second countdown starts.** *(Phase 2 Step 10, revised 21 Aug
+  2026.)* Over capacity the cable is straining wherever the car happens to be,
+  parked or not. Get the load back under the line and the alarm stops
+  instantly; do not, and the cable parts — everyone aboard is Lost and the run
+  is over. This resolves the contradiction with the fray trap ten lines above:
+  the cable does come apart under overload, it just does it in ten seconds
+  rather than over five trips, and the lift never moves while it is happening.
+  That keeps it "the only place in the demo where greed kills you directly",
+  and puts the decision in front of four people at once instead of one person
+  reading a rope three trips later.
 - It is **loud**. Anything down there hears it arrive.
 
 ## The bridge

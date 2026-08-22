@@ -91,42 +91,28 @@ public static class Campaign
 
     public const int BackpackSlotBaseCost = 120;
 
-    // ---- CABLE FRAY (PHASE2_SPEC Step 10) ----
+    // ---- OVERLOAD: TEN SECONDS, THEN IT PARTS ----
     //
-    // "This is the only place in the demo where greed kills you directly
-    // rather than by running out of time."
+    // Replaces the per-metre fray model on 21 Aug 2026, on request. That one
+    // let you ride overloaded and billed you slowly in rope; this one refuses
+    // to move at all and gives you a countdown to fix it.
     //
-    // Fray is CAMPAIGN state, not run state. A cable you wore out last round
-    // is the same cable this round - that is the entire threat. Reset it on a
-    // scene reload and the trap becomes a per-run inconvenience you can
-    // always outrun by surfacing.
+    // The difference is where the decision sits. Deferred wear is a thing you
+    // notice three trips later, alone, reading a rope. A ten-second alarm with
+    // the doors shut is four people looking at a pile of loot and having to
+    // say out loud which crate goes back - which is the argument this whole
+    // game is built to host, and the elevator is where it belongs.
+    //
+    // It also restores ELEVATOR_SPEC line 141 - "it will not move while
+    // overloaded" - as literally true, instead of something reinterpreted to
+    // make room for the trap.
 
-    /// <summary>Overload beyond this multiple of capacity and the winch will
-    /// not lift it at all. The one load at which ELEVATOR_SPEC's "nothing
-    /// happens" is still true.</summary>
-    public const float WinchCeiling = 2f;
+    /// <summary>Seconds of overload before the cable parts.</summary>
+    public const float OverloadGrace = 10f;
 
-    /// <summary>
-    /// Fray added per metre travelled, per unit of overload. At 10% over a
-    /// 50m trip costs 2%; at 50% over it costs 10%; at double load, 20%.
-    /// Mild greed is nearly free, serious greed is five trips from a snap.
-    /// </summary>
-    public const float FrayPerMetrePerOverload = 0.004f;
-
-    public const int PatchKitBaseCost = 15;
-
-    /// <summary>0 = new rope, 1 = it parts. Survives runs.</summary>
-    public static float CableFray;
-
-    public static int PatchKitCost => ScaledPrice(PatchKitBaseCost);
-
-    public static bool BuyPatchKit()
-    {
-        if (CableFray <= 0f || Money < PatchKitCost) return false;
-        Money -= PatchKitCost;
-        CableFray = 0f;
-        return true;
-    }
+    /// <summary>0 = fine, 1 = parting. Live strain, not accumulated damage:
+    /// it fills while overloaded and empties when the load comes off.</summary>
+    public static float CableStrain;
 
     // ---- PER-ROUND PURCHASE CAPS ----
     //
@@ -415,7 +401,7 @@ public static class Campaign
         BleedOutLeft = 0f;
         PlayerLost = false;
         LostCrew.Clear();
-        CableFray = 0f;
+        CableStrain = 0f;
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();

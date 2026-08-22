@@ -60,38 +60,21 @@ public class ElevatorDeck : MonoBehaviour
     public bool IsOverloaded => CurrentLoad > Capacity;
 
     // ------------------------------------------------------------------
-    // OVERLOADED NOW MEANS "THIS COSTS YOU", NOT "THIS IS REFUSED".
+    // OVERLOADED MEANS THE LIFT DOES NOT MOVE - AND STARTS A CLOCK.
     //
-    // ELEVATOR_SPEC contradicts itself and has since Phase 1:
+    // ELEVATOR_SPEC line 141: "It will not move while overloaded." True
+    // again, and true literally, after a brief detour where overload was
+    // allowed to depart and billed slowly in rope. See the note at the top
+    // of CableWear for why that was the wrong shape.
     //
-    //   line  67  "The cable can FRAY UNDER OVERLOAD - your best trap survives"
-    //   line 141  "It WILL NOT MOVE while overloaded. Alarm, red gauge,
-    //              nothing happens."
-    //
-    // Both cannot be true. If the car never moves overloaded, the cable can
-    // never fray under overload, and Step 10 is dead code guarding a state
-    // the game refuses to enter. PHASE2_SPEC sides with the fray, and so does
-    // the design sentence the whole step exists for: "the only place in the
-    // demo where greed kills you directly rather than by running out of
-    // time." Greed that is simply forbidden cannot kill anyone.
-    //
-    // Resolved so both sentences keep a job:
-    //
-    //   at or under capacity      safe
-    //   over capacity             IT MOVES, and it frays - the cost is
-    //                             deferred and paid in cable
-    //   over WinchCeiling x cap   refused outright. This is the load at
-    //                             which "nothing happens" is still true, and
-    //                             it is a MOTOR limit rather than a safety
-    //                             rule - the drum cannot lift it, so no
-    //                             amount of shouting changes the answer.
+    // The refusal is not the consequence. CableWear's ten-second countdown
+    // is, and it runs wherever the car happens to be - so being parked is not
+    // being safe, and a crew that keeps stacking crates past the line while
+    // arguing about it is already losing.
     // ------------------------------------------------------------------
 
     /// <summary>1.0 exactly at capacity, 1.5 at fifty percent over.</summary>
     public float LoadRatio => Capacity > 0f ? CurrentLoad / Capacity : 0f;
-
-    /// <summary>Past what the winch can physically lift. Departure refused.</summary>
-    public bool IsUnliftable => LoadRatio > Campaign.WinchCeiling;
 
     Elevator elevator;
     TextMesh loadText;

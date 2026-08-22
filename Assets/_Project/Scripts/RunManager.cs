@@ -625,8 +625,8 @@ public class RunManager : MonoBehaviour
                 string.IsNullOrEmpty(Campaign.EpitaphReason))
             {
                 Campaign.CampaignOver = true;
-                Campaign.EpitaphReason = Campaign.CableFray >= 1f
-                    ? "the cable parted. you were told to look up"
+                Campaign.EpitaphReason = Campaign.CableStrain >= 1f
+                    ? "the cable parted. it gave you ten seconds"
                     : "there is nobody left above ground to come back for you";
             }
 
@@ -836,25 +836,7 @@ public class RunManager : MonoBehaviour
 
         GUI.enabled = true;
 
-        // ---- patch kit ----
-        //
-        // A row of its own under the other three, because those are what you
-        // buy to go DEEPER and this is what you buy to still be alive when
-        // you get there. Offered only when there is something to repair - a
-        // button that does nothing teaches people to stop reading buttons.
         float tail = by + 46f;
-        if (Campaign.CableFray > 0f)
-        {
-            GUI.enabled = Campaign.Money >= Campaign.PatchKitCost;
-            if (GUI.Button(new Rect(cx - bw * 0.5f, tail, bw, 34f),
-                           $"patch cable  ({Campaign.PatchKitCost})   " +
-                           $"{Campaign.CableFray * 100f:0}% worn"))
-            {
-                Campaign.BuyPatchKit();
-            }
-            GUI.enabled = true;
-            tail += 42f;
-        }
 
         body.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
         GUI.Label(new Rect(0f, tail, Screen.width, 22f),

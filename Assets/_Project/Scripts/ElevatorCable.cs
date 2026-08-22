@@ -66,6 +66,10 @@ public class ElevatorCable : MonoBehaviour
     //   SHIVER   past 85% it trembles. Motion is what catches an eye that was
     //            looking somewhere else entirely, and by then it should.
     //
+    // Driven by CableWear's ten-second overload clock, so the rope goes from
+    // steel to parting over those ten seconds and back the instant the load
+    // comes off. It is the countdown, drawn on the thing that will kill you.
+    //
     // No number anywhere. The done-when for this step is "you look UP at the
     // cable before pressing GO", and a percentage on the HUD satisfies the
     // mechanic while deleting the moment it exists for.
@@ -132,7 +136,7 @@ public class ElevatorCable : MonoBehaviour
             ropeMat = mat;
         }
 
-        SetFray(Campaign.CableFray);
+        SetFray(Campaign.CableStrain);
 
         Stretch();
     }

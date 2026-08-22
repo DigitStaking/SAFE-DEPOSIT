@@ -1,47 +1,40 @@
 // CableWear.cs  -  SAFE DEPOSIT
 // Assets/_Project/Scripts/CableWear.cs
-// Goes on: the ELEVATOR root, alongside Elevator and ElevatorCable. Added by
-// SAFE DEPOSIT -> Build Elevator Car.
+// Goes on: the ELEVATOR root, alongside Elevator, ElevatorDeck and
+// ElevatorCable. Added by SAFE DEPOSIT -> Build Elevator Car.
 //
 // ====================================================================
-// PHASE 2 STEP 10 - CABLE FRAY.
+// PHASE 2 STEP 10 - OVERLOAD KILLS. TEN SECONDS TO FIX IT.
 //
-// "Done when: you look up at the cable before pressing GO."
-//
-// PHASE2_SPEC: "This is the only place in the demo where greed kills you
-// directly rather than by running out of time." Everything else that can end
-// a run is a clock - the collapse, the bleed-out. This one is a choice you
-// made three trips ago.
+// Over capacity the lift will not move AND a ten-second countdown starts.
+// Get the load back under 550kg and the alarm stops. Do not, and the cable
+// parts: everyone aboard is Lost and the run is over.
 //
 // ====================================================================
-// WHY OVERLOADING HAD TO STOP BEING FORBIDDEN
+// WHY THIS REPLACED THE SLOW-FRAY VERSION
 //
-// ELEVATOR_SPEC contradicts itself, and has since Phase 1:
+// The first build of this step let an overloaded car depart and billed it
+// slowly in rope - a few percent of wear per trip, snapping after five or ten
+// greedy hauls. It worked, and it was the wrong shape.
 //
-//   line  67   "The cable can FRAY UNDER OVERLOAD - your best trap survives"
-//   line 141   "It WILL NOT MOVE while overloaded."
+// Deferred wear is a thing ONE person notices, three trips later, reading a
+// rope on their own. A ten-second alarm with the doors shut is FOUR PEOPLE
+// looking at a pile of loot and having to say out loud which crate goes back.
+// That argument is the game; the elevator is where it belongs; and a
+// mechanic that produces it beats a more elegant one that does not.
 //
-// A car that never moves overloaded can never fray under overload. Kept as
-// written, this entire file is dead code guarding a state the game refuses to
-// enter, and "greed kills you directly" describes a greed the lift will not
-// permit.
-//
-// So overload now DEPARTS and bills you in cable, and the refusal moved to a
-// load the winch physically cannot lift (Campaign.WinchCeiling). See the long
-// note on ElevatorDeck.IsUnliftable. Both of the spec's sentences still have a
-// job; they just describe different loads.
+// It also makes ELEVATOR_SPEC line 141 - "it will not move while overloaded"
+// - literally true again, rather than something reinterpreted to make room
+// for a trap. The spec did contradict itself and still does not, but the
+// resolution now favours the simpler sentence.
 //
 // ====================================================================
-// WEAR IS PER METRE, NOT PER TRIP
+// THE CLOCK RUNS WHEREVER THE CAR IS
 //
-// A trip is not a unit of anything. One floor and twelve floors are the same
-// number of button presses and wildly different amounts of rope over the
-// drum, and a per-trip cost would make twelve short hops safer than one long
-// haul - which is exactly backwards from how you would actually break a
-// cable, and exactly the strategy nobody should be rewarded for finding.
-//
-// Distance is measured from the car's own movement rather than from floor
-// numbers, so a trip interrupted halfway still charges for the half.
+// Parked at the surface, sitting on a floor, mid-descent - the car hangs off
+// that cable the whole time, so the strain does not care. This is deliberate
+// and it is the reason loading is tense: you are not safe to stack crates
+// past the line just because you have not pressed GO yet.
 // ====================================================================
 
 using UnityEngine;
@@ -49,100 +42,105 @@ using UnityEngine;
 [RequireComponent(typeof(Elevator))]
 public class CableWear : MonoBehaviour
 {
-    [Tooltip("Fray above this and the cable is visibly going. The warning " +
-             "band exists so the snap is never the first thing you hear.")]
-    [Range(0f, 1f)] public float warnAt = 0.6f;
+    [Tooltip("Seconds of overload before the cable parts. Long enough to get " +
+             "two hands on the nearest crate, short enough that nobody " +
+             "finishes the sentence they started.")]
+    public float grace = Campaign.OverloadGrace;
 
-    public float Fray => Mathf.Clamp01(Campaign.CableFray);
-    public bool Frayed => Fray >= warnAt;
+    /// <summary>Seconds left before it parts. Full while the load is legal.</summary>
+    public float TimeLeft { get; private set; }
+
+    /// <summary>0 fine, 1 parting. Drives the rope's appearance.</summary>
+    public float Strain => grace > 0f ? 1f - Mathf.Clamp01(TimeLeft / grace) : 0f;
+
     public bool Snapped { get; private set; }
+    public bool Straining => !Snapped && TimeLeft < grace;
 
     Elevator lift;
     ElevatorDeck deck;
     ElevatorCable cable;
     RunManager run;
 
-    float lastY;
-    bool haveLastY;
-
     void Awake()
     {
         lift = GetComponent<Elevator>();
         deck = GetComponent<ElevatorDeck>();
         cable = GetComponent<ElevatorCable>();
+        TimeLeft = grace;
     }
 
     void Start()
     {
         run = Object.FindFirstObjectByType<RunManager>();
-        PushVisual();
+        Push();
     }
 
-    void FixedUpdate()
+    void Update()
     {
-        if (lift == null || deck == null) return;
+        if (Snapped || deck == null) return;
 
-        float y = transform.position.y;
+        if (deck.IsOverloaded)
+        {
+            TimeLeft -= Time.deltaTime;
 
-        if (!haveLastY) { lastY = y; haveLastY = true; return; }
+            if (TimeLeft <= 0f)
+            {
+                TimeLeft = 0f;
+                Snap();
+            }
+        }
+        else if (TimeLeft < grace)
+        {
+            // RECOVERS INSTANTLY, NOT GRADUALLY.
+            //
+            // A slow refill would punish a crew for a mistake they already
+            // fixed, and worse, it would make the second overload of a run
+            // shorter than the first for reasons nobody can see. The rule has
+            // to be one sentence: under the line, you are fine.
+            TimeLeft = grace;
+        }
 
-        float metres = Mathf.Abs(y - lastY);
-        lastY = y;
-
-        if (Snapped || metres <= 0f) return;
-
-        // Only the part of the load ABOVE capacity does damage. At exactly
-        // capacity the rope is rated for it and wears nothing, which is what
-        // makes the gauge's amber band meaningful rather than decorative.
-        float over = deck.LoadRatio - 1f;
-        if (over <= 0f) return;
-
-        Campaign.CableFray = Mathf.Clamp01(
-            Campaign.CableFray + over * metres * Campaign.FrayPerMetrePerOverload);
-
-        PushVisual();
-
-        if (Campaign.CableFray >= 1f) Snap();
+        Push();
     }
 
-    /// <summary>
-    /// It parts. Everyone aboard is Lost and the run is over - not Buried,
-    /// because they are in the pit rather than under a slab, and ECONOMY's
-    /// distinction between the two is what the rescue contract is priced on.
-    /// </summary>
     void Snap()
     {
         Snapped = true;
-        Campaign.CableFray = 1f;
-        PushVisual();
-
+        Push();
         if (run != null) run.OnCableSnapped(lift != null ? lift.CurrentFloor : 0);
     }
 
-    void PushVisual()
+    void Push()
     {
-        if (cable != null) cable.SetFray(Fray);
+        Campaign.CableStrain = Strain;
+        if (cable != null) cable.SetFray(Strain);
     }
 
     void OnGUI()
     {
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
-        if (Fray < warnAt) return;
+        if (!Straining) return;
 
-        // Deliberately NOT a permanent gauge. The done-when for this step is
-        // "you look UP at the cable before pressing GO" - a number on the HUD
-        // would satisfy the mechanic and kill the moment it exists for. This
-        // only speaks once the rope is already visibly wrong, and it points
-        // at the rope rather than replacing it.
-        var style = new GUIStyle(GUI.skin.label)
-        { fontSize = 17, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+        var big = new GUIStyle(GUI.skin.label)
+        { fontSize = 30, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
 
-        bool critical = Fray >= 0.85f;
-        style.normal.textColor = critical && Mathf.FloorToInt(Time.time * 4f) % 2 == 0
-            ? new Color(1f, 0.9f, 0.85f)
-            : new Color(1f, 0.35f, 0.2f);
+        bool flash = Mathf.FloorToInt(Time.time * 6f) % 2 == 0;
+        big.normal.textColor = flash
+            ? new Color(1f, 0.2f, 0.15f)
+            : new Color(1f, 0.85f, 0.3f);
 
-        GUI.Label(new Rect(0f, Screen.height * 0.08f, Screen.width, 24f),
-                  critical ? "THE CABLE IS ABOUT TO GO" : "LOOK UP", style);
+        // The number is the whole point of this one, unlike the fray version.
+        // A countdown somebody can shout - "FOUR" - is what turns a load
+        // problem into four people moving at once.
+        GUI.Label(new Rect(0f, Screen.height * 0.26f, Screen.width, 40f),
+                  $"CABLE OVERLOADED   {Mathf.CeilToInt(TimeLeft)}", big);
+
+        var sub = new GUIStyle(GUI.skin.label)
+        { fontSize = 16, alignment = TextAnchor.MiddleCenter };
+        sub.normal.textColor = new Color(1f, 1f, 1f, 0.8f);
+
+        float over = deck != null ? deck.CurrentLoad - deck.Capacity : 0f;
+        GUI.Label(new Rect(0f, Screen.height * 0.26f + 42f, Screen.width, 24f),
+                  $"get {over:0}kg out of the car", sub);
     }
 }

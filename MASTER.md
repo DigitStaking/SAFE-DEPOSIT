@@ -19,6 +19,7 @@ Last updated: 14 Aug 2026, after the elevator decision.
 | **`ECONOMY_AND_CAMPAIGN.md`** | the numbers. Rooms, rounds, loot, mass, shop, survivors, rescue |
 | **`PUZZLES.md`** | all 25 puzzles, the lock/key/modifier kit, placement rules |
 | **`ELEVATOR_SPEC.md`** | the elevator, and the 12-step build order — **all 12 done, 19 Aug 2026** |
+| **`PHASE3_SPEC.md`** | de-single-player — the 7-step build order for Block 3, with the survey it was planned from |
 | **`PHASE2_SPEC.md`** | mass, health, downed, Lost, rescue, cable fray — the 10-step build order for Block 2 |
 | **`ROADMAP.md`** | **start here for "where are we going" — all ten phases, and where voice and audio land** |
 | **`DEMO_PLAN.md`** | schedule to Next Fest, consistency check, cut list — **rewritten 18 Aug 2026 for the elevator** |

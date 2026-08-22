@@ -96,21 +96,43 @@ without knowing they are a person. Survivors in Phase 5 reuse it.
 
 # PHASE 3 — DE-SINGLE-PLAYER
 
-2 weeks · *19 Oct – 1 Nov 2026* · spec not written yet
+`PHASE3_SPEC.md` · **7 steps** · 2 weeks · *19 Oct – 1 Nov 2026*
 
 **Not netcode.** Removing the assumption that there is exactly one of
 everything, while the game still runs solo the whole time.
 
-- `Camera.main` — **9 files** — each player owns its camera
-- `FindFirstObjectByType` — **9 files** — replaced with a player registry
-- `Campaign` stops being `static`
-- Input, HUD and audio become per-player
+**The one-sentence test:** drop a second player prefab into the scene, press
+Play, and both bodies work — two cameras that do not fight, one HUD, two
+health values, and a load gauge reading 140 kg.
 
-Every script written in Phases 1 and 2 that says *"single-player lookup, Phase C
-replaces this with a player registry"* is a line item here. They were written
-that way on purpose, and they are already commented.
+| # | Step |
+|---|---|
+| 1 | The player registry — replaces 5 player lookups, caches 9 singletons |
+| 2 | A player knows if it is local |
+| 3 | Every player owns its camera — all 14 `Camera.main` calls die |
+| 4 | Per-player state — **only 4 fields** leave `Campaign` |
+| 5 | The crew is a list, not a player |
+| 6 | Input per player |
+| 7 | The two-body test |
 
-**Done when:** the game plays identically and nothing references a global player.
+Surveyed 21 Aug 2026, and it is smaller than this file used to claim. Two
+findings worth carrying:
+
+**`Campaign` should NOT stop being static.** Of everything it holds, only
+`Health`, `BleedOutLeft`, `PlayerLost` and `BackpackSlots` are per-player.
+The rest is shared *by design* — `ECONOMY` Part 6: "All loot goes into one
+pot." Four fields, not a rewrite.
+
+**Every one of the 14 `Camera.main` calls means "mine".** None wants a
+global, so that half is mechanical rather than architectural.
+
+Three things will break loudly and are already written down in the spec: the
+body cull will hide a **teammate's** head, the dashboard will freeze the
+**other** player when somebody presses F, and there is exactly one headlamp
+bound to whichever animator Unity returned first.
+
+**Done when:** the game plays identically and nothing references a global
+player.
 
 ---
 

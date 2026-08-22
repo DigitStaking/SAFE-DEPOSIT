@@ -432,11 +432,26 @@ public class ElevatorDashboard : MonoBehaviour
     /// car was never going to make. "It will not move while overloaded" per
     /// the spec; this is where that rule actually lives.
     /// </summary>
+    /// <summary>
+    /// Only an UNLIFTABLE load is refused now - see the note on
+    /// ElevatorDeck.IsUnliftable for why "overloaded" stopped meaning "no".
+    /// Merely overloaded departs, and pays for it in cable.
+    /// </summary>
     bool RejectIfOverloaded()
     {
-        if (deck == null || !deck.IsOverloaded) return false;
-        Reject("OVERLOADED");
-        return true;
+        if (deck == null) return false;
+
+        if (deck.IsUnliftable)
+        {
+            Reject("WINCH STALLED");
+            return true;
+        }
+
+        // Not a rejection. A receipt, shown for the same two seconds a
+        // rejection gets, because a crew that overloads deliberately should
+        // still be told what it just cost them.
+        if (deck.IsOverloaded) Reject("OVERLOADED - CABLE WEARING");
+        return false;
     }
 
     void Reject(string message)

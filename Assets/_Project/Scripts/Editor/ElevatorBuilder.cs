@@ -227,6 +227,10 @@ public static class ElevatorBuilder
         // never grow.
         root.AddComponent<ElevatorDeck>();
 
+        // Phase 2 Step 10. Needs Elevator (for the car's movement), the deck
+        // (for the load) and the cable (to draw the fray on), so it goes last.
+        root.AddComponent<CableWear>();
+
         SaveAsPrefab(root);
 
         Undo.RegisterCreatedObjectUndo(root, "Build Elevator Car");

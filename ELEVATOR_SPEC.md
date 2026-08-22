@@ -138,7 +138,14 @@ visible.
 | UP / DOWN buttons | **slow** — ~2 m/s | one floor, deliberate |
 
 - **Doors lock while moving.**
-- **It will not move while overloaded.** Alarm, red gauge, nothing happens.
+- **It will not move above twice its rated load.** "WINCH STALLED" — the drum
+  physically cannot lift it, so no amount of arguing changes the answer.
+- **Between capacity and that ceiling it DOES move, and the cable frays.**
+  *(Resolved 21 Aug 2026, Phase 2 Step 10.)* This line used to read "it will
+  not move while overloaded", which contradicted the fray trap ten lines
+  above: a car that never moves overloaded can never fray under overload.
+  Overload is now a cost you defer and pay in rope, which is what makes it
+  "the only place in the demo where greed kills you directly".
 - It is **loud**. Anything down there hears it arrive.
 
 ## The bridge

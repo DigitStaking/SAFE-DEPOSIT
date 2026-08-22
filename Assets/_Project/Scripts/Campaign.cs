@@ -91,6 +91,43 @@ public static class Campaign
 
     public const int BackpackSlotBaseCost = 120;
 
+    // ---- CABLE FRAY (PHASE2_SPEC Step 10) ----
+    //
+    // "This is the only place in the demo where greed kills you directly
+    // rather than by running out of time."
+    //
+    // Fray is CAMPAIGN state, not run state. A cable you wore out last round
+    // is the same cable this round - that is the entire threat. Reset it on a
+    // scene reload and the trap becomes a per-run inconvenience you can
+    // always outrun by surfacing.
+
+    /// <summary>Overload beyond this multiple of capacity and the winch will
+    /// not lift it at all. The one load at which ELEVATOR_SPEC's "nothing
+    /// happens" is still true.</summary>
+    public const float WinchCeiling = 2f;
+
+    /// <summary>
+    /// Fray added per metre travelled, per unit of overload. At 10% over a
+    /// 50m trip costs 2%; at 50% over it costs 10%; at double load, 20%.
+    /// Mild greed is nearly free, serious greed is five trips from a snap.
+    /// </summary>
+    public const float FrayPerMetrePerOverload = 0.004f;
+
+    public const int PatchKitBaseCost = 15;
+
+    /// <summary>0 = new rope, 1 = it parts. Survives runs.</summary>
+    public static float CableFray;
+
+    public static int PatchKitCost => ScaledPrice(PatchKitBaseCost);
+
+    public static bool BuyPatchKit()
+    {
+        if (CableFray <= 0f || Money < PatchKitCost) return false;
+        Money -= PatchKitCost;
+        CableFray = 0f;
+        return true;
+    }
+
     // ---- PER-ROUND PURCHASE CAPS ----
     //
     // You may buy two cable chunks and one capacity upgrade per round, no
@@ -378,6 +415,7 @@ public static class Campaign
         BleedOutLeft = 0f;
         PlayerLost = false;
         LostCrew.Clear();
+        CableFray = 0f;
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();

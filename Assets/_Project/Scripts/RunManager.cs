@@ -195,6 +195,29 @@ public class RunManager : MonoBehaviour
         Announce("BLED OUT - nobody came");
     }
 
+    /// <summary>
+    /// The cable parted. Everyone aboard is Lost - not Buried. They are at
+    /// the bottom of a shaft rather than under a slab, which is the same
+    /// distinction the bleed-out makes and the one the rescue contract is
+    /// priced on.
+    ///
+    /// PHASE2_SPEC Step 10: "At 100% the cable snaps: everyone aboard is
+    /// Lost, the run is over."
+    /// </summary>
+    public void OnCableSnapped(int floor)
+    {
+        if (State != RunState.Active) return;
+
+        foreach (var m in crew)
+        {
+            if (m == null) continue;
+            Campaign.RecordLost(m.gameObject.name, floor);
+        }
+
+        State = RunState.Lost;
+        Announce("THE CABLE PARTED");
+    }
+
     void Update()
     {
         if (State != RunState.Active) return;
@@ -602,8 +625,9 @@ public class RunManager : MonoBehaviour
                 string.IsNullOrEmpty(Campaign.EpitaphReason))
             {
                 Campaign.CampaignOver = true;
-                Campaign.EpitaphReason =
-                    "there is nobody left above ground to come back for you";
+                Campaign.EpitaphReason = Campaign.CableFray >= 1f
+                    ? "the cable parted. you were told to look up"
+                    : "there is nobody left above ground to come back for you";
             }
 
             if (State == RunState.Buried && string.IsNullOrEmpty(Campaign.EpitaphReason))
@@ -812,12 +836,32 @@ public class RunManager : MonoBehaviour
 
         GUI.enabled = true;
 
+        // ---- patch kit ----
+        //
+        // A row of its own under the other three, because those are what you
+        // buy to go DEEPER and this is what you buy to still be alive when
+        // you get there. Offered only when there is something to repair - a
+        // button that does nothing teaches people to stop reading buttons.
+        float tail = by + 46f;
+        if (Campaign.CableFray > 0f)
+        {
+            GUI.enabled = Campaign.Money >= Campaign.PatchKitCost;
+            if (GUI.Button(new Rect(cx - bw * 0.5f, tail, bw, 34f),
+                           $"patch cable  ({Campaign.PatchKitCost})   " +
+                           $"{Campaign.CableFray * 100f:0}% worn"))
+            {
+                Campaign.BuyPatchKit();
+            }
+            GUI.enabled = true;
+            tail += 42f;
+        }
+
         body.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
-        GUI.Label(new Rect(0f, by + 46f, Screen.width, 22f),
+        GUI.Label(new Rect(0f, tail, Screen.width, 22f),
             $"next run quota {Campaign.NextQuota}" +
             $"  —  each 10 min a room seals; leaving seals the charged room too", body);
 
-        if (GUI.Button(new Rect(cx - 110f, by + 82f, 220f, 40f), "go back down"))
+        if (GUI.Button(new Rect(cx - 110f, tail + 36f, 220f, 40f), "go back down"))
         {
             Campaign.AdvanceRun();
             ReloadScene();

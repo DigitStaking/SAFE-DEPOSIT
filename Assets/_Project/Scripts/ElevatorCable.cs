@@ -47,6 +47,38 @@ public class ElevatorCable : MonoBehaviour
     public Color colour = new Color(0.30f, 0.31f, 0.33f);
 
     Transform rope;
+    Material ropeMat;
+    float fray;
+
+    // ------------------------------------------------------------------
+    // THE FRAY, MADE VISIBLE (PHASE2_SPEC Step 10)
+    //
+    // "Fray is visible on the cable itself, above your heads."
+    //
+    // Three cues, because one is not enough at a distance in a dark shaft:
+    //
+    //   COLOUR   steel grey rusts toward a hot orange. Reads at a glance and
+    //            in peripheral vision, which is where this thing lives.
+    //   THICKNESS the rope THINS as it goes, because that is what a wire rope
+    //            actually does - strands part and the remainder carries the
+    //            load. It also means the cue survives for a colourblind
+    //            player, who would otherwise get nothing from the first one.
+    //   SHIVER   past 85% it trembles. Motion is what catches an eye that was
+    //            looking somewhere else entirely, and by then it should.
+    //
+    // No number anywhere. The done-when for this step is "you look UP at the
+    // cable before pressing GO", and a percentage on the HUD satisfies the
+    // mechanic while deleting the moment it exists for.
+    // ------------------------------------------------------------------
+
+    public void SetFray(float value)
+    {
+        fray = Mathf.Clamp01(value);
+
+        if (ropeMat != null)
+            ropeMat.SetColor("_BaseColor",
+                Color.Lerp(colour, new Color(0.62f, 0.24f, 0.10f), fray));
+    }
 
     void Start()
     {
@@ -97,7 +129,10 @@ public class ElevatorCable : MonoBehaviour
             mat.SetFloat("_Smoothness", 0.55f);   // steel, not string
             mat.SetFloat("_Metallic", 0.85f);
             go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            ropeMat = mat;
         }
+
+        SetFray(Campaign.CableFray);
 
         Stretch();
     }
@@ -122,7 +157,16 @@ public class ElevatorCable : MonoBehaviour
 
         // Unity's cylinder primitive is 2 units tall, so a scale of 1 draws
         // 2 metres. Half the length is the scale that spans it.
-        rope.localScale = new Vector3(radius, Mathf.Max(0.01f, length * 0.5f), radius);
+        //
+        // Thinner as it frays - down to 45% of new at the point it parts -
+        // plus a shiver in the last 15%, which is the cue that works on
+        // somebody who was not looking at it.
+        float thin = Mathf.Lerp(1f, 0.45f, fray);
+        if (fray > 0.85f)
+            thin *= 1f + Mathf.Sin(Time.time * 40f) * 0.18f;
+
+        float r = Mathf.Max(0.004f, radius * thin);
+        rope.localScale = new Vector3(r, Mathf.Max(0.01f, length * 0.5f), r);
 
         // up = from the car toward the winch. Guard the degenerate case:
         // when the car is parked at the very top the two anchors coincide,

@@ -189,6 +189,17 @@ public class FirstPersonHands : MonoBehaviour
 
     void Start()
     {
+        // The IK targets are placed relative to the EYE, so a remote body
+        // wearing this would reach toward a camera that is not its own.
+        // Their normal animation is the correct thing for everyone else to
+        // see; the camera-locked pose is a first-person illusion and only
+        // its owner is standing in the right place to be fooled by it.
+        if (!PlayerRegistry.IsLocalFor(this))
+        {
+            enabled = false;
+            return;
+        }
+
         Bind();
         MeasureReach();
     }

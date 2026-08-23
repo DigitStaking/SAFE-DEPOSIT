@@ -260,6 +260,25 @@ public static class FirstPersonFixer
         }
         downed.enabled = true;
 
+        // ---- headlamp (re-attached, Phase 3 Step 2) ------------------
+        //
+        // PlayerHeadlamp was attached to NOTHING - not the prefab, not the
+        // scene - while every other player component was on the prefab. The
+        // only light in the whole project was the scene's directional, so the
+        // lamp we built and tuned had simply not been running.
+        //
+        // It belongs here for the same reason the other five do: this file is
+        // the single source of truth for what a player is made of, and a
+        // component that has to be dragged on by hand is a component that
+        // will go missing again the next time a prefab is rebuilt.
+        var lamp = root.GetComponent<PlayerHeadlamp>();
+        if (lamp == null)
+        {
+            lamp = root.AddComponent<PlayerHeadlamp>();
+            log.AppendLine("  added PlayerHeadlamp (was attached to nothing)");
+        }
+        lamp.enabled = true;
+
         // ---- pickup reach must include PEOPLE (Phase 2 Step 6) -------
         //
         // pickupMask was Loot only (bit 8). A downed crewmate is 70kg of

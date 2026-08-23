@@ -270,6 +270,10 @@ public class DownedPlayer : MonoBehaviour
     void OnGUI()
     {
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
+
+        // MY HUD, not everyone's. Without this every body in the
+        // scene draws its own copy on top of the same screen.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
         if (!IsDowned) return;
 
         var big = new GUIStyle(GUI.skin.label)

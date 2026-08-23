@@ -48,26 +48,62 @@ public static class PlayerRegistry
     public static int Count => all.Count;
 
     /// <summary>
-    /// The player at this keyboard.
+    /// The player at this keyboard, or null if there is not one.
     ///
-    /// PROVISIONAL: it is whoever registered first, which is correct in solo
-    /// and meaningless with two bodies. Step 2 adds a real IsLocal flag and
-    /// this reads it instead. Everything that wants "me" should already be
-    /// asking here rather than scanning, so Step 2 becomes a change to one
-    /// property instead of a hunt through five files.
+    /// Step 2 made this real: it reads PlayerMotor.IsLocal rather than
+    /// returning whoever happened to register first. Everything that wanted
+    /// "me" was already asking here after Step 1, so this was a change to one
+    /// property instead of a hunt through six files - which was the point of
+    /// doing them in that order.
     /// </summary>
-    public static PlayerMotor Local => all.Count > 0 ? all[0] : null;
+    public static PlayerMotor Local
+    {
+        get
+        {
+            for (int i = 0; i < all.Count; i++)
+                if (all[i] != null && all[i].IsLocal) return all[i];
+            return null;
+        }
+    }
 
     public static void Register(PlayerMotor p)
     {
         if (p == null || all.Contains(p)) return;
         all.Add(p);
+
+        // FIRST BODY IN CLAIMS LOCAL. Solo needs no setup, and a second
+        // prefab dropped into the scene is automatically not local without
+        // anybody remembering to tick anything - which is exactly the
+        // condition Step 7's two-body test wants to create by accident.
+        //
+        // Phase 4 overrides this with MarkLocal when the network says who
+        // owns whom.
+        if (Local == null) p.MarkLocal(true);
     }
 
     public static void Unregister(PlayerMotor p)
     {
         if (p == null) return;
         all.Remove(p);
+    }
+
+    /// <summary>
+    /// Is this component part of the local player's body?
+    ///
+    /// Walks up to the owning PlayerMotor, so it works from a script on the
+    /// root, on the FBX child, or anywhere further down. Every "only do this
+    /// for me" gate in the game is one call to this, which is what keeps the
+    /// rule in one place instead of six slightly different reimplementations.
+    ///
+    /// Returns TRUE when there is no owner at all. A component that is not
+    /// part of a player - a world HUD, the lift - should not be silenced by a
+    /// player-ownership test it was never meant to answer.
+    /// </summary>
+    public static bool IsLocalFor(Component c)
+    {
+        if (c == null) return true;
+        var owner = c.GetComponentInParent<PlayerMotor>();
+        return owner == null || owner.IsLocal;
     }
 
     /// <summary>

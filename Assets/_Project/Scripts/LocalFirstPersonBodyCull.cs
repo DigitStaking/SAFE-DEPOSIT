@@ -98,6 +98,24 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     void Start()
     {
+        // ==============================================================
+        // THIS COMPONENT HIDES A HEAD. ONLY EVER MINE.
+        //
+        // PHASE3_SPEC Part 3, failure #1: it shrinks the Head bone to
+        // 0.0001 so you are not looking at the inside of your own skull.
+        // Attached to a second player and left ungated, it does that to
+        // THEM - and their teammates spend the run talking to a body with
+        // no head.
+        //
+        // The name said "Local" from the day it was written. Step 2 is
+        // where the name became enforceable.
+        // ==============================================================
+        if (!PlayerRegistry.IsLocalFor(this))
+        {
+            enabled = false;
+            return;
+        }
+
         cam = Camera.main;
         if (cam != null) fpCam = cam.GetComponent<FirstPersonCamera>();
 

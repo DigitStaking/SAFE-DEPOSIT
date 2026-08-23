@@ -212,6 +212,7 @@ public class PlayerHealth : MonoBehaviour
     void Update()
     {
         if (!debugKeys) return;
+        if (!PlayerRegistry.IsLocalFor(this)) return;   // one keyboard, one body
 
         var kb = Keyboard.current;
         if (kb == null) return;
@@ -247,6 +248,10 @@ public class PlayerHealth : MonoBehaviour
     void OnGUI()
     {
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
+
+        // MY HUD, not everyone's. Without this every body in the
+        // scene draws its own copy on top of the same screen.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
 
         var style = new GUIStyle(GUI.skin.label) { fontSize = 15 };
 

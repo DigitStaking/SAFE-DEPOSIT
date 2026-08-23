@@ -170,6 +170,21 @@ public class PlayerMotor : MonoBehaviour
     // whenever Start happened to run. OnDisable also fires on destruction,
     // which is what empties the list cleanly as ReloadScene tears the scene
     // down - nothing to invalidate by hand.
+    // ---- AM I THE ONE AT THIS KEYBOARD? (Phase 3 Step 2) ----
+    //
+    // Assigned by PlayerRegistry on registration: the first body to appear
+    // claims local, everyone after it does not. Solo therefore needs no setup
+    // at all, and a second prefab dropped into the scene is automatically NOT
+    // local without anybody remembering to tick a box.
+    //
+    // Phase 4 takes the decision over - the network owns who is whose - which
+    // is why it is settable rather than serialized. A serialized value would
+    // be a stale opinion baked into a prefab, and the prefab is the one thing
+    // that cannot know the answer.
+    public bool IsLocal { get; private set; }
+
+    public void MarkLocal(bool value) => IsLocal = value;
+
     void OnEnable() => PlayerRegistry.Register(this);
     void OnDisable() => PlayerRegistry.Unregister(this);
 

@@ -105,6 +105,8 @@ public class PlayerBackpack : MonoBehaviour
     void Update()
     {
         // Number keys 1-6 select / withdraw that slot.
+        if (!PlayerRegistry.IsLocalFor(this)) return;   // one keyboard, one pack
+
         var kb = Keyboard.current;
         if (kb == null) return;
 
@@ -235,6 +237,10 @@ public class PlayerBackpack : MonoBehaviour
     {
         // Don't draw gameplay chrome over the results/shop screen.
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
+
+        // MY HUD, not everyone's. Without this every body in the
+        // scene draws its own copy on top of the same screen.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
 
         const float box = 40f;
         const float gap = 8f;

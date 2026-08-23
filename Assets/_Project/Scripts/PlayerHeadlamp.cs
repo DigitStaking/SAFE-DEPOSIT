@@ -192,10 +192,16 @@ public class PlayerHeadlamp : MonoBehaviour
         // Still LOCAL rather than owner-relative, because this component does
         // not know whose it is yet - Step 2 gives it that. But local is at
         // least a player, which the old line could not promise.
+        // MY animator, from MY own hierarchy. Step 1 narrowed this from "any
+        // animator in the scene" to "the local player's"; Step 2 narrows it
+        // the rest of the way to "the player this component is attached to",
+        // which is the only answer that stays correct with four of them.
         if (anim == null)
         {
-            var owner = PlayerRegistry.Local;
-            if (owner != null) anim = owner.GetComponentInChildren<Animator>(true);
+            var owner = GetComponentInParent<PlayerMotor>();
+            anim = owner != null
+                ? owner.GetComponentInChildren<Animator>(true)
+                : GetComponentInChildren<Animator>(true);
         }
 
         if (anim != null && anim.isHuman)

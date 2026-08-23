@@ -178,6 +178,10 @@ public class PlayerCarry : MonoBehaviour
     {
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
 
+        // MY HUD, not everyone's. Without this every body in the
+        // scene draws its own copy on top of the same screen.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
+
         string prompt = null;
         Color colour = Color.white;
 

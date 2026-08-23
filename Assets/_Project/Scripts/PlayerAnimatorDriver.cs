@@ -210,7 +210,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // ---------------------------------------------------------------
         // EMOTES
         // ---------------------------------------------------------------
-        if (emotesEnabled) ReadEmoteKeys();
+        if (emotesEnabled && PlayerRegistry.IsLocalFor(this)) ReadEmoteKeys();
     }
 
     void ReadEmoteKeys()

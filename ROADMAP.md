@@ -159,7 +159,10 @@ what the comparable games actually shipped rather than from preference.
   Steam transport".)* R.E.P.O., PEAK and We Were Here all ship on Photon;
   Fusion supports networked physics natively where PUN 2 does not, and this is
   a physics game. Voice lives in the same SDK, which is how We Were Here built
-  its walkie-talkie. 100 CCU free covers the demo. See `PHASE4_SPEC.md` Part 5.
+  its walkie-talkie. Free to build. Fusion is free to 100 concurrent players; **Photon Voice is
+  free to only 20**, and is the ceiling that breaks first — **budget $95 (one
+  payment, 12 months) before Next Fest** to lift voice to 100. See
+  `PHASE4_SPEC.md` Part 5.
 - Elevator state replicated: floor, moving, doors, bridge, load
 - Local prediction for your own body only
 - Players riding a moving platform stay in sync

@@ -211,9 +211,33 @@ network object and lets the engine position it in 3D. Step 10 stops being an
 integration project against a second vendor and becomes a component on a
 prefab that already exists. We Were Here shipped four games on exactly this.
 
-**3. Free at the scale that matters.** 100 CCU free, commercial use included.
-A Next Fest demo will not come close, and the first paid tier is $125/month at
-500 CCU — a problem worth having.
+**3. Free to build, and nearly free to launch — with one number to watch.**
+Checked properly on 21 Aug 2026, because "it's free" needed to be true rather
+than approximately true:
+
+| | Free | Then |
+|---|---|---|
+| **Fusion** (the game) | **100 CCU**, commercial use | $125/mo at 500 CCU |
+| **Voice** (proximity chat) | **20 CCU** — dev plan, 60 GB/mo | **$95 once for 12 months** at 100 CCU |
+
+CCU is CONCURRENT, not total — Photon put 100 CCU at roughly 40,000 monthly
+players. So development is free outright: you will never have twenty people
+testing at once.
+
+**Voice is the ceiling that breaks first, at 20.** It is a separate app with
+separate CCU counting, and it hits its cap five times sooner than the game
+does. The failure looks like the game working fine while nobody can hear
+anybody — which, in a game whose puzzles are built on talking, is the same as
+being down.
+
+**Budget $95 before Next Fest.** One payment, twelve months, lifts voice to
+match the game's 100. Against a submission deadline that is not a decision,
+it is a line item.
+
+⚠️ **And watch the dashboard during the Fest.** PEAK shipped on Photon and
+players hit "Disconnected from Photon" when it spiked — this exact ceiling,
+in the wild, on a game that did well. A demo that goes better than expected
+is the scenario where this costs money, and it is the good scenario.
 
 **4. Relay is built in.** No NAT punching, no Steam dependency to get two
 people connected. Steam invites can arrive at Step 11 as a convenience rather
@@ -238,6 +262,9 @@ because it was chosen on merit for a physics game.
 
 I cannot do these. They need an account and the Unity UI.
 
+0. **Nothing costs anything today.** Both SDKs are free to import and the
+   free tiers cover every day of development. The only money in this phase is
+   the optional $95 for voice before launch — see Part 5.
 1. **Create a Photon account** at `dashboard.photonengine.com`
 2. **Create an app of type `Fusion`** — copy the App Id
 3. **Create a second app of type `Voice`** — copy that App Id too

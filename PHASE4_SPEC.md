@@ -406,17 +406,51 @@ and invites arrive.
    `Window > Package Manager > Unity Registry`, search "Netcode for
    GameObjects", Install. Unity Transport comes with it.
 
-2. **Facepunch transport** — install now, use later.
-   `Window > Package Manager > + > Add package from git URL`:
+2. ~~**Facepunch transport**~~ — **REMOVED 21 Aug 2026. It does not compile.**
+
    ```
-   https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/Transports/com.community.netcode.transport.facepunch
+   FacepunchTransport.cs(288,9): error CS1028: Unexpected preprocessor directive
    ```
+
+   One stray `#endregion` at line 288 of a 291-line file — region depth goes
+   to -1 and never recovers. A genuine bug in the community package, nothing
+   to do with this project.
+
+   The risk was logged at Step 1 as "verify before Step 11 rather than
+   discovering it there", and it turned up immediately instead. That is the
+   better outcome: it cost a compile error on the day the plan already said
+   not to depend on it, rather than a week of Step 11.
+
+   **Removed from `manifest.json`** so the project compiles. Nothing in
+   Steps 1–10 touches it.
 
 3. **Nothing else.** No accounts, no App Id, no Steam, no money. Steam App Id
    480 (Spacewar) and a running Steam client are needed only when the
    Facepunch transport is switched on.
 
 4. **Dissonance** is Step 10, and is the only money in this phase.
+
+## The Steam transport question is now open, and is Step 11's
+
+Three ways forward when the shipping transport is needed. Deciding is Step
+11's job; knowing the options is today's.
+
+**a. Patch it.** The fix is deleting one line. But `Library/PackageCache` is
+regenerated from git, so the package has to be *embedded* into `Packages/`
+first — which means owning a fork of it forever, including missing whatever
+upstream does next. Cheap to do, annoying to keep.
+
+**b. A different Steam transport.** Steamworks.NET-based transports exist and
+are more actively maintained than this one. Same idea, same Steam relay, same
+free.
+
+**c. EOS.** The Epic fork from Part 5 arriving early. Free, no CCU limit, and
+crossplay across Steam / Epic / itch — the thing that would be needed anyway
+if the game ever leaves Steam.
+
+None of these are urgent, and that is the point. **Ten steps of work sit
+between here and needing any of them**, which is exactly why the plan put
+them on Unity Transport.
 
 ## How every step from here is tested
 

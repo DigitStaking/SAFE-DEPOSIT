@@ -247,6 +247,64 @@ blocks, because what you save in money you spend in Step 10.
 
 ---
 
+## The Epic fork — a planned decision, not a surprise
+
+**Decided 21 Aug 2026: Steam now. Epic later, only if the game earns it.**
+
+Steam relay only works for Steam players. An itch.io or Epic buyer could not
+connect at all, and there would be no crossplay between stores.
+
+**Epic Online Services is the answer when that day comes.** Free, no CCU
+limit, works on Steam / Epic / itch / standalone, and crossplay between all of
+them. Epic funds it to promote crossplay — their business is the store, not
+selling services. There is an EOS transport for Netcode for GameObjects, the
+same shape as the Facepunch one.
+
+### Why not just start on EOS
+
+Because the cost of being wrong runs one way:
+
+- **Steam now, EOS later** → swap one component, re-run this phase's tests
+- **EOS now, Steam only forever** → a dev portal, product and sandbox IDs, and
+  an Epic account requirement imposed on every player, permanently, for a
+  store you never shipped on
+
+Steam is not optional here — Next Fest *is* a Steam event, so a Steam page
+exists either way. And it is where this genre sells: Lethal Company, R.E.P.O.
+and PEAK are all Steam. itch is mostly free and small games; Epic requires an
+application.
+
+### The trigger, written down
+
+Epic takes **12%** where Steam takes **30%**. That is the real reason to go,
+and it is a reason that only pays once there are sales to take a percentage
+of.
+
+**If multi-store happens, EOS stops being optional and becomes mandatory** —
+for *everyone*, Steam players included. Shipping a four-player co-op game
+across stores WITHOUT crossplay is worse than not shipping it there: "buy it
+on Epic, but you can only play with other Epic players" is a bad deal in a
+game that needs four people in a lift.
+
+### What this costs today: nothing
+
+This is why the transport sits behind Netcode for GameObjects rather than
+being the SDK itself:
+
+```
+game code  →  Netcode for GameObjects  →  [ transport ]
+                                               ↑
+                        Steam · EOS · Unity Relay · direct IP
+```
+
+One component on one object. Game code never learns which one it is. Photon
+would have been the opposite — there, the SDK *is* the networking, and
+changing it is a rewrite rather than a swap.
+
+**Revisit at Step 11**, when lobbies and invites arrive. Not before.
+
+---
+
 # PART 5b — WHAT YOU HAVE TO DO BEFORE STEP 1
 
 All free. No account signup for the networking at all.

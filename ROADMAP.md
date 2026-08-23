@@ -166,6 +166,14 @@ what the comparable games actually shipped rather than from preference.
   bills monthly forever, and PEAK and We Were Here pay it because they are
   companies with millions of sales. Trade taken: rider sync is ours to solve
   rather than the SDK's, against a cost with no ceiling.
+- **Steam now; Epic is a planned fork, not a surprise.** *(Decided 21 Aug
+  2026.)* Steam relay only serves Steam players. If the game does well and
+  Epic becomes worth it — Epic takes 12% where Steam takes 30% — the answer is
+  **Epic Online Services**: free, no CCU limit, and crossplay across Steam,
+  Epic, itch and standalone. It would then be mandatory for *everyone*, since
+  a four-player co-op game split across stores without crossplay is worse than
+  not shipping there. Swapping is one component behind NGO, which is the whole
+  reason the transport is not the SDK. **Revisit at Step 11.**
 - **Voice: Dissonance** — one-time Asset Store purchase, no subscription,
   official NGO integration, and what Lethal Company's proximity chat uses.
 - Elevator state replicated: floor, moving, doors, bridge, load

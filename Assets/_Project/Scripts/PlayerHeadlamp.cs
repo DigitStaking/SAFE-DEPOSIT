@@ -179,13 +179,24 @@ public class PlayerHeadlamp : MonoBehaviour
         anim = root != null ? root.GetComponentInChildren<Animator>() : null;
 
         // Single-player lookup, same caveat as everywhere else in this file
-        // set: Phase C replaces this with a player registry.
+        // set. Phase 3 Step 1 replaced the scan with the registry.
         //
-        // UnityEngine.Object, qualified in full - this file also has
-        // `using System;` for StringComparison, and System.Object is a real
-        // type too, so a bare "Object" is genuinely ambiguous between the
-        // two the moment both namespaces are in scope.
-        if (anim == null) anim = UnityEngine.Object.FindFirstObjectByType<Animator>();
+        // This one was the worst of the five. FindFirstObjectByType<Animator>
+        // returns ANY animator in the scene - not a player's, necessarily,
+        // and with two players not even reliably the same one twice. The lamp
+        // is unparented and repositioned from that bone every LateUpdate, so
+        // a wrong answer here puts one crew member's headlamp on another
+        // crew member's skull. PHASE3_SPEC Part 3 lists it as the third
+        // predicted failure.
+        //
+        // Still LOCAL rather than owner-relative, because this component does
+        // not know whose it is yet - Step 2 gives it that. But local is at
+        // least a player, which the old line could not promise.
+        if (anim == null)
+        {
+            var owner = PlayerRegistry.Local;
+            if (owner != null) anim = owner.GetComponentInChildren<Animator>(true);
+        }
 
         if (anim != null && anim.isHuman)
             headBone = anim.GetBoneTransform(HumanBodyBones.Head);

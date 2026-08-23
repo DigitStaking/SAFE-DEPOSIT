@@ -58,7 +58,7 @@ public class PriceScanner : MonoBehaviour
     {
         // Single-player lookup, same caveat as every other script that does
         // this: Phase C replaces it with a player registry.
-        var motor = Object.FindFirstObjectByType<PlayerMotor>();
+        var motor = PlayerRegistry.Local;
         if (motor != null)
         {
             player = motor.transform;

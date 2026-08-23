@@ -71,7 +71,7 @@ public class CableWear : MonoBehaviour
 
     void Start()
     {
-        run = Object.FindFirstObjectByType<RunManager>();
+        run = SceneRefs.Run;
         Push();
     }
 

@@ -120,9 +120,14 @@ public class ElevatorDashboard : MonoBehaviour
         if (viewAnchor == null)
             Debug.LogError("[Dashboard] No DashboardAnchor - run Build Elevator Car.");
 
-        // Single-player lookup. Phase C replaces this with a player registry;
-        // until then there is exactly one of each and finding it is honest.
-        motor = Object.FindFirstObjectByType<PlayerMotor>();
+        // Phase 3 Step 1: the registry, not a scan.
+        //
+        // STILL A SINGLE-PLAYER ASSUMPTION, and deliberately still marked as
+        // one: the panel should freeze WHOEVER PRESSED F, not "the local
+        // player". With two bodies this locks the wrong person. That is
+        // PHASE3_SPEC Part 3's second predicted failure and it belongs to
+        // Step 3, when a camera has an owner to ask.
+        motor = PlayerRegistry.Local;
         if (motor != null) playerInput = motor.GetComponent<PlayerInput>();
 
         if (Camera.main != null)
@@ -137,7 +142,7 @@ public class ElevatorDashboard : MonoBehaviour
         var ft = transform.Find("Face/FloorText");
         if (ft != null) floorText = ft.GetComponent<TextMesh>();
 
-        run = Object.FindFirstObjectByType<RunManager>();
+        run = SceneRefs.Run;
 
         // Remember where we started so an arrival at floor 0 can be told
         // apart from simply BEGINNING at floor 0.
@@ -368,7 +373,11 @@ public class ElevatorDashboard : MonoBehaviour
     /// </summary>
     string FirstCrewMemberNotAboard()
     {
-        foreach (var motor in Object.FindObjectsByType<PlayerMotor>(FindObjectsSortMode.None))
+        // The registry. Same reasoning as the doc comment above, one level
+        // up: a departure check that disagrees with the thing physically
+        // carrying you is the worst kind of bug, and TWO different answers to
+        // "who are the players" is exactly how that disagreement starts.
+        foreach (var motor in PlayerRegistry.All)
         {
             if (motor == null) continue;
 

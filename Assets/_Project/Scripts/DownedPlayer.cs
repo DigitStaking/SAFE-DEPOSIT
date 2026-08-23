@@ -122,7 +122,7 @@ public class DownedPlayer : MonoBehaviour
 
     void Start()
     {
-        run = Object.FindFirstObjectByType<RunManager>();
+        run = SceneRefs.Run;
         if (Camera.main != null) fpCam = Camera.main.GetComponent<FirstPersonCamera>();
         if (fpCam != null)
         {
@@ -236,7 +236,11 @@ public class DownedPlayer : MonoBehaviour
 
         if (cargo.State != Carryable.CarryState.Free)
         {
-            var carrier = Object.FindFirstObjectByType<PlayerCarry>();
+            // AnyComponent, not Local: the person carrying you is by
+            // definition not you. Spelled as "anybody" because with one
+            // player that is the same thing, and with four it is the line
+            // that has to become "whoever actually holds this".
+            var carrier = PlayerRegistry.AnyComponent<PlayerCarry>();
             if (carrier != null && carrier.Held == cargo) carrier.ForceDrop();
             else cargo.Drop(Vector3.zero);
         }

@@ -5,7 +5,7 @@ public static class RunHudGate
 {
     public static bool ShouldDrawGameplayHud()
     {
-        var run = Object.FindFirstObjectByType<RunManager>();
+        var run = SceneRefs.Run;
         if (run == null) return true;
         return run.IsRunActive;
     }

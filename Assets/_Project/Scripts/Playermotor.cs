@@ -165,6 +165,14 @@ public class PlayerMotor : MonoBehaviour
                          RigidbodyConstraints.FreezeRotationZ;
     }
 
+    // Registered here rather than in Start, and unregistered in OnDisable,
+    // so the list is true for the whole lifetime of the body rather than from
+    // whenever Start happened to run. OnDisable also fires on destruction,
+    // which is what empties the list cleanly as ReloadScene tears the scene
+    // down - nothing to invalidate by hand.
+    void OnEnable() => PlayerRegistry.Register(this);
+    void OnDisable() => PlayerRegistry.Unregister(this);
+
     void Start()
     {
         if (Camera.main != null) cam = Camera.main.transform;

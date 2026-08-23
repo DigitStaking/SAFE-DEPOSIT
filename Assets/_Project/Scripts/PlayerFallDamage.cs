@@ -87,9 +87,7 @@ public class PlayerFallDamage : MonoBehaviour
 
     void Start()
     {
-        // Single-player lookup. Phase C replaces this with a registry, like
-        // every other FindFirstObjectByType in the gameplay scripts.
-        lift = Object.FindFirstObjectByType<Elevator>();
+        lift = SceneRefs.Lift;
     }
 
     void FixedUpdate()

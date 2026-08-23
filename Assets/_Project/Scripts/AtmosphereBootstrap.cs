@@ -28,7 +28,7 @@ public static class AtmosphereBootstrap
 
     static void ApplyAll()
     {
-        var atmo = Object.FindFirstObjectByType<SceneAtmosphere>();
+        var atmo = SceneRefs.Atmosphere;
         if (atmo == null)
         {
             var go = new GameObject("SceneAtmosphere");

@@ -104,7 +104,11 @@ public class RunManager : MonoBehaviour
 
     void Start()
     {
-        crew.AddRange(FindObjectsByType<PlayerMotor>(FindObjectsSortMode.None));
+        // The registry, not a sweep. PlayerMotor registers in OnEnable and
+        // Unity runs every OnEnable before any Start, so by the time this
+        // line executes the list is complete - and it is the SAME list every
+        // other system reads, which a second independent scan would not be.
+        crew.AddRange(PlayerRegistry.All);
         player = crew.Count > 0 ? crew[0] : null;
         backpack = player != null ? player.GetComponent<PlayerBackpack>() : null;
 
@@ -187,7 +191,7 @@ public class RunManager : MonoBehaviour
         // ECONOMY: Rescue(R, f) = Mafia(R) x (1 + f/10). Losing somebody on
         // floor 3 and losing them on floor 18 are different problems and have
         // to be recorded as different problems.
-        var who = FindFirstObjectByType<DownedPlayer>();
+        var who = PlayerRegistry.AnyComponent<DownedPlayer>();
         string name = who != null ? who.gameObject.name : "a crewmate";
         Campaign.RecordLost(name, CurrentFloorOfLift());
 
@@ -341,7 +345,7 @@ public class RunManager : MonoBehaviour
         sold = new HashSet<Carryable>();
 
         var deckLoot = new HashSet<Carryable>();
-        var lift = FindFirstObjectByType<Elevator>();
+        var lift = SceneRefs.Lift;
         if (lift != null)
             foreach (var rb in lift.Riders)
             {
@@ -476,7 +480,7 @@ public class RunManager : MonoBehaviour
     /// </summary>
     int CurrentFloorOfLift()
     {
-        var lift = FindFirstObjectByType<Elevator>();
+        var lift = SceneRefs.Lift;
         return lift != null ? lift.CurrentFloor : 0;
     }
 

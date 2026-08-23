@@ -254,6 +254,7 @@ GameObject:
   - component: {fileID: 1428181967781404197}
   - component: {fileID: 9093355182975681421}
   - component: {fileID: 8530587597057350281}
+  - component: {fileID: 2046977878748191711}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -535,6 +536,33 @@ MonoBehaviour:
   lookArc: 100
   downedMinPitch: -40
   downedMaxPitch: 25
+--- !u!114 &2046977878748191711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d2cbaf603b0fe842a7c51b4c5006c5f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHeadlamp
+  characterRoot: {fileID: 0}
+  headOffset: {x: 0, y: 0.14, z: 0.09}
+  aimEuler: {x: 6, y: 0, z: 0}
+  color: {r: 1, g: 0.96, b: 0.88, a: 1}
+  intensity: 6
+  range: 28
+  spotAngle: 55
+  innerSpotPercent: 0.55
+  visibleBeam: 1
+  beamIntensity: 0.05
+  enableShadows: 1
+  startOn: 1
+  toggleKey: 26
+  tintHelmetBump: 1
+  bumpMaterialKey: light
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0

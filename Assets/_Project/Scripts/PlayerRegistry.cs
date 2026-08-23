@@ -106,6 +106,20 @@ public static class PlayerRegistry
         return owner == null || owner.IsLocal;
     }
 
+    /// <summary>The PlayerMotor this component belongs to, or null.</summary>
+    public static PlayerMotor OwnerOf(Component c) =>
+        c != null ? c.GetComponentInParent<PlayerMotor>() : null;
+
+    /// <summary>
+    /// The eye transform of the player this component belongs to. Null if it
+    /// belongs to nobody, or if no camera has claimed that body yet.
+    /// </summary>
+    public static Transform EyeOf(Component c)
+    {
+        var owner = OwnerOf(c);
+        return owner != null ? owner.Eye : null;
+    }
+
     /// <summary>
     /// The component of type T belonging to the local player, or null.
     /// Saves every caller writing PlayerRegistry.Local?.GetComponent&lt;T&gt;()

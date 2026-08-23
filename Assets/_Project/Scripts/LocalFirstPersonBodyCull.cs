@@ -116,7 +116,10 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             return;
         }
 
-        cam = Camera.main;
+        var owner = PlayerRegistry.OwnerOf(this);
+        cam = owner != null && owner.View != null
+            ? owner.View.GetComponent<Camera>()
+            : null;
         if (cam != null) fpCam = cam.GetComponent<FirstPersonCamera>();
 
         anim = GetComponentInChildren<Animator>();

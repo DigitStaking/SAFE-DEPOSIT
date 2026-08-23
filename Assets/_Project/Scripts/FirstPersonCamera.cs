@@ -123,6 +123,20 @@ public class FirstPersonCamera : MonoBehaviour
 
     float yaw, pitch, bobTimer, currentTilt, bobOffset;
 
+    // AWAKE, not Start. Unity runs every Awake before any Start, so by the
+    // time a player component's Start asks "where is my eye", the answer is
+    // already there. Binding in Start would be a race decided by whatever
+    // order Unity happened to load the scene in - which is the same class of
+    // bug as Camera.main, just quieter.
+    void Awake()
+    {
+        if (target != null)
+        {
+            var owner = target.GetComponent<PlayerMotor>();
+            if (owner != null) owner.BindView(this);
+        }
+    }
+
     void Start()
     {
         if (target == null)

@@ -37,7 +37,7 @@ public static class AtmosphereBootstrap
         }
         atmo.Apply();
 
-        var cam = Camera.main;
+        var cam = PlayerRegistry.Local != null && PlayerRegistry.Local.View != null ? PlayerRegistry.Local.View.GetComponent<Camera>() : null;
         if (cam != null)
         {
             if (cam.GetComponent<PlayerHeadlamp>() == null &&

@@ -19,7 +19,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
-  PHASE 3  ███░░░░░░░░░  de-single-player .......... in progress  2/7
+  PHASE 3  █████░░░░░░░  de-single-player .......... in progress  3/7
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
@@ -109,7 +109,7 @@ health values, and a load gauge reading 140 kg.
 |---|---|
 | 1 | ✅ The player registry — replaces 6 player lookups, caches 9 singletons |
 | 2 | ✅ A player knows if it is local |
-| 3 | Every player owns its camera — all 14 `Camera.main` calls die |
+| 3 | ✅ Every player owns its camera — all 14 `Camera.main` calls dead |
 | 4 | Per-player state — **only 4 fields** leave `Campaign` |
 | 5 | The crew is a list, not a player |
 | 6 | Input per player |

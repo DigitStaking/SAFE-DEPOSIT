@@ -59,7 +59,7 @@ public class PlayerHeadlamp : MonoBehaviour
 {
     [Header("Whose head")]
     [Tooltip("Root of the character to search for a Head bone. Leave empty: " +
-             "found from Camera.main's FirstPersonCamera.target, or as a last " +
+             "found from this body's own FirstPersonCamera.target, or as a last " +
              "resort the first Animator in the scene.")]
     public Transform characterRoot;
 
@@ -173,7 +173,8 @@ public class PlayerHeadlamp : MonoBehaviour
     {
         Transform root = characterRoot;
 
-        if (Camera.main != null) fpCam = Camera.main.GetComponent<FirstPersonCamera>();
+        var lampOwner = PlayerRegistry.OwnerOf(this);
+        if (fpCam == null && lampOwner != null) fpCam = lampOwner.View;
         if (root == null && fpCam != null && fpCam.target != null) root = fpCam.target;
 
         anim = root != null ? root.GetComponentInChildren<Animator>() : null;
@@ -211,7 +212,7 @@ public class PlayerHeadlamp : MonoBehaviour
         {
             Debug.LogWarning("[Headlamp] No Head bone found - falling back to " +
                              "riding the camera, centred, with no offset.");
-            cameraFallback = Camera.main != null ? Camera.main.transform : null;
+            cameraFallback = PlayerRegistry.EyeOf(this);
         }
     }
 

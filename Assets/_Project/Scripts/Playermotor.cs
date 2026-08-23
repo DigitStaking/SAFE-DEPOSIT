@@ -185,12 +185,30 @@ public class PlayerMotor : MonoBehaviour
 
     public void MarkLocal(bool value) => IsLocal = value;
 
+    // ---- MY CAMERA (Phase 3 Step 3) ----
+    //
+    // The camera is NOT a child of the player - it is a separate scene object
+    // that points AT one, via FirstPersonCamera.target. So the link only runs
+    // one way and the player cannot go looking for it; the camera has to
+    // announce itself, exactly the way players announce themselves to
+    // PlayerRegistry.
+    //
+    // That inversion is what kills Camera.main. "The main camera" is a global
+    // answer to a question that stopped being global the moment there were two
+    // bodies, and it was being asked fourteen times.
+    public FirstPersonCamera View { get; private set; }
+
+    /// <summary>My eye transform, or null if no camera has claimed me.</summary>
+    public Transform Eye => View != null ? View.transform : null;
+
+    public void BindView(FirstPersonCamera v) => View = v;
+
     void OnEnable() => PlayerRegistry.Register(this);
     void OnDisable() => PlayerRegistry.Unregister(this);
 
     void Start()
     {
-        if (Camera.main != null) cam = Camera.main.transform;
+        cam = Eye;
         else Debug.LogError("[PlayerMotor] No camera tagged MainCamera in the scene.");
     }
 

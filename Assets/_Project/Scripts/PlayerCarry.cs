@@ -53,7 +53,7 @@ public class PlayerCarry : MonoBehaviour
 
     void Start()
     {
-        if (Camera.main != null) cam = Camera.main.transform;
+        cam = PlayerRegistry.EyeOf(this);   // my eye, for the pickup ray
     }
 
     void Update()

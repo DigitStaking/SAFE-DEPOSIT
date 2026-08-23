@@ -123,7 +123,8 @@ public class DownedPlayer : MonoBehaviour
     void Start()
     {
         run = SceneRefs.Run;
-        if (Camera.main != null) fpCam = Camera.main.GetComponent<FirstPersonCamera>();
+        var owner = PlayerRegistry.OwnerOf(this);
+        fpCam = owner != null ? owner.View : null;
         if (fpCam != null)
         {
             restMinPitch = fpCam.minPitch;

@@ -94,7 +94,7 @@ using UnityEngine;
 public class FirstPersonHands : MonoBehaviour
 {
     [Header("Camera")]
-    [Tooltip("Leave empty to use Camera.main.")]
+    [Tooltip("Leave empty to use this body's own eye.")]
     public Transform cameraTransform;
 
     [Header("Where the hands sit, in CAMERA space")]
@@ -207,7 +207,11 @@ public class FirstPersonHands : MonoBehaviour
     void Bind()
     {
         cam = cameraTransform;
-        if (cam == null && Camera.main != null) { cam = Camera.main.transform; cameraTransform = cam; }
+        if (cam == null)
+        {
+            cam = PlayerRegistry.EyeOf(this);
+            cameraTransform = cam;
+        }
         camComponent = cam != null ? cam.GetComponent<Camera>() : null;
         fpCam = cam != null ? cam.GetComponent<FirstPersonCamera>() : null;
     }

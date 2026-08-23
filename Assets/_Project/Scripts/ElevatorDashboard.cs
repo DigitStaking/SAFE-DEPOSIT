@@ -120,22 +120,16 @@ public class ElevatorDashboard : MonoBehaviour
         if (viewAnchor == null)
             Debug.LogError("[Dashboard] No DashboardAnchor - run Build Elevator Car.");
 
-        // Phase 3 Step 1: the registry, not a scan.
+        // NOBODY IS BOUND HERE ANY MORE. (Phase 3 Step 3.)
         //
-        // STILL A SINGLE-PLAYER ASSUMPTION, and deliberately still marked as
-        // one: the panel should freeze WHOEVER PRESSED F, not "the local
-        // player". With two bodies this locks the wrong person. That is
-        // PHASE3_SPEC Part 3's second predicted failure and it belongs to
-        // Step 3, when a camera has an owner to ask.
-        motor = PlayerRegistry.Local;
-        if (motor != null) playerInput = motor.GetComponent<PlayerInput>();
-
-        if (Camera.main != null)
-        {
-            camComponent = Camera.main;
-            cam = Camera.main.transform;
-            fpCam = Camera.main.GetComponent<FirstPersonCamera>();
-        }
+        // PHASE3_SPEC Part 3, failure #2: this used to grab a motor and a
+        // camera at Start and freeze THEM whenever anyone pressed F. With one
+        // player that is always the right person by accident. With two, one
+        // crewmate walking up to the panel takes the other's camera away and
+        // roots them where they stand.
+        //
+        // The panel now binds nothing until somebody uses it, and then binds
+        // exactly the body that pressed the key. See Enter().
 
         buttons = GetComponentsInChildren<ElevatorButton>(true);
 
@@ -545,14 +539,51 @@ public class ElevatorDashboard : MonoBehaviour
         }
     }
 
-    bool PlayerIsNear()
+    /// <summary>
+    /// The closest player within reach of the panel, or null.
+    ///
+    /// The CLOSEST rather than the first in range: with four people crammed
+    /// into a 4x4 car, "in range" is nearly always all of them, and the one
+    /// who walked up to the controls is the one standing nearest them.
+    /// </summary>
+    PlayerMotor NearestUser()
     {
-        if (motor == null) return false;
-        return Vector3.Distance(motor.transform.position, transform.position) <= useRange;
+        PlayerMotor best = null;
+        float bestSqr = useRange * useRange;
+
+        foreach (var p in PlayerRegistry.All)
+        {
+            if (p == null) continue;
+
+            // Only somebody who can actually press a key. A downed crewmate
+            // lying against the panel must not be able to drive the lift.
+            if (!p.IsLocal) continue;
+
+            var h = p.GetComponent<PlayerHealth>();
+            if (h != null && h.IsDowned) continue;
+
+            float d = (p.transform.position - transform.position).sqrMagnitude;
+            if (d <= bestSqr) { bestSqr = d; best = p; }
+        }
+        return best;
     }
+
+    bool PlayerIsNear() => NearestUser() != null;
 
     void Enter()
     {
+        // BIND THE PERSON WHO PRESSED THE KEY, not whoever Start found.
+        // Everything below - the camera it borrows, the input it disables,
+        // the body it roots - now belongs to one identified player, and
+        // Release() hands that same one back.
+        motor = NearestUser();
+        if (motor == null) return;
+
+        playerInput = motor.GetComponent<PlayerInput>();
+        fpCam = motor.View;
+        camComponent = fpCam != null ? fpCam.GetComponent<Camera>() : null;
+        cam = fpCam != null ? fpCam.transform : null;
+
         if (viewAnchor == null || cam == null) return;
 
         state = State.Entering;
@@ -610,6 +641,16 @@ public class ElevatorDashboard : MonoBehaviour
         if (playerInput != null) playerInput.enabled = true;
         if (motor != null) motor.externalSpeedLock = 1f;   // releases OUR lock only
         if (fpCam != null) fpCam.enabled = true;
+
+        // Let go of them completely. Enter() rebinds from scratch, so a stale
+        // reference here could only ever be wrong - and the specific way it
+        // would be wrong is handing the NEXT user's camera back to the
+        // PREVIOUS one.
+        motor = null;
+        playerInput = null;
+        fpCam = null;
+        camComponent = null;
+        cam = null;
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;

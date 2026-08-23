@@ -161,8 +161,78 @@ partial payment carried over, three deaths ends the campaign.
 **Done when:** the crew argues about cable versus their friend — which is the
 whole point, and needs a crew to happen at all.
 
-### Step 10 · 🎙️ PROXIMITY VOICE
-**Done when:** you can hear somebody through a wall and it is quieter.
+### Step 10 · 🎙️ PROXIMITY VOICE — and it has to sound like concrete
+
+**Done when:** somebody two floors down cannot be heard at all, somebody one
+floor down is a muffled thump you can *just* tell is a person, and a voice in
+the shaft has a tail on it.
+
+Specified on request, 21 Aug 2026, because "realistic" is not a feeling here —
+it is four measurable things, and Dissonance can do all four because it hands
+you an ordinary Unity `AudioSource`. Everything below is Unity audio on top of
+a human voice, not a feature of the voice library.
+
+**1. Distance.** `spatialBlend = 1`, logarithmic rolloff, `maxDistance` tuned
+to roughly one room. Voice should die inside the space it was spoken in.
+
+**2. Occlusion — the one that sells it.** A raycast from the speaker to the
+listener's ear. Concrete in the way drives an `AudioLowPassFilter` cutoff down
+and drops the volume. Floors are 5 m apart with a slab between them, so a
+raycast ALWAYS hits: two floors away is silent with no special case, and one
+floor away is a muffled thump you can *almost* identify. That "almost" is the
+horror — worse than hearing them clearly and worse than not at all.
+
+**3. Reverb by space.** A tight side room and a hundred-metre concrete shaft
+are not the same acoustic. The shaft wants a long metallic tail; a room wants
+tighter and drier. An `AudioMixer` group swapped by where the LISTENER stands,
+rather than per-`AudioReverbZone`, so voice, footsteps and the collapse all
+share one answer about where you are.
+
+**4. The radio filter.** Band-pass plus a little distortion for the
+walkie-talkie, on its own Dissonance channel so it ignores distance entirely.
+
+**5. THE RADIO IS HALF-DUPLEX. ONE VOICE AT A TIME.**
+
+Push to talk. First press holds the channel; anyone else pressing while it is
+held gets nothing but a click, and the crew hears only the person who got
+there first.
+
+This is how a real radio works, and it is also the better game. It makes the
+walkie-talkie a genuine TRADE rather than an upgrade:
+
+|  | proximity | walkie-talkie |
+|---|---|---|
+| Range | one room | the whole building |
+| Clarity | muffled by concrete | clear |
+| Who can talk | everyone at once | **exactly one person** |
+
+Four people panicking into one channel produces the thing the design keeps
+reaching for: somebody has to shut up so somebody else can be heard. "Get off
+the radio" is a sentence this mechanic writes by itself, and it costs nothing
+to build - the host arbitrates who holds the channel, everyone else is muted
+on it until released.
+
+It also protects the moment on the departure screen. `DEMO_PLAN` says three
+people shouting one name is the moment; three people shouting it over a radio
+that only carries one of them is worse in exactly the right way.
+
+### Why the concrete winning is a FEATURE
+
+"I cannot hear you from room 3" is not a limitation to be tuned away. It is
+the mechanic the economy already sells: `ECONOMY` Part 5 prices a
+**walkie-talkie at 30** and a **radio relay at 75** — *"extends proximity
+voice by one floor."*
+
+Those items are only worth money because the building wins by default. If
+voice carried across floors, that is two shop items nobody would ever buy, and
+the key-with-a-triangle puzzle — which exists to sell the walkie-talkie — has
+nothing left to sell.
+
+Same shape as the Bandage and the cable. **The realism IS the economy.**
+
+Polish lands in Phase 8's audio pass, which already lists "survivors screaming
+through concrete" — the same system, pointed at an NPC. Step 10 owes the
+mechanism; Phase 8 owes the tuning.
 
 ### Step 11 · The crew screens
 Leader, Change Leader vote, and the departure vote that names whoever is not

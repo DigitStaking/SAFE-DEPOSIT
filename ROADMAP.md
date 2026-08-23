@@ -182,7 +182,11 @@ what the comparable games actually shipped rather than from preference.
 - Downed / revive / Lost replicated
 - Shared money, leader, **Change Leader** vote
 - Departure vote — everyone aboard, name whoever is not
-- **🎙️ PROXIMITY VOICE**
+- **🎙️ PROXIMITY VOICE — occluded by concrete, with reverb by space.**
+  Two floors down is silent; one floor down is a muffled thump you can almost
+  identify; the shaft has a tail on it. Specified in `PHASE4_SPEC.md` Step 10.
+  Note that the concrete winning is a FEATURE — the walkie-talkie (30) and the
+  radio relay (75) are only worth buying because voice does not carry.
 - **Rescue contract** — deferred here from Phase 2 Step 9.
   `Rescue(R, f) = Mafia(R) × (1 + f/10)`, partial payment carried over, three
   deaths ends the campaign. `Campaign.LostCrew` already records who and on

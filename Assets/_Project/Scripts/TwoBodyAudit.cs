@@ -97,6 +97,15 @@ public static class TwoBodyAudit
                     problems++;
                 }
 
+                // Caught by reading a passing run rather than by a check,
+                // which is why it is a check now.
+                if (!p.IsLocal && p.Keys != null)
+                {
+                    sb.AppendLine("      WRONG a remote body is holding the keyboard " +
+                                  "- one press would drive both");
+                    problems++;
+                }
+
                 // The headline failure PHASE3_SPEC predicted. The cull shrinks
                 // a Head bone to nothing; on a body that is not yours, it
                 // takes your teammate's head off.

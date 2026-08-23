@@ -255,6 +255,22 @@ public class PlayerMotor : MonoBehaviour
     {
         get
         {
+            // NOT LOCAL, NOT YOUR KEYBOARD. FULL STOP.
+            //
+            // The two-body audit reported the rig "holding" the keyboard
+            // while not being local, which is real: with one device in the
+            // machine, Unity pairs it to EVERY PlayerInput by default.
+            // neverAutoSwitchControlSchemes stops devices being re-handed
+            // mid-play; it does not stop them being handed to everyone at
+            // startup. So pressing L would have toggled both headlamps, Z
+            // would have made both bodies wave, H would have hurt both.
+            //
+            // This game is online co-op, so there is exactly ONE local player
+            // per machine - PHASE3_SPEC is explicit that split-screen is a
+            // test rig and not a mode. Locality is therefore the real gate
+            // and pairing is the tie-break BELOW it, not instead of it.
+            if (!IsLocal) return null;
+
             if (playerInput != null && playerInput.enabled)
             {
                 foreach (var d in playerInput.devices)
@@ -278,6 +294,8 @@ public class PlayerMotor : MonoBehaviour
     {
         get
         {
+            if (!IsLocal) return null;   // same rule as Keys above
+
             if (playerInput != null && playerInput.enabled)
             {
                 foreach (var d in playerInput.devices)

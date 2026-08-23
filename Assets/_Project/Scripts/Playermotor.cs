@@ -185,18 +185,37 @@ public class PlayerMotor : MonoBehaviour
 
     public void MarkLocal(bool value) => IsLocal = value;
 
-    /// <summary>
-    /// Which crew member this body IS - the key its HP, bleed-out, Lost
-    /// flag and backpack are stored under in Crew, which has to survive the
-    /// scene being destroyed and rebuilt between rounds.
-    ///
-    /// Handed out by PlayerRegistry in registration order. Solo is always
-    /// slot 0, so the same body gets its own HP back every round with no
-    /// bookkeeping. Phase 4 replaces it with a network identity.
-    /// </summary>
-    public int Slot { get; private set; }
+    // ---- WHICH CREW MEMBER THIS BODY IS ----
+    //
+    // The key its HP, bleed-out, Lost flag and backpack are stored under in
+    // Crew, which has to survive the scene being destroyed and rebuilt.
+    //
+    // SERIALIZED, NOT HANDED OUT IN REGISTRATION ORDER.
+    //
+    // It was registration order until the two-body test proved that order is
+    // not stable: a freshly instantiated prefab registered BEFORE a body that
+    // was already sitting in the scene, so the newcomer took slot 0 and the
+    // original was pushed to slot 1.
+    //
+    // In a test rig that is merely confusing. In a real round it is a player
+    // waking up with somebody else's injuries, because the slot is the key to
+    // the whole per-player table. "Stable as long as bodies register in the
+    // same order" was an assumption, and this is what checking it looked
+    // like.
+    //
+    // A serialized value cannot shuffle. The registry still resolves
+    // collisions, loudly, so two bodies set to the same number is a warning
+    // rather than shared hit points.
 
-    public void AssignSlot(int slot) => Slot = slot;
+    [Header("Crew")]
+    [Tooltip("0-3. Which row of the crew table this body owns: its HP, its " +
+             "bleed-out clock, its backpack. Leave at 0 for a single player. " +
+             "Phase 4 replaces this with a network identity.")]
+    [SerializeField] int crewSlot = 0;
+
+    public int Slot => crewSlot;
+
+    public void AssignSlot(int slot) => crewSlot = slot;
 
     // ---- MY DEVICES (Phase 3 Step 6) ----
     //

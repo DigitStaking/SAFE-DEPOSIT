@@ -71,20 +71,49 @@ public static class PlayerRegistry
     {
         if (p == null || all.Contains(p)) return;
 
-        // The slot is the index, so it is stable as long as bodies register
-        // in the same order every round - which they do, because the scene
-        // is rebuilt from the same prefabs in the same places.
-        p.AssignSlot(all.Count);
+        // THE BODY BRINGS ITS OWN SLOT. The registry only resolves clashes.
+        //
+        // This used to be `p.AssignSlot(all.Count)` - the index, on the
+        // assumption that bodies register in the same order every round. The
+        // two-body test disproved it: a freshly instantiated prefab
+        // registered BEFORE one already in the scene. A shuffled slot means a
+        // player waking up with somebody else's injuries, so the number now
+        // comes from the body and cannot move.
+        if (IsSlotTaken(p.Slot))
+        {
+            int free = FirstFreeSlot();
+            Debug.LogWarning($"[PlayerRegistry] '{p.name}' wants crew slot " +
+                             $"{p.Slot}, which is taken. Moved to {free}. Two " +
+                             "bodies set to the same slot would share hit points.");
+            p.AssignSlot(free);
+        }
+
         all.Add(p);
 
-        // FIRST BODY IN CLAIMS LOCAL. Solo needs no setup, and a second
-        // prefab dropped into the scene is automatically not local without
-        // anybody remembering to tick anything - which is exactly the
-        // condition Step 7's two-body test wants to create by accident.
+        // SLOT 0 IS THE LOCAL PLAYER, not "whoever got here first".
+        //
+        // Same fix, same reason: first-in was decided by scene load order,
+        // which is how the test rig ended up holding the keyboard while the
+        // real player stood there as a spectator. Slot 0 is a decision
+        // somebody made; arrival order is an accident.
         //
         // Phase 4 overrides this with MarkLocal when the network says who
         // owns whom.
-        if (Local == null) p.MarkLocal(true);
+        p.MarkLocal(p.Slot == 0);
+    }
+
+    static bool IsSlotTaken(int slot)
+    {
+        for (int i = 0; i < all.Count; i++)
+            if (all[i] != null && all[i].Slot == slot) return true;
+        return false;
+    }
+
+    static int FirstFreeSlot()
+    {
+        for (int s = 0; s < Crew.MaxMembers; s++)
+            if (!IsSlotTaken(s)) return s;
+        return Crew.MaxMembers - 1;
     }
 
     public static void Unregister(PlayerMotor p)

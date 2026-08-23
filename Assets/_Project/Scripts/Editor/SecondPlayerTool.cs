@@ -77,6 +77,24 @@ public static class SecondPlayerTool
             first.transform.position + first.transform.rotation * Offset,
             first.transform.rotation);
 
+        // CREW SLOT 1, SET EXPLICITLY.
+        //
+        // The first run of this tool exposed why that matters. Slots used to
+        // be handed out in registration order, and a freshly instantiated
+        // prefab registers BEFORE a body already sitting in the scene - so
+        // the test rig took slot 0, claimed the keyboard, and the real player
+        // stood there as a spectator while the main view showed a body nobody
+        // was driving.
+        //
+        // Slot 0 is the local player now, and this one is deliberately not 0.
+        var motor = body.GetComponent<PlayerMotor>();
+        if (motor != null)
+        {
+            var so = new SerializedObject(motor);
+            var slot = so.FindProperty("crewSlot");
+            if (slot != null) { slot.intValue = 1; so.ApplyModifiedProperties(); }
+        }
+
         // ---- its camera ----
         //
         // Cloned from the first player's rather than built from scratch, so it

@@ -37,6 +37,7 @@
 
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public static class PlayerRegistry
 {
@@ -109,6 +110,18 @@ public static class PlayerRegistry
         if (c == null) return true;
         var owner = c.GetComponentInParent<PlayerMotor>();
         return owner == null || owner.IsLocal;
+    }
+
+    /// <summary>
+    /// The keyboard belonging to the player this component is attached to, or
+    /// null if that body does not hold one. Null is the answer that makes
+    /// every caller correct by construction: no keyboard, no keypresses, and
+    /// no need for the caller to know why.
+    /// </summary>
+    public static Keyboard KeysOf(Component c)
+    {
+        var owner = OwnerOf(c);
+        return owner != null ? owner.Keys : null;
     }
 
     /// <summary>The PlayerMotor this component belongs to, or null.</summary>

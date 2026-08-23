@@ -302,7 +302,7 @@ public class PlayerHeadlamp : MonoBehaviour
 
     void Update()
     {
-        var kb = Keyboard.current;
+        var kb = PlayerRegistry.KeysOf(this);
         if (kb != null && kb[toggleKey].wasPressedThisFrame) Toggle();
     }
 

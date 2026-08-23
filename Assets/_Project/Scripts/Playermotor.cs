@@ -198,6 +198,51 @@ public class PlayerMotor : MonoBehaviour
 
     public void AssignSlot(int slot) => Slot = slot;
 
+    // ---- MY DEVICES (Phase 3 Step 6) ----
+    //
+    // Seven scripts read Keyboard.current directly - the headlamp toggle, the
+    // pack's number keys, the emotes, the debug keys. That is not input, it
+    // is a GLOBAL: it means "the keyboard", and every body in the scene gets
+    // the same answer. Two players, one press, both wave.
+    //
+    // Step 2 gated those on IsLocal, which stopped the crew waving in unison
+    // but still cannot tell one local body from another. So the question
+    // becomes ownership: does THIS player hold a keyboard?
+    //
+    // Answered from PlayerInput.devices when there is a PlayerInput to ask -
+    // Unity's own pairing, so a gamepad handed to the second body is honoured
+    // by every one of those seven scripts without any of them knowing a
+    // second body exists. Falls back to IsLocal when there is no PlayerInput,
+    // which is what keeps a bare prefab working.
+
+    /// <summary>The keyboard THIS player holds, or null.</summary>
+    public Keyboard Keys
+    {
+        get
+        {
+            if (playerInput == null) return IsLocal ? Keyboard.current : null;
+
+            foreach (var d in playerInput.devices)
+                if (d is Keyboard k) return k;
+
+            return null;
+        }
+    }
+
+    /// <summary>The gamepad THIS player holds, or null.</summary>
+    public Gamepad Pad
+    {
+        get
+        {
+            if (playerInput == null) return IsLocal ? Gamepad.current : null;
+
+            foreach (var d in playerInput.devices)
+                if (d is Gamepad g) return g;
+
+            return null;
+        }
+    }
+
     // ---- MY CAMERA (Phase 3 Step 3) ----
     //
     // The camera is NOT a child of the player - it is a separate scene object

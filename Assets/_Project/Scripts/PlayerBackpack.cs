@@ -105,9 +105,7 @@ public class PlayerBackpack : MonoBehaviour
     void Update()
     {
         // Number keys 1-6 select / withdraw that slot.
-        if (!PlayerRegistry.IsLocalFor(this)) return;   // one keyboard, one pack
-
-        var kb = Keyboard.current;
+        var kb = PlayerRegistry.KeysOf(this);
         if (kb == null) return;
 
         // Nothing comes out of the pack while you are on the floor. Same rule

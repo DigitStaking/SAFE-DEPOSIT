@@ -210,12 +210,12 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // ---------------------------------------------------------------
         // EMOTES
         // ---------------------------------------------------------------
-        if (emotesEnabled && PlayerRegistry.IsLocalFor(this)) ReadEmoteKeys();
+        if (emotesEnabled) ReadEmoteKeys();
     }
 
     void ReadEmoteKeys()
     {
-        var kb = Keyboard.current;
+        var kb = PlayerRegistry.KeysOf(this);
         if (kb == null) return;
 
         if      (kb.zKey.wasPressedThisFrame) PlayEmote(1);   // wave

@@ -279,6 +279,26 @@ public static class FirstPersonFixer
         }
         lamp.enabled = true;
 
+        // ---- input pairing (Phase 3 Step 6) --------------------------
+        //
+        // neverAutoSwitchControlSchemes = true.
+        //
+        // Left off, Unity's PlayerInput hands EVERY device to whichever
+        // player last touched one, and re-hands them on every keypress. With
+        // two bodies that is not a bug you notice as "wrong device" - it is
+        // one body twitching while the other is driven, swapping unpredictably
+        // as you play. Off, each PlayerInput keeps the devices it was paired
+        // with, which is what PlayerMotor.Keys reads to decide whose
+        // keypresses these are.
+        //
+        // Solo is unaffected: one player, paired with the keyboard, forever.
+        var pin = root.GetComponent<UnityEngine.InputSystem.PlayerInput>();
+        if (pin != null)
+        {
+            pin.neverAutoSwitchControlSchemes = true;
+            log.AppendLine("  PlayerInput: never auto-switch control schemes");
+        }
+
         // ---- pickup reach must include PEOPLE (Phase 2 Step 6) -------
         //
         // pickupMask was Loot only (bit 8). A downed crewmate is 70kg of

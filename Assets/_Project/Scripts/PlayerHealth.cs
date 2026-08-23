@@ -224,9 +224,8 @@ public class PlayerHealth : MonoBehaviour
     void Update()
     {
         if (!debugKeys) return;
-        if (!PlayerRegistry.IsLocalFor(this)) return;   // one keyboard, one body
-
-        var kb = Keyboard.current;
+        // MY keyboard, or none. Ownership rather than "is there a keyboard".
+        var kb = PlayerRegistry.KeysOf(this);
         if (kb == null) return;
 
         if (!kb.hKey.wasPressedThisFrame) return;

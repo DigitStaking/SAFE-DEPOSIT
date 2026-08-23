@@ -258,8 +258,13 @@ public class Elevator : MonoBehaviour
 
     void Update()
     {
-        var kb = Keyboard.current;
-        if (kb == null) return;
+        // A DEBUG SHORTCUT BELONGS TO A PERSON TOO. The lift is a world
+        // object with no owner, so it borrows the local player's keyboard -
+        // and gets null when nobody is holding one, which is the correct
+        // amount of control for a body that is not being driven.
+        var driver = PlayerRegistry.Local;
+        var kb = driver != null ? driver.Keys : null;
+        if (kb == null) { DriveShutters(); return; }
 
         if (kb.pageUpKey.wasPressedThisFrame && TargetFloor > 1) GoUp();
         if (kb.pageDownKey.wasPressedThisFrame) GoDown();

@@ -195,7 +195,11 @@ public class ElevatorDashboard : MonoBehaviour
         // filed this bug against the load number.
         UpdateReadout();
 
-        var kb = Keyboard.current;
+        // The keyboard of whoever is AT the panel - the same body Enter()
+        // bound. While idle that is whoever is standing close enough to
+        // press F, which is the person the prompt is being shown to.
+        var user = motor != null ? motor : NearestUser();
+        var kb = user != null ? user.Keys : null;
         if (kb == null) return;
 
         if (state == State.Idle)

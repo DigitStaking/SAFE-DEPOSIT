@@ -167,7 +167,8 @@ public class FirstPersonCamera : MonoBehaviour
         // old UnityEngine.Input API throws InvalidOperationException because
         // Active Input Handling is set to Input System Package. The two
         // systems cannot be mixed.
-        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        var kb = target != null ? PlayerRegistry.KeysOf(target) : null;
+        if (kb != null && kb.escapeKey.wasPressedThisFrame)
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;

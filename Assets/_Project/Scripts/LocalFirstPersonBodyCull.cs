@@ -211,7 +211,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     void Update()
     {
-        var kb = UnityEngine.InputSystem.Keyboard.current;
+        var kb = PlayerRegistry.KeysOf(this);
         if (kb != null && kb.vKey.wasPressedThisFrame)
         {
             thirdPerson = !thirdPerson;

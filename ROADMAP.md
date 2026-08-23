@@ -151,10 +151,15 @@ are static because they must survive `ReloadScene`, which was correct and
 still is; surviving a scene reload and surviving a network boundary are just
 different problems, and only one of them is solved.
 
-**Three decisions are owed before Step 1** — netcode library, transport, and a
-voice provider that no document has ever named. See `PHASE4_SPEC.md` Part 5.
+**All three decisions are made** — see `PHASE4_SPEC.md` Part 5, decided from
+what the comparable games actually shipped rather than from preference.
 
-- Netcode for GameObjects + Steam transport, host-authoritative
+- **Photon Fusion 2 + Photon Voice 2**, host-authoritative. *(Decided
+  21 Aug 2026, overriding this file's earlier "Netcode for GameObjects +
+  Steam transport".)* R.E.P.O., PEAK and We Were Here all ship on Photon;
+  Fusion supports networked physics natively where PUN 2 does not, and this is
+  a physics game. Voice lives in the same SDK, which is how We Were Here built
+  its walkie-talkie. 100 CCU free covers the demo. See `PHASE4_SPEC.md` Part 5.
 - Elevator state replicated: floor, moving, doors, bridge, load
 - Local prediction for your own body only
 - Players riding a moving platform stay in sync

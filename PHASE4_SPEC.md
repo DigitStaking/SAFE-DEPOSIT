@@ -172,23 +172,82 @@ in a room.
 
 ---
 
-# PART 5 — DECISIONS TO MAKE BEFORE STEP 1
+# PART 5 — DECIDED, 21 AUG 2026, FROM WHAT THE COMPARABLES SHIPPED
 
-These are not mine to pick.
+Researched rather than guessed. All three reference games use **Photon**, and
+the third one is the closest comparable this project has.
 
-**Netcode library.** `ROADMAP` says Netcode for GameObjects. It is Unity's
-own, it is documented, and it is the safe choice. Fishnet is faster and less
-supported. **Recommendation: NGO**, on the grounds that this phase's risk
-budget should be spent on the elevator, not on the library.
+| Game | Studio | Stack |
+|---|---|---|
+| **R.E.P.O.** | Semiwork | Photon (PUN 2) |
+| **PEAK** | Aggro Crab + Landfall | Photon |
+| **We Were Here** | Total Mayhem | Photon PUN + **Photon Voice** |
 
-**Transport.** Steam (friends, invites, no server costs) versus Unity Relay
-(simpler, works before you have a Steam page). **Recommendation: build on
-Relay first, add Steam at Step 11.** Steam sockets are an integration problem
-that has nothing to teach you about whether riders sync.
+Two details in that table matter more than the unanimity.
 
-**Voice provider.** Not specified anywhere in the docs. Vivox (free with
-Unity, hosted), Dissonance (asset store, proven, self-contained), or Steam
-voice. **This needs deciding before Step 10, not during it.**
+**Semiwork chose Photon on Landfall's recommendation** — so REPO and PEAK are
+the same lineage, not two independent votes. And **We Were Here runs its
+walkie-talkie on Photon Voice**, which is the nearest thing that exists to
+this game's proximity-voice design: a co-op game whose entire mechanic is two
+people talking to each other.
+
+## THE DECISION: Photon Fusion 2 + Photon Voice 2
+
+This **overrides `ROADMAP.md`'s "Netcode for GameObjects + Steam transport"**,
+which was written before any of this was checked, and it overrides my own
+recommendation of NGO in the first draft of this file. Four reasons, in order
+of weight:
+
+**1. Physics.** Fusion supports networked physics objects natively; PUN 2 does
+not. Photon's own writeup of REPO quotes Semiwork — *"making all the physics
+feel smooth for clients was something we struggled with for a long time"* —
+and says plainly that this is *"much easier with Photon Fusion"*. SAFE DEPOSIT
+is a physics game: a kinematic lift that carries rigidbody riders, loot with
+real mass, a person who becomes 70 kg of cargo. Part 3 of this file already
+names rider sync as the hardest problem in the phase. **This is the reason.**
+
+**2. Voice is in the same SDK.** Photon Voice 2 puts a `Speaker` on the
+network object and lets the engine position it in 3D. Step 10 stops being an
+integration project against a second vendor and becomes a component on a
+prefab that already exists. We Were Here shipped four games on exactly this.
+
+**3. Free at the scale that matters.** 100 CCU free, commercial use included.
+A Next Fest demo will not come close, and the first paid tier is $125/month at
+500 CCU — a problem worth having.
+
+**4. Relay is built in.** No NAT punching, no Steam dependency to get two
+people connected. Steam invites can arrive at Step 11 as a convenience rather
+than as the thing standing between you and a working test.
+
+### What this costs, stated honestly
+
+Fusion has **fewer tutorials than PUN 2**, which is the price of it being the
+current SDK rather than the popular one. And it is a **hosted service** — NGO
+is free forever and Photon is not, at scale. Both are worth it here: the
+tutorial gap costs days, and the physics gap would cost weeks.
+
+### PUN 2 is not an option
+
+Deprecated, and no native physics support. REPO ships on it because Photon
+found out about REPO *weeks before launch*, too late to change SDK — not
+because it was chosen on merit for a physics game.
+
+---
+
+# PART 5b — WHAT YOU HAVE TO DO BEFORE STEP 1
+
+I cannot do these. They need an account and the Unity UI.
+
+1. **Create a Photon account** at `dashboard.photonengine.com`
+2. **Create an app of type `Fusion`** — copy the App Id
+3. **Create a second app of type `Voice`** — copy that App Id too
+4. **Import Photon Fusion 2** (Unity Package Manager, from Photon's dashboard
+   download or the Asset Store)
+5. **Import Photon Voice 2**
+6. Paste both App Ids into `Fusion > Realtime Settings`
+
+Tell me when those are in and Step 1 starts. Everything before that point is
+mine to write; none of it can be written first.
 
 ---
 

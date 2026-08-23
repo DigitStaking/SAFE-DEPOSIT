@@ -138,11 +138,21 @@ player.
 
 # PHASE 4 — NETCODE, AND PROXIMITY VOICE 🎙️
 
-7 weeks · *2 Nov – 20 Dec 2026* · spec not written yet · **★ biggest unknown**
+`PHASE4_SPEC.md` · **11 steps** · 7 weeks · *2 Nov – 20 Dec 2026* · **★ biggest unknown**
 
 Seven weeks, down from ten — deleting the rope is what bought that. A moving
 platform is a position and a state; a 32-node simulated rope replicated at
 20 Hz was the hardest thing in the old plan.
+
+**The survey found one number that is the whole phase: 59 public statics.**
+A static is one copy per PROCESS, so `Campaign.Money` on a client today is not
+a stale copy of the host's — it is an unrelated number. `Campaign` and `Crew`
+are static because they must survive `ReloadScene`, which was correct and
+still is; surviving a scene reload and surviving a network boundary are just
+different problems, and only one of them is solved.
+
+**Three decisions are owed before Step 1** — netcode library, transport, and a
+voice provider that no document has ever named. See `PHASE4_SPEC.md` Part 5.
 
 - Netcode for GameObjects + Steam transport, host-authoritative
 - Elevator state replicated: floor, moving, doors, bridge, load

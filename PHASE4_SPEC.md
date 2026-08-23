@@ -375,22 +375,58 @@ changing it is a rewrite rather than a swap.
 
 ---
 
-# PART 5b — WHAT YOU HAVE TO DO BEFORE STEP 1
+# PART 5b — SETUP, AND THE TESTING PROBLEM NOBODY MENTIONS
 
-All free. No account signup for the networking at all.
+## Two transports, not one
 
-1. **Install Netcode for GameObjects** — Package Manager → Unity Registry →
-   search "Netcode for GameObjects"
-2. **Install the Facepunch transport** — Package Manager → Add package from
-   git URL:
-   `https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/Transports/com.community.netcode.transport.facepunch`
-3. **Steam App Id 480** (Spacewar, Valve's public test app) covers
-   development. Your real one arrives with the Steam page.
-4. **Steam running and logged in** on the machine — Steam networking needs it.
-5. **Dissonance — not yet.** That is Step 10, and it is the only money in
-   this phase.
+Steam's relay needs a Steam client, and **one machine can only run one Steam
+account.** Two windows on your PC therefore cannot talk to each other over
+Steam networking — which would make Step 1 untestable until somebody else is
+free, in the phase that most needs fast iteration.
 
-Tell me when 1–4 are done and Step 1 starts.
+So the project carries **both**, and swapping between them is one field on one
+component:
+
+| Transport | For | Needs |
+|---|---|---|
+| **Unity Transport** (ships with NGO) | daily work — two windows on this PC over 127.0.0.1 | nothing |
+| **Facepunch Steam** | real play, real friends, the actual shipping path | Steam running |
+
+This is not a workaround. It is the reason the transport sits behind Netcode
+for GameObjects rather than being the SDK — the same swappability that makes
+the Epic fork cheap makes local testing free.
+
+**Steps 1–10 are built and tested on Unity Transport.** Steam transport gets
+verified with a second person, and is the default from Step 11 when lobbies
+and invites arrive.
+
+## Install list
+
+1. **Netcode for GameObjects**
+   `Window > Package Manager > Unity Registry`, search "Netcode for
+   GameObjects", Install. Unity Transport comes with it.
+
+2. **Facepunch transport** — install now, use later.
+   `Window > Package Manager > + > Add package from git URL`:
+   ```
+   https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/Transports/com.community.netcode.transport.facepunch
+   ```
+
+3. **Nothing else.** No accounts, no App Id, no Steam, no money. Steam App Id
+   480 (Spacewar) and a running Steam client are needed only when the
+   Facepunch transport is switched on.
+
+4. **Dissonance** is Step 10, and is the only money in this phase.
+
+## How every step from here is tested
+
+Editor as **host**, a built .exe as **client**, both on this machine.
+
+`File > Build Settings > Build` once, then re-build whenever networked code
+changes. The built window joins `127.0.0.1`.
+
+That is the "two windows, every time" rule from Part 7, and it is now a thing
+one person can actually do.
 
 ---
 

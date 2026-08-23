@@ -162,7 +162,11 @@ public class DownedPlayer : MonoBehaviour
             bledOut = true;
             Me.Lost = true;
             BledOut?.Invoke();
-            if (run != null) run.OnBleedOut();
+            // Pass MYSELF. RunManager used to go looking for "a DownedPlayer"
+            // and name whoever it found first - which with two bodies is a
+            // coin flip, and the results screen would confidently name the
+            // wrong person as the one still down there.
+            if (run != null) run.OnBleedOut(PlayerRegistry.OwnerOf(this));
         }
     }
 

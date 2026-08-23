@@ -79,14 +79,22 @@ public class RunManager : MonoBehaviour
     public int Recovered { get; private set; }
     public int FloorsLost => Campaign.DestroyedRooms.Count;
 
-    PlayerMotor player;
+    // The 'player' field is gone with Phase 3 Step 5. It was crew[0] - "the
+    // player" - and every use of it was a question that should have been
+    // asked of the whole list.
 
     // The single 'backpack' field is gone with Phase 3 Step 4. Packs are
     // per-person now, so one cached reference to the first player's pack was
     // a shortcut that could only ever configure one of four people.
 
-    // Every player in the shaft. The collapse checks all of them, because a
-    // single person left behind loses the run for the entire crew.
+    // Every player in the shaft, from PlayerRegistry.
+    //
+    // The collapse checks all of them. It used to end the campaign the moment
+    // ANY of them was caught, on the old rule that "a single person left
+    // behind loses the run for the entire crew" - which was true when the
+    // crew was one person. Phase 3 Step 5: the room takes the people in it,
+    // the run continues while anybody is still standing, and going back for
+    // them is a decision rather than a formality.
     //
     // Typed as PlayerMotor since the rope went: the only things this list is
     // used for are the transform (is this player inside a sealing room) and
@@ -112,7 +120,6 @@ public class RunManager : MonoBehaviour
         // line executes the list is complete - and it is the SAME list every
         // other system reads, which a second independent scan would not be.
         crew.AddRange(PlayerRegistry.All);
-        player = crew.Count > 0 ? crew[0] : null;
 
         CollectLevels();
         CacheRubbleMaterial();
@@ -192,18 +199,30 @@ public class RunManager : MonoBehaviour
     /// which is what Step 5 asks for: "the clock reaching zero does something
     /// distinct from dying".
     /// </summary>
-    public void OnBleedOut()
+    public void OnBleedOut(PlayerMotor who)
     {
-        if (State != RunState.Active) return;
-
-        // WHO, and WHERE. Both, because Step 9 prices the rescue by depth -
+        // WHO, and WHERE. Both, because the rescue contract prices by depth -
         // ECONOMY: Rescue(R, f) = Mafia(R) x (1 + f/10). Losing somebody on
-        // floor 3 and losing them on floor 18 are different problems and have
-        // to be recorded as different problems.
-        var who = PlayerRegistry.AnyComponent<DownedPlayer>();
+        // floor 3 and losing them on floor 18 are different problems.
+        //
+        // The name is PASSED IN as of Phase 3 Step 5. This used to search for
+        // "a DownedPlayer" and name whoever turned up first, which is right
+        // by luck with one body and a coin flip with two - and the results
+        // screen would then confidently name the wrong person.
         string name = who != null ? who.gameObject.name : "a crewmate";
         Campaign.RecordLost(name, CurrentFloorOfLift());
 
+        // A CREW SURVIVES LOSING ONE OF ITS PEOPLE. The run only ends when
+        // there is nobody left standing to finish it - which is the whole
+        // reason Lost is not Buried, and the reason four players can keep
+        // working while somebody lies on floor seven.
+        if (CrewStanding > 0)
+        {
+            Announce($"{name} BLED OUT - nobody came");
+            return;
+        }
+
+        if (State != RunState.Active) return;
         State = RunState.Lost;
         Announce("BLED OUT - nobody came");
     }
@@ -415,10 +434,42 @@ public class RunManager : MonoBehaviour
 
         if (killed)
         {
-            State = RunState.Buried;
-            Campaign.CampaignOver = true;
-            Campaign.EpitaphReason = $"you were inside room {threatenedRoom:00} when it sealed";
-            Announce($"ROOM {threatenedRoom:00} COLLAPSED ON YOU");
+            // THE ROOM TAKES THE PEOPLE IN IT, NOT THE RUN.
+            //
+            // This used to end the campaign outright the moment anybody was
+            // caught - correct behaviour when "anybody" and "everybody" were
+            // the same person, and wrong the moment they are not. Three
+            // crewmates who got out do not lose the building because the
+            // fourth was slow.
+            //
+            // Everyone caught goes down where they stood, which starts their
+            // bleed-out and makes them a Carryable - so a room sealing is now
+            // survivable IF somebody goes back for them, and that is exactly
+            // the decision the collapse exists to force.
+            foreach (var member in caughtInSeal)
+            {
+                if (member == null) continue;
+                var h = member.GetComponent<PlayerHealth>();
+                if (h != null && !h.IsDowned)
+                    h.TakeDamage(Crew.MaxHealth, $"room {threatenedRoom:00} sealed");
+            }
+
+            string names = NamesOf(caughtInSeal);
+            Announce($"ROOM {threatenedRoom:00} COLLAPSED ON {names}");
+
+            // Only when it took the last person standing is the run over, and
+            // even then it is Buried rather than Lost: they are under a slab,
+            // not lying somewhere a rescue could reach.
+            if (CrewStanding <= 0)
+            {
+                State = RunState.Buried;
+                Campaign.CampaignOver = true;
+                Campaign.EpitaphReason =
+                    $"{names} was inside room {threatenedRoom:00} when it sealed";
+                return;
+            }
+
+            ScheduleNextRoomCharge(initial: false);
             return;
         }
 
@@ -474,13 +525,34 @@ public class RunManager : MonoBehaviour
 
         if (!killOccupants) return false;
 
+        // NAMES, not a boolean. "Somebody was inside" is what this used to
+        // answer, and with four people it is not enough to act on - the crew
+        // needs to know WHO the room took, and Campaign.LostCrew needs it to
+        // price getting them back.
+        caughtInSeal.Clear();
         foreach (var member in crew)
         {
             if (member == null) continue;
             if (RoomSeal.IsPlayerInside(level, member.transform))
-                return true;
+                caughtInSeal.Add(member);
         }
-        return false;
+        return caughtInSeal.Count > 0;
+    }
+
+    readonly List<PlayerMotor> caughtInSeal = new List<PlayerMotor>();
+
+    static string NamesOf(List<PlayerMotor> people)
+    {
+        if (people == null || people.Count == 0) return "nobody";
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in people)
+        {
+            if (p == null) continue;
+            if (sb.Length > 0) sb.Append(", ");
+            sb.Append(p.gameObject.name);
+        }
+        return sb.Length > 0 ? sb.ToString() : "nobody";
     }
 
     /// <summary>

@@ -222,6 +222,21 @@ blocking, but it is still owed before the full game.
 3 weeks · *15 Feb – 7 Mar 2027* · `ECONOMY_AND_CAMPAIGN.md`
 
 - Shop UI — leader spends, assigns items, **everyone sees what was bought**
+- **★ THE MARKET — a shop you walk through, not a menu.** *(Proposed 21 Aug
+  2026.)* Four players in a physical space, picking things off shelves,
+  arguing about money in front of each other. It is the same argument the
+  dashboard already won: that file says a menu "would be less work and it
+  would be wrong", because a panel is somewhere you **stand**, with your back
+  to the door, while three people watch. The current between-runs shop is one
+  person clicking a GUI while three others look at nothing — the worst
+  multiplayer moment in the game, and the market fixes exactly that.
+
+  **Scope honestly:** an environment, an interaction pass and a checkout, on
+  top of a 3-week block, against a 5-week buffer netcode can eat. So the GUI
+  shop stays as the shipping fallback and the market is built only if Phase 4
+  lands on time. Nothing depends on it — backpack slots are already owned
+  per-person (`PHASE3_SPEC.md` Part 2), so the market changes the *interface*
+  and not the data.
 - ~20 of the ~35 shop items
 - The **±10% mafia randomiser** and the **speed bonus** — both deferred out of
   Phase 1 Step 12 on purpose, because they need state rather than a constant

@@ -24,6 +24,23 @@ without also discovering, mid-netcode, that `Camera.main` returns whichever
 camera Unity felt like and that shrinking "the" head bone hid a teammate's
 skull.
 
+## This phase needs no netcode and no second person
+
+Worth stating plainly, because it is the reason this is its own block rather
+than the first week of Phase 4: **the whole thing is testable by one person
+at one desk.**
+
+Steps 1–5 are refactors whose test is *"the game plays exactly as it does
+today"* — you already know what correct looks like. Step 6 wants a gamepad
+plugged in next to the keyboard. Step 7 needs a second prefab and nothing
+else; the second body can stand there doing nothing and still prove every
+point.
+
+Do it here and the three failures in Part 3 are twenty-minute fixes. Do it
+inside Phase 4 and each one arrives as *"is this replication, or is this the
+body cull?"* — a question that costs a day, four times over, on top of the
+hardest phase in the project.
+
 ## The one-sentence test
 
 > Drop a **second player prefab** into `Prototype.unity`, press Play, and
@@ -81,16 +98,23 @@ the state it holds, almost all of it is genuinely, designedly shared —
 | `Money`, `CableLength`, `RunNumber`, `CapacityUpgrades` | **`Health`** |
 | `CableBoughtThisRound`, `CapacityBoughtThisRound` | **`BleedOutLeft`** |
 | `CampaignOver`, `EpitaphReason`, `DestroyedRooms` | **`PlayerLost`** |
-| `LootRoster`, `LootSeeded`, `LostCrew`, `CableStrain` | **`BackpackSlots`** ⚠️ |
+| `LootRoster`, `LootSeeded`, `LostCrew`, `CableStrain` | **`BackpackSlots`** ✅ |
 
 **Four fields.** That is the entire per-player migration, and three of them
 are the ones Phase 2 deliberately parked in `Campaign` so they would survive
 a scene reload — which they still must, per player.
 
-⚠️ `BackpackSlots` is a design question, not just a refactor: is a pack
-upgrade bought for the *crew* or for *a person*? `ECONOMY` Part 6 says the
-leader "assigns permanent items to specific players", which implies
-per-player. **Decide this before Step 4, not during it.**
+✅ **`BackpackSlots` is PER PERSON. Decided 21 Aug 2026.** The leader buys a
+slot *for a specific crewmate*, which is what `ECONOMY` Part 6 already
+describes — "the leader spends it and assigns permanent items to specific
+players" — and it turns pack capacity into a role. The person carrying the
+pack is the mule, everyone knows who it is, and losing them loses the pack.
+
+Worth being explicit that this is a decision about **ownership, not
+purchasing**. If the between-runs shop is later replaced by a walk-in market
+(see `ROADMAP.md`, Phase 7), the data model is identical — four slots
+belonging to Karim are four slots belonging to Karim whether they were bought
+from a GUI button or off a shelf. Nothing in Step 4 needs to wait for that.
 
 ## HUD — 9 `OnGUI` drawers
 

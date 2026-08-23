@@ -86,7 +86,20 @@ public class PlayerHeadlamp : MonoBehaviour
     [Tooltip("Draws the cone of light in the air, not just the pool it lands " +
              "on. This is the single biggest thing separating the game from " +
              "the concept art.")]
-    public bool visibleBeam = true;
+    // OFF. The cone was worse than the light it was drawing attention to.
+    //
+    // LightShaft builds a real cone MESH in front of the lamp. In a dark
+    // concrete shaft that reads as a hard-edged wedge slicing across the
+    // screen rather than as a beam in dust - it hides the room, it moves with
+    // your head so it never sits still, and the spotlight on its own was
+    // already doing the job.
+    //
+    // Kept as a field rather than deleted: a beam is the right idea and it
+    // will work once Phase 8's audio-and-atmosphere pass gives the shaft real
+    // volumetrics and dust to catch. The cone mesh is a stand-in for that, and
+    // a stand-in that looks worse than nothing should be switched off until
+    // the real thing exists.
+    public bool visibleBeam = false;
 
     [Tooltip("Keep low. The beam suggests dust in the air; it should never " +
              "look like a solid object.")]

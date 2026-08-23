@@ -279,6 +279,11 @@ public static class FirstPersonFixer
         }
         lamp.enabled = true;
 
+        // The visible cone stays OFF. A serialized `true` on the prefab from
+        // before this was decided would otherwise put it straight back, and
+        // this file exists so that cannot happen quietly.
+        lamp.visibleBeam = false;
+
         // ---- input pairing (Phase 3 Step 6) --------------------------
         //
         // neverAutoSwitchControlSchemes = true.

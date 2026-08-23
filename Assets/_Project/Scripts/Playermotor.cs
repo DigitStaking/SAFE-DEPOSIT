@@ -185,6 +185,19 @@ public class PlayerMotor : MonoBehaviour
 
     public void MarkLocal(bool value) => IsLocal = value;
 
+    /// <summary>
+    /// Which crew member this body IS - the key its HP, bleed-out, Lost
+    /// flag and backpack are stored under in Crew, which has to survive the
+    /// scene being destroyed and rebuilt between rounds.
+    ///
+    /// Handed out by PlayerRegistry in registration order. Solo is always
+    /// slot 0, so the same body gets its own HP back every round with no
+    /// bookkeeping. Phase 4 replaces it with a network identity.
+    /// </summary>
+    public int Slot { get; private set; }
+
+    public void AssignSlot(int slot) => Slot = slot;
+
     // ---- MY CAMERA (Phase 3 Step 3) ----
     //
     // The camera is NOT a child of the player - it is a separate scene object

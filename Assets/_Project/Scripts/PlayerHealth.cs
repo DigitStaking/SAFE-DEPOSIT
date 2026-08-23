@@ -22,7 +22,10 @@
 // ====================================================================
 // WHERE THE NUMBER LIVES, AND WHY IT IS NOT HERE
 //
-// The HP itself is Campaign.Health, not a field on this component.
+// The HP itself is Crew.Of(this).Health, not a field on this component.
+// (Phase 3 Step 4 moved it out of Campaign, where it had been shared state
+// describing one person. The reasoning below is unchanged - it is about
+// surviving a scene reload, which Crew does too.)
 //
 // RunManager.ReloadScene() rebuilds the scene between runs. A serialized int
 // on a MonoBehaviour is therefore back at 100 every single round, which would
@@ -75,18 +78,27 @@ public class PlayerHealth : MonoBehaviour
     /// the heavy breathing and the vignette are still to come.</summary>
     public enum Condition { Fine, Hurt, Critical, Downed }
 
-    public int Current => Campaign.Health;
-    public int Max => Campaign.MaxHealth;
-    public float Fraction => Mathf.Clamp01((float)Campaign.Health / Campaign.MaxHealth);
-    public bool IsDowned => Campaign.Health <= 0;
+    /// <summary>
+    /// My row in the crew table, resolved once. Phase 3 Step 4 moved HP out
+    /// of Campaign - it was shared state that only ever described one person,
+    /// and with two bodies both of them would have been reading the same
+    /// hundred points.
+    /// </summary>
+    Crew.Member me;
+    Crew.Member Me => me ?? (me = Crew.Of(this));
+
+    public int Current => Me.Health;
+    public int Max => Crew.MaxHealth;
+    public float Fraction => Mathf.Clamp01((float)Me.Health / Crew.MaxHealth);
+    public bool IsDowned => Me.Health <= 0;
 
     /// <summary>PHASE2_SPEC's table: 100-51 Fine, 50-26 Hurt, 25-1 Critical,
     /// 0 Downed.</summary>
     public Condition State =>
-        Campaign.Health <= 0 ? Condition.Downed :
-        Campaign.Health <= 25 ? Condition.Critical :
-        Campaign.Health <= 50 ? Condition.Hurt :
-                                Condition.Fine;
+        Me.Health <= 0 ? Condition.Downed :
+        Me.Health <= 25 ? Condition.Critical :
+        Me.Health <= 50 ? Condition.Hurt :
+                          Condition.Fine;
 
     // ---- THE LIMP (PHASE2_SPEC Step 4) ----
     //
@@ -157,16 +169,16 @@ public class PlayerHealth : MonoBehaviour
         if (amount <= 0) return false;
         if (IsDowned) return false;          // already at 0; nothing left to take
 
-        int before = Campaign.Health;
-        Campaign.Health = Mathf.Max(0, before - amount);
+        int before = Me.Health;
+        Me.Health = Mathf.Max(0, before - amount);
 
-        int taken = before - Campaign.Health;
+        int taken = before - Me.Health;
         lastHitTime = Time.time;
         lastCause = cause;
 
-        Damaged?.Invoke(taken, Campaign.Health, cause);
+        Damaged?.Invoke(taken, Me.Health, cause);
 
-        if (Campaign.Health == 0)
+        if (Me.Health == 0)
         {
             Downed?.Invoke();
             return true;
@@ -227,7 +239,7 @@ public class PlayerHealth : MonoBehaviour
 
         if (restore)
         {
-            Campaign.Health = Campaign.MaxHealth;
+            Me.Health = Crew.MaxHealth;
             lastHitTime = -99f;
             lastCause = "";
         }

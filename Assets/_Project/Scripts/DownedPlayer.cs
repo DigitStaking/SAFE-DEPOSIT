@@ -96,8 +96,11 @@ public class DownedPlayer : MonoBehaviour
     public float downedMinPitch = -40f;
     public float downedMaxPitch = 25f;
 
+    Crew.Member me;
+    Crew.Member Me => me ?? (me = Crew.Of(this));
+
     /// <summary>Seconds left before Lost. Only meaningful while downed.</summary>
-    public float TimeLeft => Campaign.BleedOutLeft;
+    public float TimeLeft => Me.BleedOutLeft;
 
     public bool IsDowned => health != null && health.IsDowned;
 
@@ -150,14 +153,14 @@ public class DownedPlayer : MonoBehaviour
         if (!clockRunning) BeginOrResume();
 
         // No "if being carried" branch. See the note at the top of the file.
-        Campaign.BleedOutLeft -= Time.deltaTime;
+        Me.BleedOutLeft -= Time.deltaTime;
         ClampLook();
 
-        if (Campaign.BleedOutLeft <= 0f && !bledOut)
+        if (Me.BleedOutLeft <= 0f && !bledOut)
         {
-            Campaign.BleedOutLeft = 0f;
+            Me.BleedOutLeft = 0f;
             bledOut = true;
-            Campaign.PlayerLost = true;
+            Me.Lost = true;
             BledOut?.Invoke();
             if (run != null) run.OnBleedOut();
         }
@@ -166,11 +169,11 @@ public class DownedPlayer : MonoBehaviour
     void BeginOrResume()
     {
         clockRunning = true;
-        bledOut = Campaign.PlayerLost;
+        bledOut = Me.Lost;
 
         // A fresh downing, rather than a reload of one already in progress.
-        if (Campaign.BleedOutLeft <= 0f && !Campaign.PlayerLost)
-            Campaign.BleedOutLeft = bleedOutTime;
+        if (Me.BleedOutLeft <= 0f && !Me.Lost)
+            Me.BleedOutLeft = bleedOutTime;
 
         anchorYaw = transform.eulerAngles.y;
         anchored = true;
@@ -182,7 +185,7 @@ public class DownedPlayer : MonoBehaviour
     {
         clockRunning = false;
         anchored = false;
-        Campaign.BleedOutLeft = 0f;
+        Me.BleedOutLeft = 0f;
 
         StopBeingCargo();
 
@@ -201,8 +204,8 @@ public class DownedPlayer : MonoBehaviour
     /// </summary>
     public void Revive()
     {
-        if (!IsDowned || Campaign.PlayerLost) return;
-        Campaign.Health = Mathf.Clamp(reviveHealth, 1, Campaign.MaxHealth);
+        if (!IsDowned || Me.Lost) return;
+        Me.Health = Mathf.Clamp(reviveHealth, 1, Crew.MaxHealth);
         End();
     }
 
@@ -280,7 +283,7 @@ public class DownedPlayer : MonoBehaviour
         var big = new GUIStyle(GUI.skin.label)
         { fontSize = 30, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
 
-        if (Campaign.PlayerLost)
+        if (Me.Lost)
         {
             big.normal.textColor = new Color(0.75f, 0.15f, 0.15f);
             GUI.Label(new Rect(0f, Screen.height * 0.34f, Screen.width, 44f),
@@ -291,7 +294,7 @@ public class DownedPlayer : MonoBehaviour
         // Counts in SECONDS all the way down rather than switching to m:ss.
         // Ninety of anything is a quantity; "47" is a number somebody can
         // shout across a room, which is the entire point of the state.
-        float left = Campaign.BleedOutLeft;
+        float left = Me.BleedOutLeft;
         bool panic = left <= 20f;
 
         big.normal.textColor = panic && Mathf.FloorToInt(Time.time * 4f) % 2 == 0

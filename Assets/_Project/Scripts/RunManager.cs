@@ -80,7 +80,10 @@ public class RunManager : MonoBehaviour
     public int FloorsLost => Campaign.DestroyedRooms.Count;
 
     PlayerMotor player;
-    PlayerBackpack backpack;
+
+    // The single 'backpack' field is gone with Phase 3 Step 4. Packs are
+    // per-person now, so one cached reference to the first player's pack was
+    // a shortcut that could only ever configure one of four people.
 
     // Every player in the shaft. The collapse checks all of them, because a
     // single person left behind loses the run for the entire crew.
@@ -110,7 +113,6 @@ public class RunManager : MonoBehaviour
         // other system reads, which a second independent scan would not be.
         crew.AddRange(PlayerRegistry.All);
         player = crew.Count > 0 ? crew[0] : null;
-        backpack = player != null ? player.GetComponent<PlayerBackpack>() : null;
 
         CollectLevels();
         CacheRubbleMaterial();
@@ -133,7 +135,14 @@ public class RunManager : MonoBehaviour
     {
         quota = Campaign.Quota;
 
-        if (backpack != null) backpack.slots = Campaign.BackpackSlots;
+        // Everyone's own pack, not one number applied to whoever happened to
+        // be first in the list.
+        foreach (var m in crew)
+        {
+            if (m == null) continue;
+            var pack = m.GetComponent<PlayerBackpack>();
+            if (pack != null) pack.slots = Crew.Of(m.Slot).BackpackSlots;
+        }
 
         foreach (int room in Campaign.DestroyedRooms)
             SealRoomIndex(room, killOccupants: false);
@@ -831,11 +840,24 @@ public class RunManager : MonoBehaviour
         }
 
         // ---- backpack ----
-        GUI.enabled = Campaign.Money >= Campaign.BackpackSlotCost && Campaign.BackpackSlots < 6;
-        if (GUI.Button(new Rect(bx + (bw + gap) * 2f, by, bw, 40f),
-                       $"+1 pack slot   ({Campaign.BackpackSlotCost})"))
+        // Bought for a PERSON. Solo that is you; Phase 7's shop UI is where
+        // the leader picks which crewmate gets it, and the label already
+        // names them so that change is a picker rather than a rewrite.
+        var buyer = PlayerRegistry.Local;
+        int buyerSlot = buyer != null ? buyer.Slot : 0;
+        var buyerPack = Crew.Of(buyerSlot);
+
+        GUI.enabled = Campaign.Money >= Campaign.BackpackSlotCost &&
+                      buyerPack.BackpackSlots < Crew.MaxBackpackSlots;
+
+        string packLabel = buyerPack.BackpackSlots >= Crew.MaxBackpackSlots
+            ? $"pack {buyerPack.BackpackSlots}/{Crew.MaxBackpackSlots}   MAX"
+            : $"+1 pack slot for {(buyer != null ? buyer.gameObject.name : "you")}" +
+              $"   ({Campaign.BackpackSlotCost})";
+
+        if (GUI.Button(new Rect(bx + (bw + gap) * 2f, by, bw, 40f), packLabel))
         {
-            Campaign.BuyBackpackSlot();
+            Campaign.BuyBackpackSlot(buyerSlot);
         }
 
         GUI.enabled = true;

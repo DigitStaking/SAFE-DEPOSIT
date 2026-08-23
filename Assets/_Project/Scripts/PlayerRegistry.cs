@@ -69,6 +69,11 @@ public static class PlayerRegistry
     public static void Register(PlayerMotor p)
     {
         if (p == null || all.Contains(p)) return;
+
+        // The slot is the index, so it is stable as long as bodies register
+        // in the same order every round - which they do, because the scene
+        // is rebuilt from the same prefabs in the same places.
+        p.AssignSlot(all.Count);
         all.Add(p);
 
         // FIRST BODY IN CLAIMS LOCAL. Solo needs no setup, and a second

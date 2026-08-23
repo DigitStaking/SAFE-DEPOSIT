@@ -173,28 +173,16 @@ public static class Campaign
     // timer. There is no regeneration path to disable later because one was
     // never written.
 
-    public const int MaxHealth = 100;
-
-    /// <summary>
-    /// Current HP, 0-100. Phase 3 makes this per-player along with the rest
-    /// of Campaign; until then there is one crew member and this is theirs.
-    /// </summary>
-    public static int Health = MaxHealth;
-
-    /// <summary>
-    /// Seconds left on the bleed-out, or 0 when not downed. Here rather than
-    /// on DownedPlayer for the same reason as Health: a scene reload would
-    /// otherwise hand a dying player a fresh ninety seconds because the
-    /// component holding the number was new.
-    /// </summary>
-    public static float BleedOutLeft;
-
-    /// <summary>
-    /// The bleed-out completed. NOT death - ECONOMY Part 7 is clear that
-    /// "Lost is not death; dying is failing to pay for the rescue". Step 8
-    /// turns this into a roster and Step 9 into a price.
-    /// </summary>
-    public static bool PlayerLost;
+    // HEALTH, THE BLEED-OUT CLOCK, LOST AND BACKPACK SLOTS MOVED TO Crew.
+    //
+    // Phase 3 Step 4. They were here because they had to survive
+    // RunManager.ReloadScene, which was the right reason and the wrong file:
+    // everything else in Campaign is genuinely shared - ECONOMY Part 6, "All
+    // loot goes into one pot" - while those four describe ONE PERSON. With
+    // two bodies both would have been reading the same hundred hit points.
+    //
+    // Crew.cs is static for exactly the same reload reason, so nothing about
+    // the original argument was lost; it just found the right table.
 
     // ---- THE LOST (PHASE2_SPEC Step 8) ----
     //
@@ -253,7 +241,6 @@ public static class Campaign
     public static int Money = StartingMoney;
     public static float CableLength = StartingCable;
     public static int RunNumber = 1;
-    public static int BackpackSlots = 2;
     public static int CapacityUpgrades;
 
     /// <summary>Reset by AdvanceRun. See the caps above.</summary>
@@ -393,15 +380,15 @@ public static class Campaign
         Money = StartingMoney;
         CableLength = StartingCable;
         RunNumber = 1;
-        BackpackSlots = 2;
         CapacityUpgrades = 0;
         CableBoughtThisRound = 0;
         CapacityBoughtThisRound = 0;
-        Health = MaxHealth;
-        BleedOutLeft = 0f;
-        PlayerLost = false;
         LostCrew.Clear();
         CableStrain = 0f;
+
+        // The per-player table lives in Crew now, but a new campaign still
+        // has to wipe it - four fresh people, not the last crew's injuries.
+        Crew.Reset();
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();
@@ -488,11 +475,22 @@ public static class Campaign
         return true;
     }
 
-    public static bool BuyBackpackSlot()
+    /// <summary>
+    /// Bought FOR a named crewmate, not for the crew.
+    ///
+    /// The money is still the shared pot - ECONOMY Part 6 - but the pack
+    /// belongs to a person, which is what makes somebody the mule and makes
+    /// losing them cost the crew their carrying capacity as well as a friend.
+    /// The slot argument is the whole difference between those two things.
+    /// </summary>
+    public static bool BuyBackpackSlot(int slot)
     {
-        if (Money < BackpackSlotCost || BackpackSlots >= 6) return false;
+        var member = Crew.Of(slot);
+        if (Money < BackpackSlotCost) return false;
+        if (member.BackpackSlots >= Crew.MaxBackpackSlots) return false;
+
         Money -= BackpackSlotCost;
-        BackpackSlots++;
+        member.BackpackSlots++;
         return true;
     }
 }

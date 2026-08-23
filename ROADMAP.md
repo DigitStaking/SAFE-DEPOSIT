@@ -154,15 +154,20 @@ different problems, and only one of them is solved.
 **All three decisions are made** — see `PHASE4_SPEC.md` Part 5, decided from
 what the comparable games actually shipped rather than from preference.
 
-- **Photon Fusion 2 + Photon Voice 2**, host-authoritative. *(Decided
-  21 Aug 2026, overriding this file's earlier "Netcode for GameObjects +
-  Steam transport".)* R.E.P.O., PEAK and We Were Here all ship on Photon;
-  Fusion supports networked physics natively where PUN 2 does not, and this is
-  a physics game. Voice lives in the same SDK, which is how We Were Here built
-  its walkie-talkie. Free to build. Fusion is free to 100 concurrent players; **Photon Voice is
-  free to only 20**, and is the ceiling that breaks first — **budget $95 (one
-  payment, 12 months) before Next Fest** to lift voice to 100. See
-  `PHASE4_SPEC.md` Part 5.
+- **Unity Netcode for GameObjects + Facepunch Steam transport**,
+  host-authoritative. *(Decided 21 Aug 2026 — `PHASE4_SPEC.md` Part 5 records
+  why this moved twice.)* **No subscription, no player ceiling**: Steam
+  Datagram Relay is free to Steam developers with no CCU limit. This is
+  **Lethal Company's** stack, and Lethal Company is a closer comparable to
+  this game than PEAK or We Were Here — one developer, four-player co-op,
+  first person, scavenge against a quota, proximity voice, Steam.
+
+  Photon Fusion is the better SDK on physics and genuinely easier. It also
+  bills monthly forever, and PEAK and We Were Here pay it because they are
+  companies with millions of sales. Trade taken: rider sync is ours to solve
+  rather than the SDK's, against a cost with no ceiling.
+- **Voice: Dissonance** — one-time Asset Store purchase, no subscription,
+  official NGO integration, and what Lethal Company's proximity chat uses.
 - Elevator state replicated: floor, moving, doors, bridge, load
 - Local prediction for your own body only
 - Players riding a moving platform stay in sync

@@ -172,109 +172,97 @@ in a room.
 
 ---
 
-# PART 5 — DECIDED, 21 AUG 2026, FROM WHAT THE COMPARABLES SHIPPED
+# PART 5 — DECIDED, 21 AUG 2026: THE FREE STACK
 
-Researched rather than guessed. All three reference games use **Photon**, and
-the third one is the closest comparable this project has.
+## Unity Netcode for GameObjects + Facepunch Steam transport + Dissonance
 
-| Game | Studio | Stack |
+**No monthly bill, ever. No player ceiling.**
+
+### How this decision moved twice, and why
+
+The first draft recommended NGO — a guess, from preference. Then I researched
+what the reference games ship, found all three on Photon, and switched to
+Photon Fusion 2. Then the actual constraint arrived: **no recurring cost.**
+
+That is not a preference. It is a solo developer with no revenue and a Next
+Fest deadline, and it changes which evidence matters. Researching against it
+turned up a closer comparable than any of the first three.
+
+### Lethal Company is the real comparable
+
+| | Lethal Company | SAFE DEPOSIT |
 |---|---|---|
-| **R.E.P.O.** | Semiwork | Photon (PUN 2) |
-| **PEAK** | Aggro Crab + Landfall | Photon |
-| **We Were Here** | Total Mayhem | Photon PUN + **Photon Voice** |
+| Team | one developer | one developer |
+| Players | 4-player co-op | 4-player co-op |
+| View | first person | first person |
+| Loop | scavenge a dangerous place | scavenge a dangerous place |
+| Pressure | **meet a quota or you are fired** | **meet the mafia's quota** |
+| Exit | a ship that leaves | a lift that leaves |
+| Core mechanic | **proximity voice** | **proximity voice** |
+| Platform | Steam | Steam |
 
-Two details in that table matter more than the unanimity.
+Closer to this game than PEAK, We Were Here or R.E.P.O. — and it runs on:
 
-**Semiwork chose Photon on Landfall's recommendation** — so REPO and PEAK are
-the same lineage, not two independent votes. And **We Were Here runs its
-walkie-talkie on Photon Voice**, which is the nearest thing that exists to
-this game's proximity-voice design: a co-op game whose entire mechanic is two
-people talking to each other.
+- **Unity Netcode for GameObjects** — free, Unity's own
+- **Facepunch.Steamworks transport** — free, in Unity's own
+  `multiplayer-community-contributions` repo
+- **Dissonance Voice Chat** — a ONE-TIME Asset Store purchase, no subscription
 
-## THE DECISION: Photon Fusion 2 + Photon Voice 2
+### Why it costs nothing to run
 
-This **overrides `ROADMAP.md`'s "Netcode for GameObjects + Steam transport"**,
-which was written before any of this was checked, and it overrides my own
-recommendation of NGO in the first draft of this file. Four reasons, in order
-of weight:
+Steam Datagram Relay is **free to Steam developers, with no CCU limit**. Valve
+carries the traffic over the same backbone as CS:GO and Dota 2, hides player
+IPs from each other, and often finds a faster route than the open internet.
+There is no tier to outgrow and no dashboard to watch during Next Fest.
 
-**1. Physics.** Fusion supports networked physics objects natively; PUN 2 does
-not. Photon's own writeup of REPO quotes Semiwork — *"making all the physics
-feel smooth for clients was something we struggled with for a long time"* —
-and says plainly that this is *"much easier with Photon Fusion"*. SAFE DEPOSIT
-is a physics game: a kinematic lift that carries rigidbody riders, loot with
-real mass, a person who becomes 70 kg of cargo. Part 3 of this file already
-names rider sync as the hardest problem in the phase. **This is the reason.**
+Photon is the opposite model: an excellent service with a bill that scales
+with your success. PEAK and We Were Here pay it monthly because they are
+companies with millions of sales. **You are not, yet.**
 
-**2. Voice is in the same SDK.** Photon Voice 2 puts a `Speaker` on the
-network object and lets the engine position it in 3D. Step 10 stops being an
-integration project against a second vendor and becomes a component on a
-prefab that already exists. We Were Here shipped four games on exactly this.
+### What the free stack costs instead
 
-**3. Free to build, and nearly free to launch — with one number to watch.**
-Checked properly on 21 Aug 2026, because "it's free" needed to be true rather
-than approximately true:
+Stated plainly, because it is real.
 
-| | Free | Then |
-|---|---|---|
-| **Fusion** (the game) | **100 CCU**, commercial use | $125/mo at 500 CCU |
-| **Voice** (proximity chat) | **20 CCU** — dev plan, 60 GB/mo | **$95 once for 12 months** at 100 CCU |
+**Fusion has networked physics prediction built in. NGO does not.** Part 3 of
+this file names rider sync as the hardest problem in the phase, and on this
+stack it is ours to solve rather than the SDK's. That is the trade: money
+saved, work added.
 
-CCU is CONCURRENT, not total — Photon put 100 CCU at roughly 40,000 monthly
-players. So development is free outright: you will never have twenty people
-testing at once.
+It is the right trade here for three reasons. The lift is a **kinematic
+platform on a scripted path** — not ragdolls, not vehicles. It is "the floor
+moved down 5 cm this step and everyone standing on it moved too", which
+replicates as a floor number and a lerp. Lethal Company's ship does the same
+thing on the same stack. And a monthly bill on a game with no revenue is a
+risk with no ceiling, while a hard problem is a risk with a bottom.
 
-**Voice is the ceiling that breaks first, at 20.** It is a separate app with
-separate CCU counting, and it hits its cap five times sooner than the game
-does. The failure looks like the game working fine while nobody can hear
-anybody — which, in a game whose puzzles are built on talking, is the same as
-being down.
+### Voice: two options, neither a subscription
 
-**Budget $95 before Next Fest.** One payment, twelve months, lifts voice to
-match the game's 100. Against a submission deadline that is not a decision,
-it is a line item.
+**Dissonance Voice Chat** — one-time Asset Store purchase, official Netcode
+for GameObjects integration, and exactly what Lethal Company's proximity chat
+runs on. Check the current price; it is regularly on sale. **Recommended.**
 
-⚠️ **And watch the dashboard during the Fest.** PEAK shipped on Photon and
-players hit "Disconnected from Photon" when it spiked — this exact ceiling,
-in the wild, on a game that did well. A demo that goes better than expected
-is the scenario where this costs money, and it is the good scenario.
-
-**4. Relay is built in.** No NAT punching, no Steam dependency to get two
-people connected. Steam invites can arrive at Step 11 as a convenience rather
-than as the thing standing between you and a working test.
-
-### What this costs, stated honestly
-
-Fusion has **fewer tutorials than PUN 2**, which is the price of it being the
-current SDK rather than the popular one. And it is a **hosted service** — NGO
-is free forever and Photon is not, at scale. Both are worth it here: the
-tutorial gap costs days, and the physics gap would cost weeks.
-
-### PUN 2 is not an option
-
-Deprecated, and no native physics support. REPO ships on it because Photon
-found out about REPO *weeks before launch*, too late to change SDK — not
-because it was chosen on merit for a physics game.
+**Steam Voice** (`ISteamUser` voice API) — genuinely free, and you build the
+3D positioning and falloff yourself. Choose this only if the Dissonance price
+blocks, because what you save in money you spend in Step 10.
 
 ---
 
 # PART 5b — WHAT YOU HAVE TO DO BEFORE STEP 1
 
-I cannot do these. They need an account and the Unity UI.
+All free. No account signup for the networking at all.
 
-0. **Nothing costs anything today.** Both SDKs are free to import and the
-   free tiers cover every day of development. The only money in this phase is
-   the optional $95 for voice before launch — see Part 5.
-1. **Create a Photon account** at `dashboard.photonengine.com`
-2. **Create an app of type `Fusion`** — copy the App Id
-3. **Create a second app of type `Voice`** — copy that App Id too
-4. **Import Photon Fusion 2** (Unity Package Manager, from Photon's dashboard
-   download or the Asset Store)
-5. **Import Photon Voice 2**
-6. Paste both App Ids into `Fusion > Realtime Settings`
+1. **Install Netcode for GameObjects** — Package Manager → Unity Registry →
+   search "Netcode for GameObjects"
+2. **Install the Facepunch transport** — Package Manager → Add package from
+   git URL:
+   `https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/Transports/com.community.netcode.transport.facepunch`
+3. **Steam App Id 480** (Spacewar, Valve's public test app) covers
+   development. Your real one arrives with the Steam page.
+4. **Steam running and logged in** on the machine — Steam networking needs it.
+5. **Dissonance — not yet.** That is Step 10, and it is the only money in
+   this phase.
 
-Tell me when those are in and Step 1 starts. Everything before that point is
-mine to write; none of it can be written first.
+Tell me when 1–4 are done and Step 1 starts.
 
 ---
 

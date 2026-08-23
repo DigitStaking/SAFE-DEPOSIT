@@ -19,7 +19,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
 ```
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
-  PHASE 3  ██████████░░  de-single-player .......... in progress  6/7
+  PHASE 3  ████████████  de-single-player .................. DONE  7/7
   PHASE 4  ░░░░░░░░░░░░  netcode + PROXIMITY VOICE   ← biggest unknown
   PHASE 5  ░░░░░░░░░░░░  the room kit
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
@@ -113,7 +113,7 @@ health values, and a load gauge reading 140 kg.
 | 4 | ✅ Per-player state — 4 fields moved to `Crew` |
 | 5 | ✅ The crew is a list, not a player |
 | 6 | ✅ Input per player — devices are owned, not global |
-| 7 | The two-body test |
+| 7 | ✅ The two-body test — an editor rig and a runtime audit |
 
 Surveyed 21 Aug 2026, and it is smaller than this file used to claim. Two
 findings worth carrying:

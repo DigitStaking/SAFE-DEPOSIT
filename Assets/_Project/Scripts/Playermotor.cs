@@ -209,7 +209,10 @@ public class PlayerMotor : MonoBehaviour
     void Start()
     {
         cam = Eye;
-        else Debug.LogError("[PlayerMotor] No camera tagged MainCamera in the scene.");
+
+        if (cam == null)
+            Debug.LogError("[PlayerMotor] No camera has claimed this body. A " +
+                           "FirstPersonCamera must have its target set to it.");
     }
 
     // --------------------------------------------------------------------

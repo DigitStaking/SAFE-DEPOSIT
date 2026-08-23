@@ -215,31 +215,60 @@ public class PlayerMotor : MonoBehaviour
     // second body exists. Falls back to IsLocal when there is no PlayerInput,
     // which is what keeps a bare prefab working.
 
-    /// <summary>The keyboard THIS player holds, or null.</summary>
+    Keyboard keysCache;
+
+    /// <summary>
+    /// The keyboard THIS player holds, or null.
+    ///
+    /// CACHED, AND THE CACHE IS THE POINT. ElevatorDashboard disables this
+    /// body's PlayerInput to stop it walking while somebody is at the panel -
+    /// and a disabled PlayerInput reports no devices. Reading pairing live
+    /// therefore said "this player holds no keyboard" for exactly as long as
+    /// they were standing at the controls, so F got you in and nothing got
+    /// you out.
+    ///
+    /// Disabling input is a GAMEPLAY action - it means "you cannot walk right
+    /// now". It is not a statement about who owns the hardware, and it must
+    /// not be read as one. So pairing refreshes the answer whenever it can,
+    /// and the last known answer stands when it cannot.
+    /// </summary>
     public Keyboard Keys
     {
         get
         {
-            if (playerInput == null) return IsLocal ? Keyboard.current : null;
+            if (playerInput != null && playerInput.enabled)
+            {
+                foreach (var d in playerInput.devices)
+                    if (d is Keyboard k) { keysCache = k; return k; }
 
-            foreach (var d in playerInput.devices)
-                if (d is Keyboard k) return k;
+                // Paired with something, and none of it is a keyboard - a
+                // gamepad player. That IS a live answer, so honour it.
+                if (playerInput.devices.Count > 0) { keysCache = null; return null; }
+            }
 
-            return null;
+            if (keysCache == null && IsLocal) keysCache = Keyboard.current;
+            return keysCache;
         }
     }
 
-    /// <summary>The gamepad THIS player holds, or null.</summary>
+    Gamepad padCache;
+
+    /// <summary>The gamepad THIS player holds, or null. Cached for the same
+    /// reason as Keys above - see that note.</summary>
     public Gamepad Pad
     {
         get
         {
-            if (playerInput == null) return IsLocal ? Gamepad.current : null;
+            if (playerInput != null && playerInput.enabled)
+            {
+                foreach (var d in playerInput.devices)
+                    if (d is Gamepad g) { padCache = g; return g; }
 
-            foreach (var d in playerInput.devices)
-                if (d is Gamepad g) return g;
+                if (playerInput.devices.Count > 0) { padCache = null; return null; }
+            }
 
-            return null;
+            if (padCache == null && IsLocal) padCache = Gamepad.current;
+            return padCache;
         }
     }
 

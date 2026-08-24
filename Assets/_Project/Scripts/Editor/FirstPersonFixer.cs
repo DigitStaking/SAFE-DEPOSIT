@@ -63,7 +63,27 @@ public static class FirstPersonFixer
     // Raising the eye toward 1.55-1.65 makes both work at once. Until then
     // this is the interim the arms have been in since Phase 1, and Block 8
     // rebuilds them properly.
-    const float HandBelowEye = 0.30f;
+    //
+    // 0.22, AND IT WAS MEASURED BY HAND, NOT DERIVED.
+    //
+    // This constant is the one that decides whether the hands read as hands
+    // or as a clown holding its palms up next to its face. The prefab shipped
+    // with +0.10 - hands anchored TEN CENTIMETRES ABOVE THE EYE - and nobody
+    // saw it offline, because the scene body carried an Inspector override of
+    // -0.22 that had been tuned by eye and never pushed back to the prefab.
+    //
+    // Offline plays the scene body and looked right. The network spawns the
+    // PREFAB and looked wrong. Same game, same script, two different numbers,
+    // and the only thing separating them was an override sitting in the
+    // .unity file.
+    //
+    // That is the general shape of every remaining Phase 4 surprise: anything
+    // the player prefab does not carry, a spawned player does not get. Worth
+    // remembering at Step 5 when the loot starts spawning.
+    //
+    // -0.22 is the number that was tuned against this rig by looking at it.
+    // Not 0.30, which was a guess in this file that the prefab never used.
+    const float HandBelowEye = 0.22f;
 
     static Vector3 LeftHand  => new Vector3(-0.24f, -HandBelowEye, 0.52f);
     static Vector3 RightHand => new Vector3( 0.24f, -HandBelowEye, 0.52f);

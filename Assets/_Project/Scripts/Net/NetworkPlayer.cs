@@ -83,6 +83,12 @@ public class NetworkPlayer : NetworkBehaviour
         gameObject.name = IsOwner
             ? $"Player {OwnerClientId} (me)"
             : $"Player {OwnerClientId}";
+
+        // Says what happened, because the alternative is reasoning about it
+        // from a screenshot - which this project has now paid for twice.
+        Debug.Log($"[Net] spawned {gameObject.name}   owner={IsOwner}   " +
+                  $"slot={motor.Slot}   local={motor.IsLocal}   " +
+                  $"eye={(motor.Eye != null ? motor.Eye.name : "NONE")}");
     }
 
     /// <summary>
@@ -154,5 +160,14 @@ public class NetworkPlayer : NetworkBehaviour
         // else entirely.
         cam.SetTarget(transform);
         motor.BindView(cam);
+
+        // The camera has to be ON for any of that to matter. ElevatorDashboard
+        // disables it while somebody is at the panel and restores it on exit -
+        // but if a session starts while it is down, nothing ever turns it back
+        // on and the view simply stops where it was.
+        cam.enabled = true;
+
+        Debug.Log($"[Net] camera '{cam.gameObject.name}' now follows " +
+                  $"{gameObject.name}");
     }
 }

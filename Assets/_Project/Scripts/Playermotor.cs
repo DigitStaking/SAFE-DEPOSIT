@@ -128,7 +128,6 @@ public class PlayerMotor : MonoBehaviour
     PlayerInput playerInput;
     PlayerCarry carry;
     PlayerHealth health;
-    Transform cam;
 
     Vector2 moveInput;
     bool jumpQueued;
@@ -330,14 +329,19 @@ public class PlayerMotor : MonoBehaviour
     void OnEnable() => PlayerRegistry.Register(this);
     void OnDisable() => PlayerRegistry.Unregister(this);
 
-    void Start()
-    {
-        cam = Eye;
-
-        if (cam == null)
-            Debug.LogError("[PlayerMotor] No camera has claimed this body. A " +
-                           "FirstPersonCamera must have its target set to it.");
-    }
+    // NOTHING IS CACHED HERE ANY MORE.
+    //
+    // `cam = Eye` in Start was correct for a body placed in the scene, where
+    // the camera already exists and has already bound itself. It is wrong for
+    // a NETWORK-SPAWNED body: Start runs when the object is instantiated and
+    // OnNetworkSpawn runs afterwards, so the eye did not exist yet and the
+    // field cached null for the rest of the body's life - leaving a player
+    // who could not move, because ApplyMovement returns early without a
+    // camera.
+    //
+    // Read live instead. The property is two null checks and it cannot go
+    // stale, which is worth more than the lookup it saves.
+    Transform Cam => Eye;
 
     // --------------------------------------------------------------------
     // INPUT
@@ -439,7 +443,7 @@ public class PlayerMotor : MonoBehaviour
 
     void ApplyMovement()
     {
-        if (cam == null) return;
+        if (Cam == null) return;
 
         // Being carried. Carryable.PickUp turns the body kinematic so it can
         // be positioned by the carrier, and AddForce on a kinematic body does
@@ -451,8 +455,8 @@ public class PlayerMotor : MonoBehaviour
 
         // Movement is relative to where the camera looks, flattened so that
         // looking up or down never changes how fast you walk.
-        Vector3 camForward = Vector3.ProjectOnPlane(cam.forward, Vector3.up).normalized;
-        Vector3 camRight = Vector3.ProjectOnPlane(cam.right, Vector3.up).normalized;
+        Vector3 camForward = Vector3.ProjectOnPlane(Cam.forward, Vector3.up).normalized;
+        Vector3 camRight = Vector3.ProjectOnPlane(Cam.right, Vector3.up).normalized;
 
         Vector3 wish = camForward * moveInput.y + camRight * moveInput.x;
         if (wish.sqrMagnitude > 1f) wish.Normalize();   // no faster on diagonals
@@ -511,12 +515,13 @@ public class PlayerMotor : MonoBehaviour
 
     void FaceCameraYaw()
     {
-        if (cam == null) return;
+        if (Cam == null) return;
 
         // MoveRotation, not transform.rotation. Writing to the transform of a
         // Rigidbody teleports it as far as the solver is concerned, which
         // corrupts contacts and makes constraints explode.
-        rb.MoveRotation(Quaternion.Euler(0f, cam.eulerAngles.y, 0f));
+        if (Cam == null) return;
+        rb.MoveRotation(Quaternion.Euler(0f, Cam.eulerAngles.y, 0f));
     }
 
     // Green when grounded, red when airborne. Free in a build, saves hours.

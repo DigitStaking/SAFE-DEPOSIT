@@ -74,11 +74,56 @@ public class NetworkPlayer : NetworkBehaviour
         motor.AssignSlot((int)OwnerClientId);
         motor.MarkLocal(IsOwner);
 
-        if (IsOwner) ClaimCamera();
+        if (IsOwner)
+        {
+            MoveToSpawn();
+            ClaimCamera();
+        }
 
         gameObject.name = IsOwner
             ? $"Player {OwnerClientId} (me)"
             : $"Player {OwnerClientId}";
+    }
+
+    /// <summary>
+    /// Put the body somewhere survivable.
+    ///
+    /// NGO spawns a player at the PREFAB's authored position, which is the
+    /// world origin - and in this game the world origin is the top of the
+    /// shaft. So a spawning player appeared in mid-air and fell down it. The
+    /// host screenshot that reported this was sitting on 92/100 HP: that is
+    /// PlayerFallDamage doing its job on a body that had no business falling.
+    ///
+    /// The exact same trap as the loot bug in Phase 2, whose whole diagnosis
+    /// was "everything ends up at 0,0,0 and falls". Different system, same
+    /// origin, same shaft.
+    ///
+    /// Spawned inside the lift, spread sideways by client id so four people
+    /// do not arrive inside each other. The OWNER does the move because the
+    /// transform is owner-authoritative - anybody else writing it would be
+    /// overwritten a frame later.
+    /// </summary>
+    void MoveToSpawn()
+    {
+        var lift = SceneRefs.Lift;
+        if (lift == null) return;
+
+        // Spread across the car: -0.9, -0.3, +0.3, +0.9 for ids 0..3.
+        float side = ((int)OwnerClientId - 1.5f) * 0.6f;
+        Vector3 where = lift.transform.TransformPoint(new Vector3(side, 0.2f, 0f));
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            // rb.position, not transform.position. Same lesson the loot roof
+            // bug taught: the transform is what you see, the body is what
+            // physics believes, and moving only the first leaves the second
+            // where it was.
+            rb.position = where;
+            rb.linearVelocity = Vector3.zero;
+        }
+
+        transform.position = where;
     }
 
     /// <summary>

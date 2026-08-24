@@ -347,10 +347,34 @@ public class PlayerMotor : MonoBehaviour
     // local multiplayer work later without changing this code.
     // --------------------------------------------------------------------
 
-    void OnMove(InputValue value) => moveInput = value.Get<Vector2>();
+    // ---- INPUT MESSAGES ARE GATED ON IsLocal, EVERY ONE OF THEM ----
+    //
+    // PlayerInput delivers OnMove / OnLook / OnJump by SendMessage to its own
+    // GameObject, and every body in the scene has a PlayerInput. Both of them
+    // are paired to the one keyboard in the machine, so both of them walked
+    // when you pressed W. That is the "he moves when I move" bug, and the
+    // second body was never a second player - it was yours, mirrored.
+    //
+    // Phase 3 Step 6 fixed the RAW Keyboard.current reads by routing them
+    // through PlayerMotor.Keys. It did not fix this, because PlayerInput's
+    // message callbacks are a completely separate path that never asks whose
+    // keyboard it is. Same class of bug, missed half of it.
+    //
+    // Gated HERE rather than by disabling the PlayerInput component, because
+    // ElevatorDashboard already enables and disables that component to lock
+    // you at the panel - two systems assigning one flag is the exact trap
+    // speedMultiplier turned out to be in Phase 2.
+
+    void OnMove(InputValue value)
+    {
+        if (!IsLocal) return;
+        moveInput = value.Get<Vector2>();
+    }
 
     void OnLook(InputValue value)
     {
+        if (!IsLocal) return;
+
         LookInput = value.Get<Vector2>();
 
         // Mouse look arrives as pixels moved since last frame; stick look as
@@ -361,6 +385,8 @@ public class PlayerMotor : MonoBehaviour
 
     void OnJump(InputValue value)
     {
+        if (!IsLocal) return;
+
         if (!value.isPressed) return;
 
         // Anything that needs two hands stops you jumping. You can shuffle it

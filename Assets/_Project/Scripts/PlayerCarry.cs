@@ -85,6 +85,9 @@ public class PlayerCarry : MonoBehaviour
     {
         if (!value.isPressed) return;
 
+        // Only my hands. PlayerInput broadcasts to every body that has one.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
+
         // PHASE2_SPEC: while downed you "cannot move, look freely, or
         // interact". Dropping is allowed - if you go down holding a crate it
         // has to leave your hands, or the load gauge charges the crew for a

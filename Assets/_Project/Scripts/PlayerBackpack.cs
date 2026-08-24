@@ -200,6 +200,7 @@ public class PlayerBackpack : MonoBehaviour
     void OnDropPack(InputValue value)
     {
         if (!value.isPressed) return;
+        if (!PlayerRegistry.IsLocalFor(this)) return;
 
         // The one exception: the pack CAN come off while downed. If it could
         // not, the crew would be carrying your loot as well as you, and the

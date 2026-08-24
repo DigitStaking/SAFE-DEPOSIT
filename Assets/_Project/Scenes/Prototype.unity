@@ -7418,6 +7418,22 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 6092111384961210509, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: m_InScenePlaced
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6092111384961210509, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 2023920637
+      objectReference: {fileID: 0}
+    - target: {fileID: 6092111384961210509, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: SceneMigrationSynchronization
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6092111384961210509, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: InScenePlacedSourceGlobalObjectIdHash
+      value: 832226762
+      objectReference: {fileID: 0}
     - target: {fileID: 6213281331607931449, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: leftHand.y
       value: -0.22
@@ -21537,7 +21553,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 1674611553}
-    PlayerPrefab: {fileID: 0}
+    PlayerPrefab: {fileID: 5905128192338178620, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: d7d2691cc90b93143a2450545a01cee6, type: 2}

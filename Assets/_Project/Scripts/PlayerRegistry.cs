@@ -90,7 +90,13 @@ public static class PlayerRegistry
 
         all.Add(p);
 
-        // SLOT 0 IS THE LOCAL PLAYER, not "whoever got here first".
+        // SLOT 0 IS THE LOCAL PLAYER - OFFLINE.
+        //
+        // Online this is overruled: PlayerMotor.IsLocal reads
+        // NetworkObject.IsOwner whenever a spawned one is present, so this
+        // call only ever decides anything for a hand-placed body. Left in
+        // because that hand-placed body is the entire single-player game.
+        //
         //
         // Same fix, same reason: first-in was decided by scene load order,
         // which is how the test rig ended up holding the keyboard while the

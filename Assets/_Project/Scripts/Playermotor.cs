@@ -128,6 +128,7 @@ public class PlayerMotor : MonoBehaviour
     PlayerInput playerInput;
     PlayerCarry carry;
     PlayerHealth health;
+    Unity.Netcode.NetworkObject netObj;
 
     Vector2 moveInput;
     bool jumpQueued;
@@ -141,6 +142,7 @@ public class PlayerMotor : MonoBehaviour
         playerInput = GetComponent<PlayerInput>();
         carry = GetComponent<PlayerCarry>();
         health = GetComponent<PlayerHealth>();
+        netObj = GetComponent<Unity.Netcode.NetworkObject>();
 
         rb.isKinematic = false;
 
@@ -180,9 +182,43 @@ public class PlayerMotor : MonoBehaviour
     // is why it is settable rather than serialized. A serialized value would
     // be a stale opinion baked into a prefab, and the prefab is the one thing
     // that cannot know the answer.
-    public bool IsLocal { get; private set; }
+    // ---- AM I THE ONE AT THIS KEYBOARD? ----
+    //
+    // ASKED LIVE WHEN THERE IS A NETWORK, not remembered from a callback.
+    //
+    // MarkLocal used to be the whole answer: NetworkPlayer set it once in
+    // OnNetworkSpawn and everything trusted the stored value forever. One
+    // missed call - a spawn ordering quirk, an ownership change, a body that
+    // registered before the network had an opinion - and a remote body
+    // believes it is yours for the rest of the session. Which is what "the
+    // host can control two bodies" is: one press, two bodies that both think
+    // the keyboard is theirs.
+    //
+    // NetworkObject.IsOwner is the authority and it cannot go stale. When a
+    // spawned NetworkObject is present it wins outright; offline, where there
+    // is no network to ask, the stored flag still decides.
+    //
+    // Fourth time today the same fix has been the right one - the eye, the
+    // camera target, injury and carry factors, and now this. A cached answer
+    // about somebody else goes stale; a live one cannot.
 
-    public void MarkLocal(bool value) => IsLocal = value;
+    bool localFlag;
+
+    public bool IsLocal
+    {
+        get
+        {
+            if (netObj != null && netObj.IsSpawned) return netObj.IsOwner;
+            return localFlag;
+        }
+    }
+
+    /// <summary>
+    /// Offline only, in practice. A spawned NetworkObject overrules it -
+    /// deliberately, so nothing can talk a networked body out of knowing who
+    /// owns it.
+    /// </summary>
+    public void MarkLocal(bool value) => localFlag = value;
 
     // ---- WHICH CREW MEMBER THIS BODY IS ----
     //

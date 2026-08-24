@@ -114,9 +114,27 @@ public class NetworkPlayer : NetworkBehaviour
         var lift = SceneRefs.Lift;
         if (lift == null) return;
 
-        // Spread across the car: -0.9, -0.3, +0.3, +0.9 for ids 0..3.
-        float side = ((int)OwnerClientId - 1.5f) * 0.6f;
-        Vector3 where = lift.transform.TransformPoint(new Vector3(side, 0.2f, 0f));
+        // FOUR CORNERS, not a line.
+        //
+        // The first version spread people 0.6m apart along one axis, which is
+        // less than two shoulder-widths - so at eye height the next body's
+        // torso simply filled your screen and it read as "the host has two
+        // bodies". They were 60cm apart and 1.6m tall.
+        //
+        // A corner each, 2.4m across inside a 4x4 car: far enough to see each
+        // other as PEOPLE rather than as a wall of red, close enough that
+        // nobody clips the doors. Four is Crew.MaxMembers, so the pattern
+        // covers everyone the demo supports.
+        Vector2[] corners =
+        {
+            new Vector2(-1.2f, -1.2f),
+            new Vector2( 1.2f, -1.2f),
+            new Vector2(-1.2f,  1.2f),
+            new Vector2( 1.2f,  1.2f),
+        };
+
+        var spot = corners[(int)OwnerClientId % corners.Length];
+        Vector3 where = lift.transform.TransformPoint(new Vector3(spot.x, 0.2f, spot.y));
 
         var rb = GetComponent<Rigidbody>();
         if (rb != null)
@@ -130,6 +148,15 @@ public class NetworkPlayer : NetworkBehaviour
         }
 
         transform.position = where;
+
+        // Turned to face the centre of the car. Spawning everyone pointing
+        // the same way means three players staring at a wall while the fourth
+        // wonders where they went - and the first thing this game should show
+        // you is the other people in the lift.
+        Vector3 inward = lift.transform.position - where;
+        inward.y = 0f;
+        if (inward.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.LookRotation(inward.normalized, Vector3.up);
     }
 
     /// <summary>

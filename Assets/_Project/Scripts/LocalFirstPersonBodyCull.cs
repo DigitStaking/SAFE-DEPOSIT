@@ -217,8 +217,22 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             thirdPerson = !thirdPerson;
             HideSeparateProps(!thirdPerson);
             ApplyBodyVisibility(!thirdPerson);
+            // THIS DISABLES A CAMERA IT DOES NOT OWN.
+            //
+            // The camera is a scene object shared with everything else that
+            // touches it - the dashboard disables it too. Leaving it off is
+            // how you get a frozen view with a body that still walks, which
+            // reads as a netcode bug and is not one.
+            //
+            // Restored in OnDisable as well, so a body destroyed while in
+            // third person cannot take the camera down with it.
             if (fpCam != null) fpCam.enabled = !thirdPerson;
             RestoreHead();                       // full body in third person
+
+            Debug.Log(thirdPerson
+                ? "[Cull] third person ON - the camera is detached and will " +
+                  "not follow you. Press V again."
+                : "[Cull] third person off - camera reattached.");
         }
     }
 

@@ -201,9 +201,28 @@ public class FirstPersonCamera : MonoBehaviour
     // this frame before we position the camera. In Update the camera would
     // always be one frame behind - subtle, but it reads as "floaty" and
     // nobody can ever say why.
+    bool moaned;
+
     void LateUpdate()
     {
-        if (target == null || motor == null) return;
+        // A camera that stops moving looks identical whether it lost its
+        // target, lost the motor, or was switched off by something else. Say
+        // which - ONCE, so a real stall is loud and a single frame during
+        // spawning is not.
+        if (target == null || motor == null)
+        {
+            if (!moaned)
+            {
+                moaned = true;
+                Debug.LogWarning(
+                    $"[Camera] frozen: target={(target == null ? "NULL" : target.name)} " +
+                    $"motor={(motor == null ? "NULL" : "ok")}. " +
+                    "Nothing has called SetTarget on this camera.");
+            }
+            return;
+        }
+
+        moaned = false;
         ApplyLook();
         ApplyPosition();
         ApplyFov();

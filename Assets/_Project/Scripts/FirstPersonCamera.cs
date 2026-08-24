@@ -154,6 +154,24 @@ public class FirstPersonCamera : MonoBehaviour
     }
 
     /// <summary>
+    /// Attach to whoever the registry says is local, and tell them.
+    ///
+    /// Both directions, because they are two different links: the camera
+    /// needs the body to follow it, and the body needs the camera so
+    /// PlayerMotor can work out which way "forward" is. Setting one and not
+    /// the other gives you a camera that follows a player who cannot move,
+    /// or a player who moves with nothing watching.
+    /// </summary>
+    void AdoptLocalPlayer()
+    {
+        var p = PlayerRegistry.Local;
+        if (p == null) return;
+
+        SetTarget(p.transform);
+        p.BindView(this);
+    }
+
+    /// <summary>
     /// Take over a body, resolving everything cached from it.
     ///
     /// Phase 4 Step 2 made this necessary: a network-spawned player claims the
@@ -209,15 +227,30 @@ public class FirstPersonCamera : MonoBehaviour
         // target, lost the motor, or was switched off by something else. Say
         // which - ONCE, so a real stall is loud and a single frame during
         // spawning is not.
+        // NO TARGET? GO AND FIND ONE.
+        //
+        // Binding used to happen once, from whoever spawned last, and a
+        // one-shot binding that misses for any reason leaves the camera dead
+        // for the rest of the session - which is exactly what happened:
+        // target NULL, motor NULL, a body walking around with nothing
+        // watching it.
+        //
+        // The camera wants the local player. PlayerRegistry has known who
+        // that is since Phase 3 Step 2, and asking every frame it has nobody
+        // costs one null check. This is the same fix as PlayerMotor reading
+        // its eye live instead of caching it at Start, and as injury and
+        // carry weight being read from their owners rather than pushed:
+        // a cached answer about somebody else goes stale, a live one cannot.
+        if (target == null || motor == null) AdoptLocalPlayer();
+
         if (target == null || motor == null)
         {
             if (!moaned)
             {
                 moaned = true;
-                Debug.LogWarning(
-                    $"[Camera] frozen: target={(target == null ? "NULL" : target.name)} " +
-                    $"motor={(motor == null ? "NULL" : "ok")}. " +
-                    "Nothing has called SetTarget on this camera.");
+                Debug.LogWarning("[Camera] no local player to follow yet. " +
+                                 "This is normal for a frame while a body " +
+                                 "spawns, and a real problem if it persists.");
             }
             return;
         }

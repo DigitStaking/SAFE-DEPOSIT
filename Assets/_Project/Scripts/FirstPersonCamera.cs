@@ -139,23 +139,39 @@ public class FirstPersonCamera : MonoBehaviour
 
     void Start()
     {
-        if (target == null)
-        {
-            Debug.LogError("[FirstPersonCamera] No target assigned.");
-            enabled = false;
-            return;
-        }
-
-        motor = target.GetComponent<PlayerMotor>();
-        targetBody = target.GetComponent<Rigidbody>();
         cam = GetComponent<Camera>();
         if (cam != null) cam.fieldOfView = baseFov;
 
-        yaw = target.eulerAngles.y;
-        pitch = 0f;
-
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // A scene-placed target is bound now. A NETWORK-SPAWNED one does not
+        // exist yet and calls SetTarget when it arrives, which is why a
+        // missing target here is no longer an error - offline it is a real
+        // problem, online it is just "the body has not spawned yet", and the
+        // camera cannot tell the difference at this moment.
+        if (target != null) SetTarget(target);
+    }
+
+    /// <summary>
+    /// Take over a body, resolving everything cached from it.
+    ///
+    /// Phase 4 Step 2 made this necessary: a network-spawned player claims the
+    /// camera AFTER Start has already run, and assigning `target` on its own
+    /// would leave `motor` and `targetBody` pointing at whoever was here
+    /// before - which offline is a destroyed object and online is somebody
+    /// else's body. One method, so the three of them cannot drift apart.
+    /// </summary>
+    public void SetTarget(Transform t)
+    {
+        target = t;
+        if (target == null) return;
+
+        motor = target.GetComponent<PlayerMotor>();
+        targetBody = target.GetComponent<Rigidbody>();
+
+        yaw = target.eulerAngles.y;
+        pitch = 0f;
     }
 
     void Update()

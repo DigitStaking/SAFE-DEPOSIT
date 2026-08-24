@@ -4,14 +4,15 @@
 // Network Manager.
 //
 // ====================================================================
-// PHASE 4 STEP 1 - TWO WINDOWS, CONNECTED.
+// PHASE 4 STEPS 1 AND 2 - CONNECT, THEN SPAWN.
 //
-// "Done when: a host window and a client window agree they are connected."
+// Step 1 answered one question on its own - can two copies of this game find
+// each other - so that when anything later breaks, the connection is not one
+// of the suspects.
 //
-// That is the entire scope. No player is spawned, nothing replicates, nobody
-// can see anybody. This step exists to answer one question - can two copies of
-// this game find each other - and answering it on its own means that when
-// Step 2 fails, the connection is not one of the suspects.
+// Step 2 spawns a body per client. The only thing this file owes it is
+// ClearScenePlayer below: the hand-placed body has to step aside before NGO
+// starts handing out its own.
 //
 // ====================================================================
 // SINGLE PLAYER MUST KEEP WORKING, AND IT DOES
@@ -108,10 +109,41 @@ public class NetworkBootstrap : MonoBehaviour
         if (utp != null) utp.SetConnectionData(address, port);
     }
 
+    /// <summary>
+    /// Remove the body that was placed in the scene by hand.
+    ///
+    /// PHASE 4 STEP 2. The scene contains a Player so the game is playable
+    /// offline - that was a deliberate promise in Step 1 and it still holds.
+    /// But the moment a session starts, NGO spawns a body PER CLIENT from
+    /// NetworkConfig.PlayerPrefab, and the host would end up standing next to
+    /// a second copy of itself that nobody owns and nothing controls.
+    ///
+    /// So the scene body steps aside when the network takes over. Offline it
+    /// is the player; online it was only ever a placeholder for one.
+    ///
+    /// Destroyed rather than disabled, because PlayerRegistry unregisters in
+    /// OnDisable either way, and a disabled body left in the hierarchy is one
+    /// more thing to wonder about when two Players show up in a bug report.
+    /// </summary>
+    void ClearScenePlayer()
+    {
+        var scenePlayer = PlayerRegistry.Local;
+        if (scenePlayer == null) return;
+
+        // A spawned body has a NetworkObject; the hand-placed one does not.
+        // That is the only reliable way to tell them apart, and it means
+        // calling this twice cannot destroy somebody's real player.
+        if (scenePlayer.GetComponent<Unity.Netcode.NetworkObject>() != null) return;
+
+        Say("scene player removed - the network spawns bodies now");
+        Destroy(scenePlayer.gameObject);
+    }
+
     public void Host()
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
+        ClearScenePlayer();
 
         if (net.StartHost())
         {
@@ -130,6 +162,7 @@ public class NetworkBootstrap : MonoBehaviour
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
+        ClearScenePlayer();
         Say(net.StartClient() ? "joining..." : "failed to start client");
     }
 
@@ -204,7 +237,7 @@ public class NetworkBootstrap : MonoBehaviour
             var note = new GUIStyle(GUI.skin.label) { fontSize = 10, wordWrap = true };
             note.normal.textColor = new Color(1f, 1f, 1f, 0.4f);
             GUI.Label(new Rect(x, y, w, 30f),
-                      "Step 1: connection only. Bodies arrive in Step 2.", note);
+                      "Step 2: bodies spawn per client, owner-authoritative.", note);
             y += 30f;
 
             if (GUI.Button(new Rect(x, y, w, h), "LEAVE")) Leave();

@@ -20,7 +20,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
   PHASE 3  ████████████  de-single-player .................. DONE  7/7
-  PHASE 4  █░░░░░░░░░░░  netcode + PROXIMITY VOICE ...... in progress  1/11
+  PHASE 4  ██░░░░░░░░░░  netcode + PROXIMITY VOICE ...... in progress  2/11
   PHASE 5  ░░░░░░░░░░░░  the room kit
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
   PHASE 7  ░░░░░░░░░░░░  economy and shop

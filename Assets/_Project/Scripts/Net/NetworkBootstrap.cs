@@ -110,47 +110,81 @@ public class NetworkBootstrap : MonoBehaviour
     }
 
     /// <summary>
-    /// Remove every body that was placed in the scene by hand.
+    /// Remember every body that exists BEFORE a session starts. All of them
+    /// are hand-placed by definition - nothing else can have made one yet.
+    ///
+    /// This list is the whole fix for the host having two bodies it could
+    /// both drive.
+    /// </summary>
+    readonly System.Collections.Generic.List<GameObject> preSessionBodies =
+        new System.Collections.Generic.List<GameObject>();
+
+    /// <summary>
+    /// Snapshot the hand-placed bodies. Called immediately before StartHost or
+    /// StartClient, while "spawned" is still false for everything.
+    /// </summary>
+    void RememberScenePlayers()
+    {
+        preSessionBodies.Clear();
+        foreach (var body in PlayerRegistry.All)
+            if (body != null) preSessionBodies.Add(body.gameObject);
+    }
+
+    /// <summary>
+    /// Remove the bodies that were placed in the scene by hand.
     ///
     /// PHASE 4 STEP 2. The scene contains a Player so the game stays playable
     /// offline - a promise made in Step 1 and still kept. But the moment a
     /// session starts, NGO spawns a body PER CLIENT from
-    /// NetworkConfig.PlayerPrefab, and the host would stand next to a second
-    /// copy of itself that nobody owns and nothing controls.
+    /// NetworkConfig.PlayerPrefab, and the host stands next to a second copy
+    /// of itself.
     ///
-    /// SPAWNED, NOT "HAS A NetworkObject". The first version of this tested
-    /// for the component and was wrong within an hour of being written:
-    /// Prepare Player Prefab adds NetworkObject to the PREFAB, and the scene
-    /// body is an INSTANCE of that prefab, so it inherited one. The guard
-    /// meant to protect real players started protecting the placeholder
-    /// instead, and the host got two bodies again.
+    /// THIRD ATTEMPT AT THIS TEST. The first asked "does it have a
+    /// NetworkObject" and was wrong within the hour: Prepare Player Prefab
+    /// adds one to the PREFAB and the scene body is an instance, so it
+    /// inherited one.
     ///
-    /// IsSpawned is the honest question. A hand-placed instance has the
-    /// component and has never been spawned; a real player has both. The
-    /// difference is what NGO did, not what the prefab carries.
+    /// The second asked "IsSpawned", and this file confidently called that
+    /// "the honest question". It was honest for a CLIENT and a lie for the
+    /// HOST, because THE HOST IS THE SERVER AND THE SERVER SPAWNS IN-SCENE
+    /// NetworkObjects AUTOMATICALLY. StartHost spawned the scene body before
+    /// this method ever ran, so IsSpawned came back true and the guard meant
+    /// to protect real players protected the placeholder again. The editor log
+    /// said it plainly, twice in four lines:
     ///
-    /// ALL of them, not just PlayerRegistry.Local - the two-body test rig
-    /// leaves a second hand-placed body behind, and "the local one" would
-    /// have left it standing there.
+    ///     spawned Player 0 (me)  owner=True  local=True   <- Player(Clone)
+    ///     spawned Player 0 (me)  owner=True  local=True   <- Player
+    ///
+    /// Two owned bodies, same slot, same keyboard. Both genuinely the host's,
+    /// which is why gating input on ownership could never have fixed it.
+    ///
+    /// THE THIRD TEST ASKS NOTHING. Identity is captured BEFORE the session
+    /// exists, when the answer cannot be in doubt, and acted on after. No
+    /// property of a live NetworkObject is consulted, so there is no property
+    /// left to be subtly wrong about. Capture early, act late.
     /// </summary>
     void ClearScenePlayer()
     {
         int removed = 0;
 
-        // Copied first: destroying a body unregisters it in OnDisable, and
-        // mutating the registry while walking it is its own bug.
-        var bodies = new System.Collections.Generic.List<PlayerMotor>(PlayerRegistry.All);
-
-        foreach (var body in bodies)
+        foreach (var body in preSessionBodies)
         {
             if (body == null) continue;
 
+            // A spawned NetworkObject has to be despawned rather than simply
+            // destroyed, or the clients keep a body the server has forgotten.
+            // Only the server may do it - a client that reaches this line has
+            // not synced yet, so its copy is still an ordinary object.
             var netObj = body.GetComponent<NetworkObject>();
-            if (netObj != null && netObj.IsSpawned) continue;   // a real player
+            if (netObj != null && netObj.IsSpawned && net.IsServer)
+                netObj.Despawn(true);
+            else
+                Destroy(body);
 
-            Destroy(body.gameObject);
             removed++;
         }
+
+        preSessionBodies.Clear();
 
         if (removed > 0)
             Say($"{removed} scene body(s) removed - the network spawns them now");
@@ -173,6 +207,7 @@ public class NetworkBootstrap : MonoBehaviour
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
+        RememberScenePlayers();     // before anything can be spawned
 
         if (!net.StartHost())
         {
@@ -192,6 +227,7 @@ public class NetworkBootstrap : MonoBehaviour
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
+        RememberScenePlayers();     // before anything can be spawned
 
         if (!net.StartClient())
         {

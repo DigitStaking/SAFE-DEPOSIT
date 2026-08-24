@@ -135,8 +135,25 @@ public static class TwoBodyAudit
                     problems++;
                 }
                 else
+                {
                     sb.AppendLine($"      net      spawned   owner {no.OwnerClientId}" +
-                                  $"   IsOwner {no.IsOwner}");
+                                  $"   IsOwner {no.IsOwner}" +
+                                  $"   IsPlayerObject {no.IsPlayerObject}");
+
+                    // The discriminator that would have ended this in one
+                    // reading. A hand-placed body that the SERVER spawned by
+                    // itself - because servers spawn in-scene NetworkObjects
+                    // automatically - looks identical to a real player on
+                    // every other field: spawned, owned, local. It is not
+                    // anybody's player object, and that is the only place the
+                    // difference shows.
+                    if (!no.IsPlayerObject)
+                    {
+                        sb.AppendLine("      WRONG spawned but not a player object - this is " +
+                                      "the hand-placed scene body, spawned by the server");
+                        problems++;
+                    }
+                }
 
                 if (no != null && no.IsSpawned && no.IsOwner != p.IsLocal)
                 {

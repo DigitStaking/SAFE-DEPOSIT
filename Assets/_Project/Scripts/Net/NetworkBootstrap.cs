@@ -203,6 +203,25 @@ public class NetworkBootstrap : MonoBehaviour
         Say("joining...");
     }
 
+    /// <summary>
+    /// Hand the socket back when Play stops.
+    ///
+    /// Without this the EDITOR PROCESS keeps port 7777 bound after you leave
+    /// Play mode - the session ended, the process did not - and the next
+    /// attempt to host fails with "address already in use" against a game
+    /// that is no longer running. Diagnosed by asking Windows who held the
+    /// port and getting back "Unity".
+    ///
+    /// OnApplicationQuit rather than OnDisable: NetworkManager makes itself
+    /// DontDestroyOnLoad, so OnDisable would also fire on the scene reload
+    /// between rounds, and tearing the session down every time the crew
+    /// surfaces is exactly what Step 8 has to avoid.
+    /// </summary>
+    void OnApplicationQuit()
+    {
+        if (net != null && net.IsListening) net.Shutdown();
+    }
+
     public void Leave()
     {
         if (net == null || !net.IsListening) return;

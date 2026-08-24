@@ -42,27 +42,31 @@ public static class FirstPersonFixer
     // that resets everything must only hold values somebody actually chose.
     static readonly Vector3 EyeOffset = new Vector3( 0f, 1.25f, 0.12f);
 
-    // HANDS ARE ANCHORED IN WORLD HEIGHT, NOT TO THE EYE.
+    // HANDS SIT A FIXED DISTANCE BELOW THE EYE.
     //
-    // FirstPersonHands places its IK targets RELATIVE TO THE EYE, so a fixed
-    // y offset moves the hands whenever the camera moves - which is how a
-    // camera change mangled the arms. The hands do not care where the eye is;
-    // they care where the SHOULDER is, and the shoulder is on the body at
-    // about 1.42 no matter what the camera does.
+    // This was a world height (1.35) for a while, on the reasoning that the
+    // hands care where the SHOULDER is - which is true of the IK solver and
+    // false of the person looking at the screen.
     //
-    // So the tuned quantity is the world height (1.35, ~7cm below the
-    // shoulder, which is what makes the elbows hang instead of flaring), and
-    // the eye-relative offset is DERIVED from it. Change EyeOffset.y now and
-    // the hands stay exactly where they were.
+    // At an eye of 1.65 the two agreed. At 1.25 they do not: the shoulder is
+    // at about 1.42, so hands at their correct shoulder-relative height end
+    // up ABOVE the camera and fill the top of the frame. Physically right,
+    // visually wrong, and "hands too high" is the only report that matters.
     //
-    // This is not a re-tune of the arms - they are still the Phase 1 interim
-    // and still parked until Block 8. It restores the height they were tuned
-    // at and stops the camera dragging them off it.
-    const float HandWorldY = 1.35f;
-    static float HandY => HandWorldY - EyeOffset.y;
+    // One number now, and it means what it says: how far below your eye your
+    // hands hang. Change EyeOffset.y and the hands follow it instead of
+    // staying put.
+    //
+    // THE HONEST CAVEAT: at an eye of 1.25 the camera sits BELOW this rig's
+    // shoulder, so hands low enough to look right are also further from the
+    // shoulder than the arm can reach (~0.5m) and the IK straightens them.
+    // Raising the eye toward 1.55-1.65 makes both work at once. Until then
+    // this is the interim the arms have been in since Phase 1, and Block 8
+    // rebuilds them properly.
+    const float HandBelowEye = 0.30f;
 
-    static Vector3 LeftHand  => new Vector3(-0.24f, HandY, 0.52f);
-    static Vector3 RightHand => new Vector3( 0.24f, HandY, 0.52f);
+    static Vector3 LeftHand  => new Vector3(-0.24f, -HandBelowEye, 0.52f);
+    static Vector3 RightHand => new Vector3( 0.24f, -HandBelowEye, 0.52f);
     const float BaseFov  = 75f;
     const float NearClip = 0.3f;   // 0.05 exposes the inside of your own skull
 

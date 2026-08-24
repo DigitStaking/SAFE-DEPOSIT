@@ -156,31 +156,51 @@ public class NetworkBootstrap : MonoBehaviour
             Say($"{removed} scene body(s) removed - the network spawns them now");
     }
 
+    // ==================================================================
+    // START FIRST, CLEAR SECOND. THE ORDER IS THE WHOLE THING.
+    //
+    // Both of these used to clear the scene body and then try to connect. If
+    // connecting failed - and the likeliest failure by far is pressing HOST
+    // in a second window while the first is already hosting - you were left
+    // with no scene player, no spawned player, and a camera with nothing to
+    // follow. A failed connection took the game down with it.
+    //
+    // Nothing is destroyed until a session actually exists. Failing now leaves
+    // you exactly where you were: offline, single player, still playable.
+    // ==================================================================
+
     public void Host()
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
-        ClearScenePlayer();
 
-        if (net.StartHost())
+        if (!net.StartHost())
         {
-            Say("HOSTING - now press JOIN in the other window");
+            // The transport reports this as four lines of stack trace about
+            // binding a UDP socket. Say the actual problem instead.
+            Say($"CANNOT HOST - port {port} is already taken. Something else " +
+                "is already hosting. Only ONE window hosts; the other " +
+                "presses JOIN.");
             return;
         }
 
-        // The only way this realistically fails is the port already being
-        // held, and the transport's own message for that is four lines of
-        // stack trace about binding a UDP socket. Say the actual problem.
-        Say($"CANNOT HOST - port {port} is already taken. Something else is " +
-            "already hosting. Only ONE window hosts; the other presses JOIN.");
+        ClearScenePlayer();
+        Say("HOSTING - now press JOIN in the other window");
     }
 
     public void Join()
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
+
+        if (!net.StartClient())
+        {
+            Say("CANNOT JOIN - nothing is hosting at " + address + ".");
+            return;
+        }
+
         ClearScenePlayer();
-        Say(net.StartClient() ? "joining..." : "failed to start client");
+        Say("joining...");
     }
 
     public void Leave()

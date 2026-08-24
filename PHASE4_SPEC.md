@@ -121,10 +121,24 @@ Player is a `NetworkObject`. Position, rotation, animation state. `IsOwner`
 drives `MarkLocal`, so Phase 3's gates light up for free.
 **Done when:** you watch your friend walk, and neither of you is headless.
 
-### Step 3 · The shared pot
-`Campaign` becomes host-owned with a replicated view. Money, cable, destroyed
-rooms, the loot roster, the Lost crew, the round number.
+### Step 3 · The shared pot — SCALARS DONE
+`Campaign` becomes host-owned with a replicated view.
 **Done when:** the host buys cable and the client's shop shows it.
+
+Ten scalars are networked: money, cable, run number, capacity upgrades, both
+per-round caps, campaign-over, the epitaph, cable strain, loot-seeded. The
+static API is unchanged, so **all 97 read sites were left alone** — the only
+edits were inside `Campaign` itself.
+
+Only the host may spend. A client's press is a `ServerRpc`; the host re-runs
+the same rules and the new number replicates back.
+
+**Deliberately deferred, and why:** the three COLLECTIONS — `DestroyedRooms`,
+`LootRoster`, `LostCrew` — move with the systems that own them.
+`DestroyedRooms` needs the lift (Step 5), `LootRoster` needs loot (Step 6),
+`LostCrew` needs the rescue contract (Step 9). Replicating a list before the
+system that writes it is networked means guessing at when it changes, and
+that guess would be rewritten at each of those steps anyway.
 
 ### Step 4 · Per-person state
 `Crew` slots bind to client ids. HP, injury, bleed-out.

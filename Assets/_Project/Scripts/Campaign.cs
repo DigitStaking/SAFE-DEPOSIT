@@ -112,7 +112,12 @@ public static class Campaign
 
     /// <summary>0 = fine, 1 = parting. Live strain, not accumulated damage:
     /// it fills while overloaded and empties when the load comes off.</summary>
-    public static float CableStrain;
+    static float localStrain;
+    public static float CableStrain
+    {
+        get => Net != null ? Net.Strain.Value : localStrain;
+        set { if (Net != null) { if (Net.IsServer) Net.Strain.Value = value; } else localStrain = value; }
+    }
 
     // ---- PER-ROUND PURCHASE CAPS ----
     //
@@ -238,16 +243,139 @@ public static class Campaign
 
     // ---- LIVE STATE ----
 
-    public static int Money = StartingMoney;
-    public static float CableLength = StartingCable;
-    public static int RunNumber = 1;
-    public static int CapacityUpgrades;
+    // ================================================================
+    // PHASE 4 STEP 3 - THESE ARE NO LONGER STORAGE. THEY ARE QUESTIONS.
+    //
+    // They were plain statics, and a static is one copy PER PROCESS. Two
+    // windows are two processes, so "the bank" was two numbers that had never
+    // met: the host bought cable, the host's number moved, and the client's
+    // shop went on showing the old one. Nothing threw. The two games simply
+    // disagreed, quietly, forever.
+    //
+    // Now each one asks CampaignNet when a session exists and falls back to a
+    // private field when it does not. The NAMES ARE UNCHANGED, which is the
+    // entire point: 97 places read Campaign.Money and not one of them had to
+    // be edited to make the money shared.
+    //
+    // Offline there is no CampaignNet, the fallback field answers, and the
+    // game behaves exactly as it did before this block was written.
+    // ================================================================
+
+    static CampaignNet Net => CampaignNet.Instance;
+
+    static int    localMoney = StartingMoney;
+    static float  localCable = StartingCable;
+    static int    localRun = 1;
+    static int    localCapacity;
+    static int    localCableBought;
+    static int    localCapacityBought;
+    static bool   localOver;
+    static string localEpitaph = "";
+
+    // Assigning to these on a CLIENT throws, by design. NGO refuses a
+    // server-write variable written from a client, and a stack trace with a
+    // line number is a far better failure than two crews arguing about the
+    // bank balance. Clients ask via the Buy* methods below.
+    public static int Money
+    {
+        get => Net != null ? Net.Money.Value : localMoney;
+        set { if (Net != null) Net.Money.Value = value; else localMoney = value; }
+    }
+
+    public static float CableLength
+    {
+        get => Net != null ? Net.Cable.Value : localCable;
+        set { if (Net != null) Net.Cable.Value = value; else localCable = value; }
+    }
+
+    public static int RunNumber
+    {
+        get => Net != null ? Net.RunNumber.Value : localRun;
+        set { if (Net != null) Net.RunNumber.Value = value; else localRun = value; }
+    }
+
+    public static int CapacityUpgrades
+    {
+        get => Net != null ? Net.Capacity.Value : localCapacity;
+        set { if (Net != null) Net.Capacity.Value = value; else localCapacity = value; }
+    }
 
     /// <summary>Reset by AdvanceRun. See the caps above.</summary>
-    public static int CableBoughtThisRound;
-    public static int CapacityBoughtThisRound;
-    public static bool CampaignOver;
-    public static string EpitaphReason = "";
+    public static int CableBoughtThisRound
+    {
+        get => Net != null ? Net.CableBought.Value : localCableBought;
+        set { if (Net != null) Net.CableBought.Value = value; else localCableBought = value; }
+    }
+
+    public static int CapacityBoughtThisRound
+    {
+        get => Net != null ? Net.CapacityBought.Value : localCapacityBought;
+        set { if (Net != null) Net.CapacityBought.Value = value; else localCapacityBought = value; }
+    }
+
+    public static bool CampaignOver
+    {
+        get => Net != null ? Net.Over.Value : localOver;
+        set { if (Net != null) Net.Over.Value = value; else localOver = value; }
+    }
+
+    public static string EpitaphReason
+    {
+        get => Net != null ? Net.Epitaph.Value.ToString() : localEpitaph;
+        set
+        {
+            // FixedString128Bytes, not string. A NetworkVariable has to have a
+            // size known before it is sent, and "a string" does not. 128 bytes
+            // is longer than every epitaph this game writes; the longest is
+            // "somebody was still inside when a room sealed" at 43.
+            if (Net != null) Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(
+                                                    value ?? "");
+            else localEpitaph = value ?? "";
+        }
+    }
+
+    /// <summary>
+    /// Hosting must not wipe the campaign. Whoever hosts has been playing
+    /// offline and their statics hold the real save - money earned, cable
+    /// bought, runs survived - so those numbers seed the session.
+    ///
+    /// Clients do the opposite: they take what arrives. Their own statics are
+    /// their own save from their own sessions, and adopting the host's is the
+    /// whole meaning of joining somebody's game.
+    /// </summary>
+    public static void PushLocalStateToNetwork()
+    {
+        if (Net == null) return;
+        Net.Money.Value = localMoney;
+        Net.Cable.Value = localCable;
+        Net.RunNumber.Value = localRun;
+        Net.Capacity.Value = localCapacity;
+        Net.CableBought.Value = localCableBought;
+        Net.CapacityBought.Value = localCapacityBought;
+        Net.Over.Value = localOver;
+        Net.Strain.Value = localStrain;
+        Net.Seeded.Value = localSeeded;
+        Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
+    }
+
+    /// <summary>
+    /// Leaving a session keeps what the run earned rather than snapping back
+    /// to whatever this machine had before it joined.
+    /// </summary>
+    public static void PullNetworkStateToLocal()
+    {
+        if (Net == null) return;
+        localMoney = Net.Money.Value;
+        localCable = Net.Cable.Value;
+        localRun = Net.RunNumber.Value;
+        localCapacity = Net.Capacity.Value;
+        localCableBought = Net.CableBought.Value;
+        localCapacityBought = Net.CapacityBought.Value;
+        localOver = Net.Over.Value;
+        localStrain = Net.Strain.Value;
+        localSeeded = Net.Seeded.Value;
+        localEpitaph = Net.Epitaph.Value.ToString();
+    }
 
     /// <summary>1-based room indices sealed forever (rubble, not deleted geometry).</summary>
     public static readonly HashSet<int> DestroyedRooms = new HashSet<int>();
@@ -287,7 +415,12 @@ public static class Campaign
     /// from "the building has never been stocked". Without it, an empty
     /// roster would look like a fresh campaign and refill the whole tower.
     /// </summary>
-    public static bool LootSeeded;
+    static bool localSeeded;
+    public static bool LootSeeded
+    {
+        get => Net != null ? Net.Seeded.Value : localSeeded;
+        set { if (Net != null) { if (Net.IsServer) Net.Seeded.Value = value; } else localSeeded = value; }
+    }
 
     // ---- THE CURVES ----
 
@@ -377,6 +510,12 @@ public static class Campaign
 
     public static void Reset()
     {
+        // Host only online. Every client runs its own RunManager and would
+        // otherwise each try to write the same pot. Step 8 makes the round
+        // itself a host-driven event; this guard is what keeps the meantime
+        // from throwing.
+        if (!MaySpend) return;
+
         Money = StartingMoney;
         CableLength = StartingCable;
         RunNumber = 1;
@@ -398,6 +537,12 @@ public static class Campaign
 
     public static bool Settle(int recovered)
     {
+        // Host only online - the same reason Reset and AdvanceRun are. Four
+        // clients each settling the same haul would pay the quota four times.
+        // Clients read the result, they do not compute it. Step 8 turns the
+        // whole round into a host-driven event; this keeps the meantime sane.
+        if (!MaySpend) return !CampaignOver;
+
         int owed = Quota;
         Money += recovered;
 
@@ -421,6 +566,12 @@ public static class Campaign
     /// </summary>
     public static void AdvanceRun()
     {
+        // Host only online. Every client runs its own RunManager and would
+        // otherwise each try to write the same pot. Step 8 makes the round
+        // itself a host-driven event; this guard is what keeps the meantime
+        // from throwing.
+        if (!MaySpend) return;
+
         RunNumber++;
 
         // The caps are PER ROUND, so this is where they refill. Deliberately
@@ -455,7 +606,47 @@ public static class Campaign
         }
     }
 
+    // ================================================================
+    // BUYING, WHEN THERE ARE FOUR OF YOU
+    //
+    // Offline these ran on the spot. Online, ONLY THE HOST MAY SPEND. Not
+    // because a co-op crew would cheat each other - there is nobody to cheat -
+    // but because two machines that can both take money out of the same pot
+    // will eventually both take it out in the same frame, and then there is no
+    // answer to "how much is in the bank", only two answers.
+    //
+    // So a client's press is a REQUEST. It goes to the host, the host runs the
+    // very same rules it always ran, and the new number comes back to
+    // everybody. The client's shop updates because it is reading a replicated
+    // value - not because it changed anything itself.
+    //
+    // The client still checks first, so the button greys out at the right
+    // moment and the press feels immediate. But a check on the asking machine
+    // is a COURTESY, NOT A GUARANTEE: by the time the request lands, somebody
+    // else may have spent the money. The host checks again because the host is
+    // the one that decides. If it says no, nothing changes and the replicated
+    // numbers simply never move.
+    //
+    // The *Authoritative half is the original code, untouched. That is
+    // deliberate - the rules of the economy did not change just because there
+    // are now four people in the lift, and the day they DO change, they change
+    // in one place.
+    // ================================================================
+
+    /// <summary>True when this machine is allowed to write the pot: always
+    /// offline, host only online.</summary>
+    static bool MaySpend => Net == null || Net.IsServer;
+
     public static bool BuyCable()
+    {
+        if (CableLeftThisRound <= 0 || Money < CableChunkCost) return false;
+        if (MaySpend) return BuyCableAuthoritative();
+
+        Net.BuyCableServerRpc();
+        return true;                 // asked. The host answers by moving the numbers.
+    }
+
+    public static bool BuyCableAuthoritative()
     {
         if (CableLeftThisRound <= 0) return false;
         if (Money < CableChunkCost) return false;
@@ -466,6 +657,16 @@ public static class Campaign
     }
 
     public static bool BuyCapacity()
+    {
+        if (CapacityLeftThisRound <= 0) return false;
+        if (CapacityMaxed || Money < CapacityUpgradeCost) return false;
+        if (MaySpend) return BuyCapacityAuthoritative();
+
+        Net.BuyCapacityServerRpc();
+        return true;
+    }
+
+    public static bool BuyCapacityAuthoritative()
     {
         if (CapacityLeftThisRound <= 0) return false;
         if (CapacityMaxed || Money < CapacityUpgradeCost) return false;
@@ -484,6 +685,22 @@ public static class Campaign
     /// The slot argument is the whole difference between those two things.
     /// </summary>
     public static bool BuyBackpackSlot(int slot)
+    {
+        var member = Crew.Of(slot);
+        if (Money < BackpackSlotCost) return false;
+        if (member.BackpackSlots >= Crew.MaxBackpackSlots) return false;
+        if (MaySpend) return BuyBackpackSlotAuthoritative(slot);
+
+        Net.BuyBackpackSlotServerRpc(slot);
+        return true;
+    }
+
+    /// <summary>
+    /// The money is shared and the PACK IS NOT. Step 4 replicates the slot
+    /// count itself; until then the host's Crew row moves and the buyer's
+    /// screen will not show it. That is a known half-step, not a bug to chase.
+    /// </summary>
+    public static bool BuyBackpackSlotAuthoritative(int slot)
     {
         var member = Crew.Of(slot);
         if (Money < BackpackSlotCost) return false;

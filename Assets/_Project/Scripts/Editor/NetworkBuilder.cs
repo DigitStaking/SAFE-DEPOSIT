@@ -18,6 +18,7 @@ using UnityEngine;
 public static class NetworkBuilder
 {
     const string ObjectName = "NETWORK";
+    const string CampaignName = "CAMPAIGN";
 
     [MenuItem("SAFE DEPOSIT/Network/Build Network Manager")]
     static void Build()
@@ -54,6 +55,8 @@ public static class NetworkBuilder
         boot.port = 7777;
         boot.showPanel = true;
 
+        BuildCampaignObject();
+
         EditorSceneManager.MarkSceneDirty(go.scene);
         Selection.activeGameObject = go;
 
@@ -61,5 +64,36 @@ public static class NetworkBuilder
                   "NetworkBootstrap, pointed at 127.0.0.1:7777.\n" +
                   "Press Play and do nothing - the game still runs solo. " +
                   "HOST / JOIN is top-right.");
+    }
+
+    /// <summary>
+    /// PHASE 4 STEP 3. The shared pot needs its own GameObject.
+    ///
+    /// IT CANNOT LIVE ON THE NETWORK OBJECT. NGO forbids a NetworkObject on
+    /// the same GameObject as the NetworkManager - the manager is what runs
+    /// the spawning, so it cannot also be a thing that gets spawned. The
+    /// campaign gets a sibling.
+    ///
+    /// PLACED IN THE SCENE, ON PURPOSE. A server spawns in-scene
+    /// NetworkObjects by itself, so the pot exists the instant a session
+    /// starts - before any player has connected, with no code to arrange it.
+    ///
+    /// That is the SAME behaviour that gave the host two bodies an hour ago:
+    /// the hand-placed player was auto-spawned too. Here it is exactly what
+    /// is wanted. The behaviour was never the bug - a player prefab sitting
+    /// in the scene was.
+    /// </summary>
+    static void BuildCampaignObject()
+    {
+        var existing = GameObject.Find(CampaignName);
+        var go = existing != null ? existing : new GameObject(CampaignName);
+
+        if (go.GetComponent<NetworkObject>() == null)
+            go.AddComponent<NetworkObject>();
+
+        if (go.GetComponent<CampaignNet>() == null)
+            go.AddComponent<CampaignNet>();
+
+        EditorSceneManager.MarkSceneDirty(go.scene);
     }
 }

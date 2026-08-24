@@ -39,6 +39,21 @@ public static class TwoBodyAudit
 
         void Update()
         {
+            // ---- F9: ASK AGAIN, NOW ----
+            //
+            // This audit used to run once, a second after load, and then
+            // delete itself. Which meant it had NEVER SEEN A NETWORKED
+            // SESSION: nobody has pressed HOST one second into the scene, so
+            // every run it ever made was of an offline game with one body.
+            //
+            // The bug it was built to catch - "one press moves two bodies" -
+            // only exists after a client connects. The audit was asleep for
+            // the only minute that mattered.
+            //
+            // F9 now asks at any moment. Press it after joining.
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null && kb.f9Key.wasPressedThisFrame) { Report(); return; }
+
             if (done) return;
 
             // A moment after load, so every OnEnable, Awake and Start has run
@@ -48,10 +63,11 @@ public static class TwoBodyAudit
 
             done = true;
 
-            if (PlayerRegistry.Count < 2) { Destroy(gameObject); return; }
+            // Stays resident now instead of destroying itself - it is the F9
+            // handler. Silent with one body, as before.
+            if (PlayerRegistry.Count < 2) return;
 
             Report();
-            Destroy(gameObject);
         }
 
         static void Report()
@@ -59,7 +75,14 @@ public static class TwoBodyAudit
             var sb = new StringBuilder();
             int problems = 0;
 
-            sb.AppendLine($"[TwoBody audit] {PlayerRegistry.Count} players registered.");
+            var nm = Unity.Netcode.NetworkManager.Singleton;
+            string session = nm == null || !nm.IsListening
+                ? "OFFLINE"
+                : (nm.IsHost ? $"HOST (my id {nm.LocalClientId})"
+                             : $"CLIENT (my id {nm.LocalClientId})");
+
+            sb.AppendLine($"[TwoBody audit] {session} - " +
+                          $"{PlayerRegistry.Count} players registered.");
             sb.AppendLine();
 
             // ---- one local player ----
@@ -84,6 +107,43 @@ public static class TwoBodyAudit
                 sb.AppendLine();
                 sb.AppendLine($"  {p.gameObject.name}   slot {p.Slot}" +
                               (p.IsLocal ? "   [LOCAL]" : ""));
+
+                // ---- WHAT THE NETWORK THINKS THIS BODY IS ----
+                //
+                // "The host can control two bodies" has two completely
+                // different causes and no way to tell them apart by looking:
+                //
+                //   a NOT-SPAWNED body  = a leftover ClearScenePlayer missed.
+                //                         Nothing owns it, the client cannot
+                //                         see it, and the host drives it
+                //                         smoothly like a second character.
+                //
+                //   a spawned body that is NOT MINE but says LOCAL = the
+                //                         input gate failed. It fights its
+                //                         real owner and jitters.
+                //
+                // Both look like "two bodies". The fix for one does nothing
+                // for the other, which is how this ends up costing three
+                // attempts. So print it.
+                var no = p.GetComponent<Unity.Netcode.NetworkObject>();
+                if (no == null)
+                    sb.AppendLine("      net      no NetworkObject (offline body)");
+                else if (!no.IsSpawned)
+                {
+                    sb.AppendLine("      net      NOT SPAWNED - a leftover scene body. " +
+                                  "ClearScenePlayer missed it.");
+                    problems++;
+                }
+                else
+                    sb.AppendLine($"      net      spawned   owner {no.OwnerClientId}" +
+                                  $"   IsOwner {no.IsOwner}");
+
+                if (no != null && no.IsSpawned && no.IsOwner != p.IsLocal)
+                {
+                    sb.AppendLine($"      WRONG network says IsOwner={no.IsOwner} but the " +
+                                  $"body says IsLocal={p.IsLocal} - they must agree");
+                    problems++;
+                }
                 sb.AppendLine($"      camera   {(p.View != null ? p.View.gameObject.name : "NONE")}");
                 sb.AppendLine($"      keyboard {(p.Keys != null ? "held" : "none")}");
                 sb.AppendLine($"      HP       {member.Health}/{Crew.MaxHealth}" +

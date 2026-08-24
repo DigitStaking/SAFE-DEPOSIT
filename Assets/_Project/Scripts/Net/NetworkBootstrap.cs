@@ -112,7 +112,18 @@ public class NetworkBootstrap : MonoBehaviour
     {
         if (net == null || net.IsListening) return;
         ApplyAddress();
-        Say(net.StartHost() ? "HOSTING" : "failed to host");
+
+        if (net.StartHost())
+        {
+            Say("HOSTING - now press JOIN in the other window");
+            return;
+        }
+
+        // The only way this realistically fails is the port already being
+        // held, and the transport's own message for that is four lines of
+        // stack trace about binding a UDP socket. Say the actual problem.
+        Say($"CANNOT HOST - port {port} is already taken. Something else is " +
+            "already hosting. Only ONE window hosts; the other presses JOIN.");
     }
 
     public void Join()
@@ -155,6 +166,12 @@ public class NetworkBootstrap : MonoBehaviour
             GUI.Label(new Rect(x, y, w, 20f), "OFFLINE - single player", label);
             y += 20f;
 
+            var hint = new GUIStyle(GUI.skin.label) { fontSize = 10, wordWrap = true };
+            hint.normal.textColor = new Color(1f, 1f, 1f, 0.4f);
+            GUI.Label(new Rect(x, y, w, 26f),
+                      "ONE window hosts. The other joins.", hint);
+            y += 26f;
+
             if (GUI.Button(new Rect(x, y, w, h), "HOST")) Host();
             y += h + 4f;
 
@@ -182,14 +199,26 @@ public class NetworkBootstrap : MonoBehaviour
             GUI.Label(new Rect(x, y, w, 20f), $"my id {net.LocalClientId}", label);
             y += 20f;
 
+            // Step 1 spawns nobody on purpose. Without saying so, a working
+            // connection looks identical to a broken one.
+            var note = new GUIStyle(GUI.skin.label) { fontSize = 10, wordWrap = true };
+            note.normal.textColor = new Color(1f, 1f, 1f, 0.4f);
+            GUI.Label(new Rect(x, y, w, 30f),
+                      "Step 1: connection only. Bodies arrive in Step 2.", note);
+            y += 30f;
+
             if (GUI.Button(new Rect(x, y, w, h), "LEAVE")) Leave();
             y += h + 4f;
         }
 
-        if (Time.time - lastEventTime < 4f && !string.IsNullOrEmpty(lastEvent))
+        if (Time.time - lastEventTime < 8f && !string.IsNullOrEmpty(lastEvent))
         {
-            label.normal.textColor = new Color(1f, 0.85f, 0.4f);
-            GUI.Label(new Rect(x, y, w, 20f), lastEvent, label);
+            var msg = new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
+            msg.normal.textColor = lastEvent.StartsWith("CANNOT")
+                ? new Color(1f, 0.4f, 0.35f)
+                : new Color(1f, 0.85f, 0.4f);
+
+            GUI.Label(new Rect(x, y, w, 60f), lastEvent, msg);
         }
     }
 }

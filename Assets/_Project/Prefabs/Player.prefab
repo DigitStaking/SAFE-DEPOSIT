@@ -384,6 +384,7 @@ MonoBehaviour:
   groundCheckDistance: 0.25
   externalSpeedLock: 1
   coyoteTime: 0.15
+  crewSlot: 0
 --- !u!114 &1637748967432123577
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -556,7 +557,7 @@ MonoBehaviour:
   range: 28
   spotAngle: 55
   innerSpotPercent: 0.55
-  visibleBeam: 1
+  visibleBeam: 0
   beamIntensity: 0.05
   enableShadows: 1
   startOn: 1

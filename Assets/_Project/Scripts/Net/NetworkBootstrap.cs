@@ -110,33 +110,50 @@ public class NetworkBootstrap : MonoBehaviour
     }
 
     /// <summary>
-    /// Remove the body that was placed in the scene by hand.
+    /// Remove every body that was placed in the scene by hand.
     ///
-    /// PHASE 4 STEP 2. The scene contains a Player so the game is playable
-    /// offline - that was a deliberate promise in Step 1 and it still holds.
-    /// But the moment a session starts, NGO spawns a body PER CLIENT from
-    /// NetworkConfig.PlayerPrefab, and the host would end up standing next to
-    /// a second copy of itself that nobody owns and nothing controls.
+    /// PHASE 4 STEP 2. The scene contains a Player so the game stays playable
+    /// offline - a promise made in Step 1 and still kept. But the moment a
+    /// session starts, NGO spawns a body PER CLIENT from
+    /// NetworkConfig.PlayerPrefab, and the host would stand next to a second
+    /// copy of itself that nobody owns and nothing controls.
     ///
-    /// So the scene body steps aside when the network takes over. Offline it
-    /// is the player; online it was only ever a placeholder for one.
+    /// SPAWNED, NOT "HAS A NetworkObject". The first version of this tested
+    /// for the component and was wrong within an hour of being written:
+    /// Prepare Player Prefab adds NetworkObject to the PREFAB, and the scene
+    /// body is an INSTANCE of that prefab, so it inherited one. The guard
+    /// meant to protect real players started protecting the placeholder
+    /// instead, and the host got two bodies again.
     ///
-    /// Destroyed rather than disabled, because PlayerRegistry unregisters in
-    /// OnDisable either way, and a disabled body left in the hierarchy is one
-    /// more thing to wonder about when two Players show up in a bug report.
+    /// IsSpawned is the honest question. A hand-placed instance has the
+    /// component and has never been spawned; a real player has both. The
+    /// difference is what NGO did, not what the prefab carries.
+    ///
+    /// ALL of them, not just PlayerRegistry.Local - the two-body test rig
+    /// leaves a second hand-placed body behind, and "the local one" would
+    /// have left it standing there.
     /// </summary>
     void ClearScenePlayer()
     {
-        var scenePlayer = PlayerRegistry.Local;
-        if (scenePlayer == null) return;
+        int removed = 0;
 
-        // A spawned body has a NetworkObject; the hand-placed one does not.
-        // That is the only reliable way to tell them apart, and it means
-        // calling this twice cannot destroy somebody's real player.
-        if (scenePlayer.GetComponent<Unity.Netcode.NetworkObject>() != null) return;
+        // Copied first: destroying a body unregisters it in OnDisable, and
+        // mutating the registry while walking it is its own bug.
+        var bodies = new System.Collections.Generic.List<PlayerMotor>(PlayerRegistry.All);
 
-        Say("scene player removed - the network spawns bodies now");
-        Destroy(scenePlayer.gameObject);
+        foreach (var body in bodies)
+        {
+            if (body == null) continue;
+
+            var netObj = body.GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned) continue;   // a real player
+
+            Destroy(body.gameObject);
+            removed++;
+        }
+
+        if (removed > 0)
+            Say($"{removed} scene body(s) removed - the network spawns them now");
     }
 
     public void Host()

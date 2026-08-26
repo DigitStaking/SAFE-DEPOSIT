@@ -57,6 +57,25 @@ public static class NetworkPlayerTool
             netTf.InLocalSpace = false;
             netTf.Interpolate = true;
 
+            // ---- ANIMATION ON THE WIRE ----
+            //
+            // NetworkTransform sends where you are. It does not send what you
+            // are DOING - walking, dancing, kneeling, reaching for a crate are
+            // all animator parameters, and none of them ever left the machine
+            // that produced them. So you danced and nobody saw it.
+            //
+            // The Animator lives on the MODEL, a child of the root, so the
+            // reference has to be set explicitly. Left unset, NetworkAnimator
+            // finds nothing and silently replicates nothing - which looks
+            // exactly like not having added it at all.
+            var netAnim = contents.GetComponent<OwnerNetworkAnimator>();
+            if (netAnim == null) netAnim = contents.AddComponent<OwnerNetworkAnimator>();
+            netAnim.Animator = contents.GetComponentInChildren<Animator>(true);
+
+            if (netAnim.Animator == null)
+                Debug.LogWarning("[Net] no Animator found under the player prefab - " +
+                                 "emotes and the walk cycle will not replicate.");
+
             if (contents.GetComponent<NetworkPlayer>() == null)
                 contents.AddComponent<NetworkPlayer>();
 
@@ -85,7 +104,8 @@ public static class NetworkPlayerTool
         }
 
         Debug.Log("[Net] Player prefab prepared: NetworkObject + " +
-                  "NetworkTransform (owner authority) + NetworkPlayer, and " +
+                  "NetworkTransform + OwnerNetworkAnimator (both owner " +
+                  "authority) + NetworkPlayer, and " +
                   "registered as NetworkManager.PlayerPrefab.\n" +
                   "Offline play is unchanged - the scene player is still " +
                   "there and none of this runs until you press HOST or JOIN.");

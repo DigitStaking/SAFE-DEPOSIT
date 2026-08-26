@@ -100,6 +100,22 @@ public class PlayerAnimatorDriver : MonoBehaviour
         if (animator == null || !animator.enabled) return;
         if (animator.runtimeAnimatorController == null) return;
 
+        // ---- ONLY THE OWNER DECIDES WHAT ITS BODY IS DOING ----
+        //
+        // This ran on EVERY body, and on somebody else's body it was reading
+        // the wrong machine's physics. A remote Rigidbody is not moving under
+        // its own power - NetworkTransform writes its transform directly - so
+        // rb.linearVelocity is about zero and the blend tree faithfully plays
+        // "standing still" for a teammate sprinting past.
+        //
+        // Worse, it OVERWROTE what did arrive: OwnerNetworkAnimator would
+        // replicate the real parameters and this would stamp them back to
+        // idle on the next frame. Two writers, one animator, and the local
+        // one always won because it ran last.
+        //
+        // Offline this changes nothing - the only body there is yours.
+        if (!PlayerRegistry.IsLocalFor(this)) return;
+
         float dt = Time.deltaTime;
 
         // ---------------------------------------------------------------

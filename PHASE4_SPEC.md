@@ -144,10 +144,32 @@ that guess would be rewritten at each of those steps anyway.
 `Crew` slots bind to client ids. HP, injury, bleed-out.
 **Done when:** two players have different HP and both HUDs are right.
 
-### Step 5 · The lift
-Floor, moving, doors, bridge, load gauge, the overload countdown. **Riders in
-sync** — the hard one from Part 3.
+### Step 5 · The lift — DONE (load gauge waits on Step 6)
+Floor, moving, doors, bridge. **Riders in sync** — the hard one from Part 3.
 **Done when:** two people ride down together and nobody rubber-bands.
+
+**The design, which is not the obvious one.** The obvious answer is to
+replicate the car and let physics carry the riders. It cannot work: `Elevator`
+does not push riders with friction — that was tried, and the note at
+`Elevator.cs:336` records what happened — it *teleports* them by exactly the
+distance the car moved. And a rider's body is owner-authoritative, so if the
+host teleported your body down the shaft, `NetworkTransform` would drag it
+back up every frame. That **is** the rubber-banding the done-when forbids.
+
+So: **the host decides where the floor is; every machine answers "and
+therefore where am I" for itself**, using the distance the car actually moved
+since the last physics step. Same number, same teleport, same code path — and
+the only body any machine touches is one it owns. Nobody is corrected, so
+nobody rubber-bands.
+
+`ElevatorBridge.RequestGoToFloor` was already the only way anything commanded
+the car, so the client redirect is **one branch**. Second time this phase that
+Phase 1–2 architecture turned a rewrite into a single `if`.
+
+**Still per-machine, and honestly so:** the load gauge and the overload
+countdown read what is physically inside the car, and most of that is loot.
+Loot is Step 6. The gauge is not broken — it is correctly weighing two
+different piles.
 
 ### Step 6 · Loot
 Host spawns from the roster; clients rebuild rather than receive 60 spawns.

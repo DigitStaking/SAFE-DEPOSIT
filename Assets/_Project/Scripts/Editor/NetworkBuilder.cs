@@ -56,6 +56,7 @@ public static class NetworkBuilder
         boot.showPanel = true;
 
         BuildCampaignObject();
+        BuildElevatorNet();
 
         EditorSceneManager.MarkSceneDirty(go.scene);
         Selection.activeGameObject = go;
@@ -95,5 +96,62 @@ public static class NetworkBuilder
             go.AddComponent<CampaignNet>();
 
         EditorSceneManager.MarkSceneDirty(go.scene);
+    }
+
+    /// <summary>
+    /// PHASE 4 STEP 5. Put the lift on the wire.
+    ///
+    /// Done here rather than in ElevatorBuilder so nobody has to rebuild a
+    /// working car to network it. ElevatorBuilder tears the whole thing down
+    /// and puts it back; this adds three components to whatever is already
+    /// in the scene. Both tools do it now, so a later rebuild does not
+    /// quietly drop it again.
+    ///
+    /// SERVER AUTHORITY, unlike the player. The player is owner-authoritative
+    /// because you should never wait on a round trip to move your own body.
+    /// The car belongs to nobody, four people press its buttons, and the one
+    /// thing it must never do is be in two places - so it has exactly one
+    /// author, and that is the host.
+    /// </summary>
+    static void BuildElevatorNet()
+    {
+        var lift = Object.FindFirstObjectByType<Elevator>();
+        if (lift == null)
+        {
+            Debug.LogWarning("[Net] no Elevator in this scene to network. " +
+                             "Run Build Elevator Car first.");
+            return;
+        }
+
+        var go = lift.gameObject;
+
+        if (go.GetComponent<NetworkObject>() == null)
+            go.AddComponent<NetworkObject>();
+
+        var tf = go.GetComponent<Unity.Netcode.Components.NetworkTransform>();
+        if (tf == null) tf = go.AddComponent<Unity.Netcode.Components.NetworkTransform>();
+
+        // The shaft is vertical and the car never turns or resizes. Sending
+        // X, Z, rotation and scale would be bandwidth spent on six numbers
+        // that are constant for the entire game.
+        tf.SyncPositionX = tf.SyncPositionZ = false;
+        tf.SyncPositionY = true;
+        tf.SyncRotAngleX = tf.SyncRotAngleY = tf.SyncRotAngleZ = false;
+        tf.SyncScaleX = tf.SyncScaleY = tf.SyncScaleZ = false;
+
+        // Interpolation matters more here than anywhere else in the game.
+        // Riders are teleported by exactly the distance the car moved, so a
+        // car that arrives in network-tick steps would carry four people in
+        // the same steps - a smooth descent turned into a stutter that every
+        // player feels in their own body.
+        tf.Interpolate = true;
+        tf.InLocalSpace = false;
+
+        if (go.GetComponent<ElevatorNet>() == null)
+            go.AddComponent<ElevatorNet>();
+
+        EditorSceneManager.MarkSceneDirty(go.scene);
+        Debug.Log("[Net] ELEVATOR networked: NetworkObject + NetworkTransform " +
+                  "(server authority, Y only) + ElevatorNet.");
     }
 }

@@ -258,6 +258,7 @@ GameObject:
   - component: {fileID: 6092111384961210509}
   - component: {fileID: 598365966758321343}
   - component: {fileID: 2768339126018163764}
+  - component: {fileID: 8717073065195352561}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -652,6 +653,82 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayer
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &8717073065195352561
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2daddd6985add194db325ff38cb5709c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OwnerNetworkAnimator
+  ShowTopMostFoldoutHeaderGroup: 1
+  NetworkAnimatorExpanded: 0
+  AuthorityMode: 0
+  m_Animator: {fileID: 864865954262565343}
+  TransitionStateInfoList: []
+  AnimatorParameterEntries:
+    ParameterEntries:
+    - name: MoveX
+      NameHash: 675470966
+      Synchronize: 1
+      ParameterType: 1
+    - name: MoveZ
+      NameHash: -968048806
+      Synchronize: 1
+      ParameterType: 1
+    - name: Speed
+      NameHash: -823668238
+      Synchronize: 1
+      ParameterType: 1
+    - name: VelY
+      NameHash: 1522617170
+      Synchronize: 1
+      ParameterType: 1
+    - name: Grounded
+      NameHash: 862969536
+      Synchronize: 1
+      ParameterType: 4
+    - name: Jump
+      NameHash: 125937960
+      Synchronize: 1
+      ParameterType: 9
+    - name: Carry
+      NameHash: 961424176
+      Synchronize: 1
+      ParameterType: 3
+    - name: DoPickUp
+      NameHash: -679504200
+      Synchronize: 1
+      ParameterType: 9
+    - name: DoStow
+      NameHash: -1741817230
+      Synchronize: 1
+      ParameterType: 9
+    - name: DoUse
+      NameHash: 1537850744
+      Synchronize: 1
+      ParameterType: 9
+    - name: Emote
+      NameHash: -1434604862
+      Synchronize: 1
+      ParameterType: 3
+    - name: DoEmote
+      NameHash: -1193972156
+      Synchronize: 1
+      ParameterType: 9
+    - name: Downed
+      NameHash: -660779543
+      Synchronize: 1
+      ParameterType: 4
+    - name: DoStun
+      NameHash: 1282123881
+      Synchronize: 1
+      ParameterType: 9
+  AnimatorParametersExpanded: 0
 --- !u!1001 &6731204314928708686
 PrefabInstance:
   m_ObjectHideFlags: 0

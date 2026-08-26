@@ -195,6 +195,29 @@ public class ElevatorBridge : MonoBehaviour
     {
         if (elevator.IsMoving) return;
 
+        // ==============================================================
+        // PHASE 4 STEP 5 - ON A CLIENT, THIS IS A REQUEST.
+        //
+        // This method is the ONE way anything in the project commands the
+        // car. The dashboard, the physical buttons and the debug keys all
+        // arrive here, and Elevator.GoToFloor is called from nowhere else.
+        // So there is exactly one line to add, and every rule below it -
+        // retract the bridge first, refuse a trip to the floor you are
+        // already on, close the doors in order - runs unchanged on the host.
+        //
+        // Second time this phase that Phase 1 and 2 architecture has paid
+        // for itself: Campaign was already a chokepoint in Step 3 for the
+        // same reason, and both times it turned a rewrite into one branch.
+        //
+        // The host does NOT return here - it falls through and does the work,
+        // which is what makes the host's own press instant.
+        // ==============================================================
+        if (!ElevatorNet.Decides)
+        {
+            ElevatorNet.Instance.RequestFloorServerRpc(floor, fast);
+            return;
+        }
+
         // NEVER SPEND A RETRACT ON A TRIP THAT WILL NOT HAPPEN.
         //
         // Elevator.GoToFloor silently drops a request for the floor it is
@@ -243,6 +266,49 @@ public class ElevatorBridge : MonoBehaviour
 
     void Update()
     {
+        // ==============================================================
+        // PHASE 4 STEP 5 - THE HOST OWNS THIS STATE MACHINE.
+        //
+        // Half of it already worked on a client without any help: EXTENDING
+        // begins when the car stops, and "the car stopped" is
+        // elevator.IsMoving, which is replicated. Arrival takes care of
+        // itself.
+        //
+        // The other half does not, because it begins with a BUTTON PRESS -
+        // and on a client the press leaves for the host instead of starting
+        // anything here. So the warning would never sound and the bridge
+        // would sit extended while the car dropped out from under it.
+        //
+        // Mirroring the state rather than replicating the whole machine: the
+        // ANIMATION still runs locally on every machine, driven by its own t.
+        // Only the decisions travel. That keeps the swing smooth at whatever
+        // framerate each machine happens to be running, instead of stepping
+        // it forward once per network tick.
+        // ==============================================================
+        if (ElevatorNet.Instance != null)
+        {
+            if (ElevatorNet.Decides)
+            {
+                ElevatorNet.Instance.Bridge.Value = (int)state;
+            }
+            else
+            {
+                var told = (State)ElevatorNet.Instance.Bridge.Value;
+                if (told != state)
+                {
+                    state = told;
+                    t = 0f;
+
+                    // The countdown is started by the press, which this
+                    // machine never ran. Without seeding it, warningLeft is
+                    // already zero, the client immediately decides the
+                    // deadline has passed, and the host corrects it back a
+                    // frame later - a flicker instead of an alarm.
+                    if (state == State.Warning) warningLeft = warningTime;
+                }
+            }
+        }
+
         // Arrival: Elevator just stopped. Re-find the deck for whatever
         // side is now active and swing it out.
         bool moving = elevator.IsMoving;

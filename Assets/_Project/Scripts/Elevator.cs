@@ -69,9 +69,42 @@ public class Elevator : MonoBehaviour
     public float shutterSpeed = 2.5f;
 
     // ---- what the dashboard will read ----
-    public int CurrentFloor { get; private set; }
-    public int TargetFloor  { get; private set; }
-    public bool IsMoving    { get; private set; }
+    // ================================================================
+    // PHASE 4 STEP 5 - THREE ANSWERS THAT NOW COME FROM THE HOST.
+    //
+    // These were plain auto-properties and every machine computed its own.
+    // Which is how one window rode to the surface while the other stood in a
+    // room on floor 1: there was never one lift with two people in it, there
+    // were two lifts.
+    //
+    // Same trick as Campaign in Step 3 - the names do not change, so the
+    // dashboard, the bridge, the deck, the cable gauge and RunManager all go
+    // on reading exactly what they always read. Offline the private fields
+    // answer and nothing about the solo game is different.
+    // ================================================================
+
+    static ElevatorNet Net => ElevatorNet.Instance;
+
+    int localCurrent, localTarget;
+    bool localMoving;
+
+    public int CurrentFloor
+    {
+        get => Net != null ? Net.Current.Value : localCurrent;
+        private set { if (Net != null) { if (Net.IsServer) Net.Current.Value = value; } else localCurrent = value; }
+    }
+
+    public int TargetFloor
+    {
+        get => Net != null ? Net.Target.Value : localTarget;
+        private set { if (Net != null) { if (Net.IsServer) Net.Target.Value = value; } else localTarget = value; }
+    }
+
+    public bool IsMoving
+    {
+        get => Net != null ? Net.Moving.Value : localMoving;
+        private set { if (Net != null) { if (Net.IsServer) Net.Moving.Value = value; } else localMoving = value; }
+    }
 
     /// <summary>Doors are locked whenever the car is not stopped at a floor.</summary>
     public bool DoorsLocked => IsMoving;
@@ -102,6 +135,10 @@ public class Elevator : MonoBehaviour
     float rideHeight = 2.8f;
 
     readonly List<Rigidbody> riders = new List<Rigidbody>();
+
+    /// <summary>Where the car was at the end of the last physics step. On a
+    /// client this is the only way to know how far the host moved it.</summary>
+    Vector3 lastCarPosition;
     static readonly Collider[] Overlap = new Collider[64];
 
     class Shutter
@@ -319,6 +356,45 @@ public class Elevator : MonoBehaviour
         // update below is unchanged (still gathered before the move), only
         // WHETHER it also runs on a stationary frame is new.
         GatherRiders();
+
+        // ==============================================================
+        // ONE CAR DECIDES. EVERY MACHINE CARRIES ITS OWN RIDERS.
+        //
+        // A client does not simulate this car - the host does, and the
+        // result arrives over the wire. But the CARRY still has to happen
+        // here, on every machine, and it cannot be replicated.
+        //
+        // Riders are not pushed by friction. They cannot be; that was tried
+        // and the comment further down records exactly what went wrong. They
+        // are TELEPORTED by precisely the distance the car moved, every
+        // physics step, so the solver is never handed a penetration to argue
+        // about.
+        //
+        // And a rider's body is OWNER-AUTHORITATIVE. Your machine is the only
+        // one allowed to move you. If the host teleported your body down the
+        // shaft, NetworkTransform would drag it back up every frame - which
+        // is precisely the rubber-banding this step is not allowed to have.
+        //
+        // So: the host decides where the floor is, and each machine answers
+        // "and therefore where am I" for itself, using the distance the car
+        // ACTUALLY MOVED since the last step. On the host that is the
+        // distance it just chose. On a client it is the distance that
+        // arrived. Same number, same teleport, same code below - and the only
+        // body any machine touches is one it owns.
+        // ==============================================================
+        if (!ElevatorNet.Decides)
+        {
+            Vector3 observed = rb.position - lastCarPosition;
+            lastCarPosition = rb.position;
+
+            if (observed.sqrMagnitude > 1e-10f)
+                foreach (var r in riders)
+                    if (r != null) r.position += observed;
+
+            return;
+        }
+
+        lastCarPosition = rb.position;
 
         if (!IsMoving) return;
 

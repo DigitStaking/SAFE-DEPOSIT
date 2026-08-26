@@ -218,6 +218,22 @@ public static class ElevatorBuilder
         // Step 7. [RequireComponent(typeof(Elevator))] on the script itself,
         // so this must come after AddComponent<Elevator>() above.
         var bridge = root.AddComponent<ElevatorBridge>();
+
+        // PHASE 4 STEP 5. A rebuilt car must come back networked, or the next
+        // rebuild silently un-networks the lift and the two-elevator bug
+        // returns looking like a fresh mystery.
+        if (root.GetComponent<Unity.Netcode.NetworkObject>() == null)
+            root.AddComponent<Unity.Netcode.NetworkObject>();
+        if (root.GetComponent<Unity.Netcode.Components.NetworkTransform>() == null)
+        {
+            var ntf = root.AddComponent<Unity.Netcode.Components.NetworkTransform>();
+            ntf.SyncPositionX = ntf.SyncPositionZ = false;
+            ntf.SyncRotAngleX = ntf.SyncRotAngleY = ntf.SyncRotAngleZ = false;
+            ntf.SyncScaleX = ntf.SyncScaleY = ntf.SyncScaleZ = false;
+            ntf.Interpolate = true;
+        }
+        if (root.GetComponent<ElevatorNet>() == null)
+            root.AddComponent<ElevatorNet>();
         bridge.length = BridgeLength;
         bridge.width = BridgeWidth;
 

@@ -87,6 +87,40 @@ public static class LiftRideAudit
                 ? "none"
                 : me.transform.parent.name;
 
+            // ---- THE THREE THAT NARROW IT TO ONE ANSWER ----
+            //
+            // 1. THE CAR'S BODY vs THE CAR'S TRANSFORM.
+            //    observed is computed in Elevator from rb.position, but
+            //    NetworkTransform writes transform.position. The car is
+            //    KINEMATIC. If those two have drifted apart on a client, then
+            //    observed is measuring a body that never moves while the
+            //    visible car travels the whole shaft - which would explain
+            //    observed=+0.000 on a car that demonstrably reached -15.
+            //
+            // 2. WHAT IS UNDERNEATH ME.
+            //    A gap that is perfectly stable across twenty seconds is not
+            //    floating, it is RESTING on something. Naming that collider
+            //    ends the guessing: the car floor is one answer, another
+            //    player's shoulders is a very different one.
+            //
+            // 3. AM I EVEN FALLING.
+            //    Zero velocity and not kinematic means supported. Kinematic
+            //    means something else is driving this body entirely.
+            var liftRb = lift.GetComponent<Rigidbody>();
+            float bodyY = liftRb != null ? liftRb.position.y : float.NaN;
+
+            string under = "nothing";
+            if (Physics.Raycast(me.transform.position + Vector3.up * 0.1f,
+                                Vector3.down, out RaycastHit hit, 4f,
+                                ~0, QueryTriggerInteraction.Ignore))
+                under = $"{hit.collider.name}@{hit.distance:0.00}m";
+
+            Debug.Log($"[Ride2] carBodyY={bodyY:0.00}  carTfY={car.y:0.00}" +
+                      $"  drift={(car.y - bodyY):+0.00;-0.00}" +
+                      $"  under={under}" +
+                      $"  myVelY={(myRb != null ? myRb.linearVelocity.y : float.NaN):0.00}" +
+                      $"  kinematic={(myRb != null && myRb.isKinematic)}");
+
             Debug.Log($"[Ride] {role}  decides={ElevatorNet.Decides}" +
                       $"  carY={car.y:0.00}  observed={observed.y:+0.000;-0.000}" +
                       $"  myY={me.transform.position.y:0.00}  GAP={gap:+0.00;-0.00}" +

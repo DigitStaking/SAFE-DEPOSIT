@@ -94,7 +94,9 @@ public class NetworkPlayer : NetworkBehaviour
         // from a screenshot - which this project has now paid for twice.
         Debug.Log($"[Net] spawned {gameObject.name}   owner={IsOwner}   " +
                   $"slot={motor.Slot}   local={motor.IsLocal}   " +
-                  $"eye={(motor.Eye != null ? motor.Eye.name : "NONE")}");
+                  $"eye={(motor.Eye != null ? motor.Eye.name : "NONE")}   " +
+                  $"at={transform.position}   " +
+                  $"lift={(SceneRefs.Lift != null ? "found" : "NOT THERE YET")}");
     }
 
     /// <summary>
@@ -138,35 +140,115 @@ public class NetworkPlayer : NetworkBehaviour
     // ==================================================================
 
     float settleLeft;
+    float waitLeft = MaxWaitForLift;
     float lastLiftY = float.NaN;
+    bool placed;
+    bool heldKinematic;
 
     void Update()
     {
-        if (!IsSpawned || !IsOwner || settleLeft <= 0f) return;
+        if (!IsSpawned || !IsOwner) return;
+        if (placed && settleLeft <= 0f) return;
 
         var lift = SceneRefs.Lift;
-        if (lift == null) { settleLeft = 0f; return; }
 
+        // ==============================================================
+        // THE LIFT IS NOT THERE YET, AND THAT IS NORMAL.
+        //
+        // This block used to read:
+        //
+        //     if (lift == null) { settleLeft = 0f; return; }
+        //
+        // which PERMANENTLY GAVE UP the moment the lift was missing - the
+        // exact opposite of what it should do, and it was my line.
+        //
+        // A joining client synchronises the scene, and its player spawns
+        // DURING that synchronisation - the stack in the editor log runs
+        // through SceneEventData.SynchronizeSceneNetworkObjects. The editor
+        // log also settles the order outright:
+        //
+        //     [Net] spawned Player 2 (me)
+        //     [Net] elevator is following the host      <- AFTER
+        //
+        // So on a join there is a window where the player exists and the
+        // elevator does not. MoveToSpawn found no lift, returned without
+        // moving anything, and the body stayed at the prefab's authored
+        // position - the world origin, which in this game is the TOP OF THE
+        // SHAFT. Then it fell a hundred metres to Floor_Bottom, which is
+        // exactly where the audit found it: myY=-100, GAP=-95, under=
+        // Floor_Bottom, velY=-55.
+        //
+        // Not flying. Falling. And the Step 2 bug returned wearing a
+        // different hat, because I wrote a guard that treated "not ready
+        // yet" as "never going to happen".
+        //
+        // Now it WAITS - held still so it cannot fall while waiting - and
+        // gives up only after MaxWaitForLift, so a genuinely lift-less scene
+        // still cannot hang anybody in the air forever.
+        // ==============================================================
+        if (lift == null)
+        {
+            waitLeft -= Time.deltaTime;
+            HoldStill(true);
+
+            if (waitLeft <= 0f)
+            {
+                HoldStill(false);
+                placed = true;
+                settleLeft = 0f;
+                Debug.LogWarning("[Net] gave up waiting for the elevator - " +
+                                 "spawning where I stand. If this ever prints, " +
+                                 "the scene has no Elevator at all.");
+            }
+            return;
+        }
+
+        HoldStill(false);
         float y = lift.transform.position.y;
 
-        // Only re-place while the car is still arriving at its real height.
-        // Once it is steady, this is done - it must not fight the player for
-        // control of their own body a second longer than necessary.
-        if (!float.IsNaN(lastLiftY) && Mathf.Approximately(y, lastLiftY))
+        // Re-place only while the car is still arriving at its real height.
+        // Once it is steady this is finished - it must not fight the player
+        // for control of their own body a second longer than necessary.
+        if (placed && !float.IsNaN(lastLiftY) && Mathf.Approximately(y, lastLiftY))
         {
             settleLeft -= Time.deltaTime;
             if (settleLeft <= 0f) return;
         }
         else
         {
-            settleLeft = SettleWindow;      // it moved - give it another window
+            settleLeft = SettleWindow;      // first placement, or it moved
         }
 
         lastLiftY = y;
+        placed = true;
         MoveToSpawn();
     }
 
+    /// <summary>
+    /// Freeze the body while there is nowhere to put it.
+    ///
+    /// Without this the wait above is spent falling. Kinematic rather than
+    /// zeroing velocity every frame: gravity would keep re-applying, and a
+    /// body that is merely slowed is still a body that ends up somewhere it
+    /// was never meant to be.
+    /// </summary>
+    void HoldStill(bool hold)
+    {
+        if (hold == heldKinematic) return;
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb == null) return;
+
+        if (hold) rb.linearVelocity = Vector3.zero;
+        rb.isKinematic = hold;
+        heldKinematic = hold;
+    }
+
     const float SettleWindow = 0.35f;
+
+    /// <summary>How long a joining client will wait for the scene to finish
+    /// synchronising before placing itself wherever it happens to be.</summary>
+    const float MaxWaitForLift = 10f;
 
     void MoveToSpawn()
     {

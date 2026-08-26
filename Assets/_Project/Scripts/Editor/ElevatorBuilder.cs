@@ -224,14 +224,7 @@ public static class ElevatorBuilder
         // returns looking like a fresh mystery.
         if (root.GetComponent<Unity.Netcode.NetworkObject>() == null)
             root.AddComponent<Unity.Netcode.NetworkObject>();
-        if (root.GetComponent<Unity.Netcode.Components.NetworkTransform>() == null)
-        {
-            var ntf = root.AddComponent<Unity.Netcode.Components.NetworkTransform>();
-            ntf.SyncPositionX = ntf.SyncPositionZ = false;
-            ntf.SyncRotAngleX = ntf.SyncRotAngleY = ntf.SyncRotAngleZ = false;
-            ntf.SyncScaleX = ntf.SyncScaleY = ntf.SyncScaleZ = false;
-            ntf.Interpolate = true;
-        }
+        // No NetworkTransform - the car is simulated on every machine.
         if (root.GetComponent<ElevatorNet>() == null)
             root.AddComponent<ElevatorNet>();
         bridge.length = BridgeLength;

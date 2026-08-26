@@ -139,6 +139,11 @@ public class Elevator : MonoBehaviour
     /// <summary>Where the car was at the end of the last physics step. On a
     /// client this is the only way to know how far the host moved it.</summary>
     Vector3 lastCarPosition;
+
+    /// <summary>How far a client's own simulation may drift from the host's
+    /// car before it stops trusting itself. Two floors' worth of travel is
+    /// far more than interpolation noise and far less than a real desync.</summary>
+    const float DriftSnap = 1.5f;
     static readonly Collider[] Overlap = new Collider[64];
 
     class Shutter
@@ -343,7 +348,12 @@ public class Elevator : MonoBehaviour
         useFast = fast;
     }
 
-    bool useFast;
+    bool localFast;
+    bool useFast
+    {
+        get => Net != null ? Net.Fast.Value : localFast;
+        set { if (Net != null) { if (Net.IsServer) Net.Fast.Value = value; } else localFast = value; }
+    }
 
     public float FloorY(int floor) => surfaceY - floorHeight * floor;
 
@@ -430,33 +440,55 @@ public class Elevator : MonoBehaviour
         // arrived. Same number, same teleport, same code below - and the only
         // body any machine touches is one it owns.
         // ==============================================================
-        if (!ElevatorNet.Decides)
+        // ==============================================================
+        // EVERY MACHINE DRAWS THE SAME DESCENT. IT DOES NOT WATCH ONE.
+        //
+        // Clients used to take the car's position from NetworkTransform and
+        // carry riders by however far it had jumped since the last physics
+        // step. The car travels a clean 0.16m per step. Here is what one
+        // client actually observed over a single descent:
+        //
+        //     +0.000 (x12)  -0.111  -0.114  -0.161  -0.164  -0.182  +0.171
+        //
+        // Nothing, then a double step, then a step BACKWARDS - all while the
+        // car was descending steadily. That is not the lift misbehaving, it
+        // is what an interpolated stream looks like when you sample it from
+        // FixedUpdate: the network ticks and the physics steps do not line
+        // up, so some steps get two updates and some get none. Teleporting a
+        // body by that noise IS the vibration.
+        //
+        // But the car's motion is a RECIPE, not a performance:
+        //
+        //     MoveTowards(y, FloorY(target), speed * fixedDeltaTime)
+        //
+        // Target floor, moving, and fast are all replicated. Given the same
+        // three, every machine computes the same descent, to the same
+        // 0.16m per step, forever - and each one carries its own riders by a
+        // clean number instead of a sampled one.
+        //
+        // The host still DECIDES - which floor, when to leave, when to stop.
+        // Clients only draw. That distinction is the whole reason this is not
+        // a return to the two-elevator bug: nobody else gets an opinion about
+        // where the car should go, only about how to animate getting there.
+        //
+        // CarY is the correction. If a client's simulation ever drifts - a
+        // long stall, a join mid-trip - it snaps and re-baselines WITHOUT
+        // carrying riders that distance, because a snap is news, not travel.
+        // ==============================================================
+        if (!ElevatorNet.Decides && ElevatorNet.Instance != null)
         {
-            Vector3 observed = rb.position - lastCarPosition;
-            lastCarPosition = rb.position;
-
-            // A JUMP THIS BIG IS NEWS, NOT MOVEMENT.
-            //
-            // The car can move at most fastSpeed * fixedDeltaTime in a step -
-            // 16cm at the fastest this lift travels. Anything larger did not
-            // happen in the shaft: it is NetworkTransform delivering a
-            // position for the first time, or correcting after a stall.
-            //
-            // Carrying riders by it would teleport them the whole way, which
-            // is the bug this guard is here to make impossible to reintroduce.
-            // The baseline above is already updated, so the next step measures
-            // honestly from the new place.
-            float most = Mathf.Max(fastSpeed, slowSpeed) * Time.fixedDeltaTime * 4f;
-            if (observed.sqrMagnitude > most * most) return;
-
-            if (observed.sqrMagnitude > 1e-10f)
-                foreach (var r in riders)
-                    if (r != null) r.position += observed;
-
-            return;
+            float hostY = ElevatorNet.Instance.CarY.Value;
+            if (Mathf.Abs(rb.position.y - hostY) > DriftSnap)
+            {
+                var p = rb.position;
+                rb.position = new Vector3(p.x, hostY, p.z);
+                lastCarPosition = rb.position;
+            }
         }
 
         lastCarPosition = rb.position;
+
+        if (Net != null && Net.IsServer) Net.CarY.Value = rb.position.y;
 
         if (!IsMoving) return;
 
@@ -509,9 +541,15 @@ public class Elevator : MonoBehaviour
 
         if (Mathf.Approximately(newY, target))
         {
-            IsMoving = false;
-            useFast = false;
-            CurrentFloor = TargetFloor;
+            // Only the host DECIDES it has arrived. A client that reached the
+            // target floor a frame early simply stops moving and waits to be
+            // told - it must never write the state that everyone else reads.
+            if (ElevatorNet.Decides)
+            {
+                IsMoving = false;
+                useFast = false;
+                CurrentFloor = TargetFloor;
+            }
             UpdateActiveSide();
         }
     }

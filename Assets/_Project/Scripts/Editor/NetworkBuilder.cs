@@ -128,24 +128,12 @@ public static class NetworkBuilder
         if (go.GetComponent<NetworkObject>() == null)
             go.AddComponent<NetworkObject>();
 
-        var tf = go.GetComponent<Unity.Netcode.Components.NetworkTransform>();
-        if (tf == null) tf = go.AddComponent<Unity.Netcode.Components.NetworkTransform>();
-
-        // The shaft is vertical and the car never turns or resizes. Sending
-        // X, Z, rotation and scale would be bandwidth spent on six numbers
-        // that are constant for the entire game.
-        tf.SyncPositionX = tf.SyncPositionZ = false;
-        tf.SyncPositionY = true;
-        tf.SyncRotAngleX = tf.SyncRotAngleY = tf.SyncRotAngleZ = false;
-        tf.SyncScaleX = tf.SyncScaleY = tf.SyncScaleZ = false;
-
-        // Interpolation matters more here than anywhere else in the game.
-        // Riders are teleported by exactly the distance the car moved, so a
-        // car that arrives in network-tick steps would carry four people in
-        // the same steps - a smooth descent turned into a stutter that every
-        // player feels in their own body.
-        tf.Interpolate = true;
-        tf.InLocalSpace = false;
+        // NO NetworkTransform. The car is reproduced, not streamed - see
+        // ElevatorNet.OnNetworkSpawn. Any that survives from an earlier build
+        // is removed, because leaving one enabled reintroduces exactly the
+        // interpolation noise that was being teleported into riders.
+        foreach (var stale in go.GetComponents<Unity.Netcode.Components.NetworkTransform>())
+            Object.DestroyImmediate(stale);
 
         if (go.GetComponent<ElevatorNet>() == null)
             go.AddComponent<ElevatorNet>();

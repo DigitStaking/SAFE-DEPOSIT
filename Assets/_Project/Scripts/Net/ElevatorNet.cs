@@ -121,10 +121,41 @@ public class ElevatorNet : NetworkBehaviour
     /// </summary>
     public readonly NetworkVariable<int> Bridge = new NetworkVariable<int>(0, default, Host);
 
+    /// <summary>Which speed the current trip is using. Part of the movement
+    /// recipe, so every machine needs it to draw the same descent.</summary>
+    public readonly NetworkVariable<bool> Fast = new NetworkVariable<bool>(false, default, Host);
+
+    /// <summary>
+    /// The host's actual car height. NOT how the car moves - how the car is
+    /// CORRECTED, if a client's own simulation ever drifts.
+    /// </summary>
+    public readonly NetworkVariable<float> CarY = new NetworkVariable<float>(0f, default, Host);
+
     public override void OnNetworkSpawn()
     {
         Instance = this;
-        Debug.Log($"[Net] elevator is {(IsServer ? "HOST-DRIVEN" : "following the host")}");
+
+        // ---- NO NetworkTransform ON THE CAR ----
+        //
+        // The car is not streamed any more, it is REPRODUCED: every machine
+        // runs the same MoveTowards from the same replicated target, so every
+        // machine gets the same clean 0.16m per step. A NetworkTransform would
+        // write the position on top of that at network-tick rate and hand back
+        // the exact interpolation noise this replaced - the +0.000, +0.171,
+        // -0.182 sequence that was being teleported into people's bodies.
+        //
+        // Switched off here as well as removed by the builders, because the
+        // scene file is the one thing in this project a script cannot safely
+        // edit while Unity has it open.
+        foreach (var t in GetComponents<Unity.Netcode.Components.NetworkTransform>())
+        {
+            if (!t.enabled) continue;
+            t.enabled = false;
+            Debug.Log("[Net] disabled a NetworkTransform on the elevator - the " +
+                      "car is simulated on every machine, not streamed.");
+        }
+
+        Debug.Log($"[Net] elevator is {(IsServer ? "HOST-DRIVEN" : "drawing the host's trips")}");
     }
 
     public override void OnNetworkDespawn()

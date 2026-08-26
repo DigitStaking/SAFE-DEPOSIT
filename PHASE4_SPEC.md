@@ -174,8 +174,36 @@ not change at all while someone stands still. So the host parents riders to
 the car, NGO replicates the parent change, and `InLocalSpace = true` sends the
 offset. A constant cannot arrive late.
 
-Anyone the hierarchy carries is skipped by the delta teleport — a child of the
-car already moves with it, and doing both moves them twice.
+**Parenting was tried and reverted.** It gives `NetworkTransform` a frame of
+reference, but parenting a *dynamic* Rigidbody perturbs physics — and does it
+differently depending on when Unity syncs transforms. Both failure modes are
+on record and they are opposites: skip the teleport and the body ignores its
+parent entirely (car descends, body stands still); keep it and the body moves
+twice, penetrates the floor, and the solver ejects it upward. **The parent
+either does nothing or does it twice depending on frame timing.**
+
+**Clients simulate the car; they do not watch it.** Sampling an interpolated
+stream from `FixedUpdate` gave one client this over a single descent:
+
+```
++0.000 (x12)   -0.111   -0.114   -0.161   -0.164   -0.182   +0.171
+```
+
+Nothing, a double step, then a step *backwards* — on a car descending steadily
+at 0.16 m/step. Network ticks and physics steps do not line up, so some steps
+get two updates and some get none. **Teleporting a body by that noise is the
+vibration.**
+
+But the car's motion is a *recipe*, not a performance:
+`MoveTowards(y, FloorY(target), speed × fixedDeltaTime)`. Target, moving and
+fast are all replicated, so every machine computes the same descent to the
+same 0.16 m — and carries its own riders by a clean number. The car has **no
+`NetworkTransform`** at all; `CarY` exists only to snap a client that drifts,
+and a snap does not carry riders, because a snap is news, not travel.
+
+**The host still decides** — which floor, when to leave, when it has arrived.
+Clients only draw. Nobody else gets an opinion about where the car goes, only
+about how to animate getting there.
 
 `ElevatorBridge.RequestGoToFloor` was already the only way anything commanded
 the car, so the client redirect is **one branch**. Second time this phase that

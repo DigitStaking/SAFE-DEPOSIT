@@ -336,6 +336,25 @@ public class Elevator : MonoBehaviour
     int FloorAt(float y) => Mathf.Clamp(
         Mathf.RoundToInt((surfaceY - y) / floorHeight), 0, lowestFloor);
 
+
+    /// <summary>
+    /// True when the transform hierarchy is already carrying this rider.
+    ///
+    /// PHASE 4 STEP 5. ElevatorNet parents riders to the car so their position
+    /// replicates as an offset rather than an absolute - which is what stopped
+    /// a teammate lagging behind a moving lift.
+    ///
+    /// But a child of the car ALREADY moves when the car moves. Teleporting it
+    /// by the delta on top of that moves it TWICE, and the visible result is a
+    /// rider who accelerates away from the floor, which would have looked like
+    /// a brand new bug rather than the old fix double-counting.
+    ///
+    /// Loot has no NetworkObject and is never parented, so it keeps the
+    /// explicit carry - that is what the delta path is still for.
+    /// </summary>
+    bool CarriedByHierarchy(Rigidbody r) =>
+        r != null && r.transform.parent == transform;
+
     void SnapToFloor(int floor)
     {
         var p = rb.position;
@@ -389,7 +408,7 @@ public class Elevator : MonoBehaviour
 
             if (observed.sqrMagnitude > 1e-10f)
                 foreach (var r in riders)
-                    if (r != null) r.position += observed;
+                    if (r != null && !CarriedByHierarchy(r)) r.position += observed;
 
             return;
         }
@@ -437,6 +456,7 @@ public class Elevator : MonoBehaviour
         foreach (var r in riders)
         {
             if (r == null) continue;
+            if (CarriedByHierarchy(r)) continue;   // the parent already moved it
 
             // Teleport, not MovePosition: the rider keeps its own velocity
             // and simply arrives where the floor put it, so you can still

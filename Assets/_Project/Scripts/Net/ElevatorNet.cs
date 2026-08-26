@@ -106,6 +106,80 @@ public class ElevatorNet : NetworkBehaviour
         if (Instance == this) Instance = null;
     }
 
+    // ================================================================
+    // RIDERS ARE PARENTED TO THE CAR WHILE THEY ARE IN IT.
+    //
+    // Carrying riders by the observed delta got the LOCAL body right on every
+    // machine - your own feet stayed glued to the floor. It did nothing for
+    // the body you were watching, and that is what got reported: "the
+    // elevator going up faster than him and he lagging".
+    //
+    // WHY THE FIRST DESIGN WAS NOT ENOUGH
+    //
+    // Their machine carried their body correctly and then sent where it ended
+    // up - in WORLD space. That number is right, and it is OLD. It crosses the
+    // wire, waits in NetworkTransform's interpolation buffer, and lands on
+    // your screen about 100ms later. Meanwhile your copy of the car has moved
+    // on. At the fast speed of 8m/s, 100ms is 80cm, so their body renders
+    // where the floor was, not where it is - sinking through a rising lift.
+    //
+    // Nothing was broken. The question was wrong. "Where are you in the world"
+    // changes 8 metres a second on a moving lift; "WHERE ARE YOU IN THE CAR"
+    // does not change at all while somebody stands still. A constant cannot
+    // arrive late.
+    //
+    // So the host parents riders to the car, NGO replicates the parent change
+    // by itself, and the player's NetworkTransform sends the offset instead of
+    // the absolute position. Standing still on a plummeting lift now sends the
+    // same three numbers every tick.
+    //
+    // THE HOST DOES THE PARENTING because NGO only lets the server reparent a
+    // spawned object - and that is right anyway: who is aboard is a fact about
+    // the car, and the car has one author.
+    // ================================================================
+
+    readonly System.Collections.Generic.HashSet<NetworkObject> aboard =
+        new System.Collections.Generic.HashSet<NetworkObject>();
+
+    void FixedUpdate()
+    {
+        if (!IsSpawned || !IsServer) return;
+
+        var lift = SceneRefs.Lift;
+        if (lift == null) return;
+
+        // ---- who is in the car this step ----
+        var now = new System.Collections.Generic.HashSet<NetworkObject>();
+        foreach (var r in lift.Riders)
+        {
+            if (r == null) continue;
+
+            // Players only, for now. Loot has no NetworkObject until Step 6,
+            // and the delta carry in Elevator still handles it on the machine
+            // that owns it.
+            var no = r.GetComponent<NetworkObject>();
+            if (no != null && no.IsSpawned && no.IsPlayerObject) now.Add(no);
+        }
+
+        foreach (var no in now)
+            if (aboard.Add(no)) no.TrySetParent(NetworkObject, true);
+
+        // ---- and who just stepped off ----
+        // A copy, because TrySetParent runs while we would otherwise be
+        // walking the set we are editing.
+        var left = new System.Collections.Generic.List<NetworkObject>();
+        foreach (var no in aboard)
+            if (no == null || !now.Contains(no)) left.Add(no);
+
+        foreach (var no in left)
+        {
+            aboard.Remove(no);
+
+            // worldPositionStays: true. Stepping off a lift must not move you.
+            if (no != null && no.IsSpawned) no.TrySetParent((NetworkObject)null, true);
+        }
+    }
+
     /// <summary>
     /// A client asking for a floor.
     ///

@@ -54,7 +54,31 @@ public static class NetworkPlayerTool
             // bandwidth spent on a number that never changes.
             netTf.SyncScaleX = netTf.SyncScaleY = netTf.SyncScaleZ = false;
 
-            netTf.InLocalSpace = false;
+            // ---- LOCAL SPACE, AND THIS IS THE WHOLE ELEVATOR FIX ----
+            //
+            // This was false, and it is why a teammate lagged behind the lift.
+            //
+            // In WORLD space a rider sends its absolute position. On a moving
+            // car that position already contains the car's movement, and it
+            // arrives one interpolation buffer late - so on your screen their
+            // body is where the floor USED to be. At the fast speed of 8m/s a
+            // 100ms buffer is 80cm. They appear to sink through the floor of a
+            // rising lift, which is exactly the report.
+            //
+            // No amount of tuning fixes it, because nothing is wrong: the
+            // number is correct and simply old. The question was wrong. "Where
+            // are you in the world" changes 8 metres a second on a moving
+            // lift. "Where are you in the car" does not change at all while
+            // somebody stands still.
+            //
+            // So riders get PARENTED to the car - ElevatorNet does it on the
+            // host and NGO replicates the parent change - and this sends the
+            // offset from the car instead. A stationary rider now sends a
+            // constant, and a constant cannot arrive late.
+            //
+            // Unparented, local space and world space are the same thing, so
+            // this costs nothing anywhere else in the game.
+            netTf.InLocalSpace = true;
             netTf.Interpolate = true;
 
             // ---- ANIMATION ON THE WIRE ----

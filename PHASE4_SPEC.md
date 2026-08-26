@@ -159,8 +159,23 @@ back up every frame. That **is** the rubber-banding the done-when forbids.
 So: **the host decides where the floor is; every machine answers "and
 therefore where am I" for itself**, using the distance the car actually moved
 since the last physics step. Same number, same teleport, same code path — and
-the only body any machine touches is one it owns. Nobody is corrected, so
-nobody rubber-bands.
+the only body any machine touches is one it owns.
+
+**That got your OWN feet right and did nothing for the body you were
+watching.** Their machine carried them correctly and then sent where they
+ended up — in *world* space. Correct, and old: it crosses the wire, waits in
+the interpolation buffer, and lands ~100ms later, by which time your copy of
+the car has moved on. At 8 m/s that is 80 cm, so they render where the floor
+*was* — sinking through a rising lift.
+
+Nothing was broken. **The question was wrong.** "Where are you in the world"
+changes 8 metres a second on a moving lift; "where are you in the car" does
+not change at all while someone stands still. So the host parents riders to
+the car, NGO replicates the parent change, and `InLocalSpace = true` sends the
+offset. A constant cannot arrive late.
+
+Anyone the hierarchy carries is skipped by the delta teleport — a child of the
+car already moves with it, and doing both moves them twice.
 
 `ElevatorBridge.RequestGoToFloor` was already the only way anything commanded
 the car, so the client redirect is **one branch**. Second time this phase that

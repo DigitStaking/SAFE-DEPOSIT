@@ -66,7 +66,19 @@ public static class LiftRideAudit
             lastCar = car;
             haveLast = true;
 
-            float gap = me.transform.position.y - car.y;
+            // MEASURED FROM THE STANDING SURFACE, NOT THE ROOT.
+            //
+            // This used to compare against the elevator's origin, on the
+            // builder's word that the two are the same. In this scene they are
+            // 1.2m apart, so a player standing perfectly still on the floor
+            // read GAP=+1.20 and this audit reported a fault on every frame of
+            // a working single-player game.
+            //
+            // Which is worse than useless: I read those lines as evidence of a
+            // networking bug and went looking for one. An audit that cries
+            // wolf costs more than no audit at all.
+            float deck = car.y + lift.StandLocalY;
+            float gap = me.transform.position.y - deck;
 
             // Standing on the floor of the car is a gap of roughly zero. Half
             // a metre is already "not in the lift any more".
@@ -122,7 +134,7 @@ public static class LiftRideAudit
                       $"  kinematic={(myRb != null && myRb.isKinematic)}");
 
             Debug.Log($"[Ride] {role}  decides={ElevatorNet.Decides}" +
-                      $"  carY={car.y:0.00}  observed={observed.y:+0.000;-0.000}" +
+                      $"  deckY={deck:0.00}  observed={observed.y:+0.000;-0.000}" +
                       $"  myY={me.transform.position.y:0.00}  GAP={gap:+0.00;-0.00}" +
                       $"  rbY={(myRb != null ? myRb.position.y : float.NaN):0.00}" +
                       $"  parent={parent}  inRiders={inRiders}" +

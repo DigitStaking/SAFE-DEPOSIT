@@ -211,7 +211,42 @@ public class Elevator : MonoBehaviour
 
         if (ceiling != null)
             rideHeight = ceiling.localPosition.y;
+
+        // ---- WHERE THE STANDING SURFACE ACTUALLY IS ----
+        //
+        // ElevatorBuilder authors the floor's TOP FACE at local y = 0 and says
+        // so: "y = 0 is therefore the surface a player stands on". Everything
+        // written since has trusted that - the spawn corners are placed 0.2
+        // above the root, and the ride volume is measured from the root.
+        //
+        // The scene disagrees. Standing still in SINGLE PLAYER, with no
+        // networking involved at all, the audit found:
+        //
+        //     GAP=+1.20   under=Floor@1.30m   velY=0.00
+        //
+        // Feet at +1.20 with the floor 1.30 below them. The car in the scene
+        // is simply not the car the builder describes - authored by an older
+        // version of it, or moved by hand - and every constant measured from
+        // the root has been off by that much ever since.
+        //
+        // So it is MEASURED now, not assumed. Whatever the scene contains,
+        // this finds the top of the thing people stand on, and the spawn and
+        // the rider volume both hang off it. A number the geometry can be
+        // asked for should never be a constant written down twice.
+        if (floor != null)
+        {
+            float topWorld = floor.position.y + floor.lossyScale.y * 0.5f;
+            standLocalY = topWorld - transform.position.y;
+        }
     }
+
+    /// <summary>
+    /// Height of the car's standing surface, in the elevator root's own space.
+    /// Measured from the geometry - see MeasureRideVolume.
+    /// </summary>
+    public float StandLocalY => standLocalY;
+
+    float standLocalY;
 
     void CollectShutters()
     {
@@ -568,7 +603,13 @@ public class Elevator : MonoBehaviour
     {
         riders.Clear();
 
-        Vector3 centre = transform.TransformPoint(new Vector3(0f, rideHeight * 0.5f, 0f));
+        // Measured from the standing surface, not from the root. When those
+        // two are a metre apart - and in this scene they are - a box built
+        // from the root starts a metre underground and ends a metre short of
+        // the ceiling, so anyone tall enough, or standing on anything, falls
+        // out of the rider list and stops being carried.
+        Vector3 centre = transform.TransformPoint(
+            new Vector3(0f, standLocalY + rideHeight * 0.5f, 0f));
         Vector3 half = new Vector3(rideHalfXZ, rideHeight * 0.5f, rideHalfXZ);
 
         int n = Physics.OverlapBoxNonAlloc(centre, half, Overlap, transform.rotation,

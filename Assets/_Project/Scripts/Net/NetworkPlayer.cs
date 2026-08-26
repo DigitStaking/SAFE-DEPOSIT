@@ -275,7 +275,15 @@ public class NetworkPlayer : NetworkBehaviour
         };
 
         var spot = corners[(int)OwnerClientId % corners.Length];
-        Vector3 where = lift.transform.TransformPoint(new Vector3(spot.x, 0.2f, spot.y));
+        // ON THE FLOOR, wherever the floor turns out to be.
+        //
+        // This was a flat 0.2 above the elevator's ROOT, on the builder's word
+        // that the standing surface is at root y = 0. In this scene it is at
+        // +1.20, so every spawned player was placed a metre INSIDE the floor
+        // slab and had to be pushed out by the solver - which is a shove, at a
+        // random angle, on the first frame of everybody's game.
+        Vector3 where = lift.transform.TransformPoint(
+            new Vector3(spot.x, lift.StandLocalY + 0.2f, spot.y));
 
         var rb = GetComponent<Rigidbody>();
         if (rb != null)

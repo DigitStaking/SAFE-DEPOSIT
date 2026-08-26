@@ -133,78 +133,41 @@ public class ElevatorNet : NetworkBehaviour
     }
 
     // ================================================================
-    // RIDERS ARE PARENTED TO THE CAR WHILE THEY ARE IN IT.
+    // RIDERS ARE NOT PARENTED. THIS IS THE SECOND ATTEMPT AND IT IS SHORTER.
     //
-    // Carrying riders by the observed delta got the LOCAL body right on every
-    // machine - your own feet stayed glued to the floor. It did nothing for
-    // the body you were watching, and that is what got reported: "the
-    // elevator going up faster than him and he lagging".
+    // Parenting was meant to give NetworkTransform a frame of reference, so a
+    // rider sent "where am I in the car" instead of "where am I in the world"
+    // and could not arrive late. Sound idea. It cannot be done this way,
+    // because parenting a DYNAMIC RIGIDBODY perturbs physics, and it perturbs
+    // it differently depending on when Unity happens to sync transforms.
     //
-    // WHY THE FIRST DESIGN WAS NOT ENOUGH
+    // Both failure modes are on record, and they are opposites:
     //
-    // Their machine carried their body correctly and then sent where it ended
-    // up - in WORLD space. That number is right, and it is OLD. It crosses the
-    // wire, waits in NetworkTransform's interpolation buffer, and lands on
-    // your screen about 100ms later. Meanwhile your copy of the car has moved
-    // on. At the fast speed of 8m/s, 100ms is 80cm, so their body renders
-    // where the floor was, not where it is - sinking through a rising lift.
+    //   WITH the teleport skipped for parented riders, the body ignored its
+    //   parent entirely - a Rigidbody's own pose wins - so the car descended
+    //   and the body stood still in the world. Reported as "if i go down with
+    //   elevator me and my friend going up".
     //
-    // Nothing was broken. The question was wrong. "Where are you in the world"
-    // changes 8 metres a second on a moving lift; "WHERE ARE YOU IN THE CAR"
-    // does not change at all while somebody stands still. A constant cannot
-    // arrive late.
+    //   WITH the teleport restored, the parent-moved transform got synced
+    //   INTO the body and the teleport was applied on top. Down twice, into
+    //   the floor, and the solver ejected the body upward. The audit caught
+    //   it mid-bounce: GAP=+0.94 and growing, velY=-8.99 and accelerating,
+    //   under=Floor@0.98m - carried and falling at the same time - with
+    //   myY and rbY disagreeing by 0.19m, which is exactly one step of car
+    //   travel. The transform had moved and the body had not yet agreed.
     //
-    // So the host parents riders to the car, NGO replicates the parent change
-    // by itself, and the player's NetworkTransform sends the offset instead of
-    // the absolute position. Standing still on a plummeting lift now sends the
-    // same three numbers every tick.
+    // So the parent either does nothing or does it twice, and which one
+    // depends on frame timing. That is not a mechanism, it is a coin toss.
     //
-    // THE HOST DOES THE PARENTING because NGO only lets the server reparent a
-    // spawned object - and that is right anyway: who is aboard is a fact about
-    // the car, and the car has one author.
+    // The explicit teleport alone is known-good: the host has never once
+    // logged a ride fault, in any version of this bug.
+    //
+    // The lag it was meant to solve is real and still unsolved - a teammate
+    // renders where the floor was about 100ms ago. That is a SMOOTHNESS
+    // problem. Being thrown out of a descending lift is a CORRECTNESS one,
+    // and trading the second for the first was a bad deal. Smoothness gets
+    // its own attempt, without touching the physics.
     // ================================================================
-
-    readonly System.Collections.Generic.HashSet<NetworkObject> aboard =
-        new System.Collections.Generic.HashSet<NetworkObject>();
-
-    void FixedUpdate()
-    {
-        if (!IsSpawned || !IsServer) return;
-
-        var lift = SceneRefs.Lift;
-        if (lift == null) return;
-
-        // ---- who is in the car this step ----
-        var now = new System.Collections.Generic.HashSet<NetworkObject>();
-        foreach (var r in lift.Riders)
-        {
-            if (r == null) continue;
-
-            // Players only, for now. Loot has no NetworkObject until Step 6,
-            // and the delta carry in Elevator still handles it on the machine
-            // that owns it.
-            var no = r.GetComponent<NetworkObject>();
-            if (no != null && no.IsSpawned && no.IsPlayerObject) now.Add(no);
-        }
-
-        foreach (var no in now)
-            if (aboard.Add(no)) no.TrySetParent(NetworkObject, true);
-
-        // ---- and who just stepped off ----
-        // A copy, because TrySetParent runs while we would otherwise be
-        // walking the set we are editing.
-        var left = new System.Collections.Generic.List<NetworkObject>();
-        foreach (var no in aboard)
-            if (no == null || !now.Contains(no)) left.Add(no);
-
-        foreach (var no in left)
-        {
-            aboard.Remove(no);
-
-            // worldPositionStays: true. Stepping off a lift must not move you.
-            if (no != null && no.IsSpawned) no.TrySetParent((NetworkObject)null, true);
-        }
-    }
 
     /// <summary>
     /// A client asking for a floor.

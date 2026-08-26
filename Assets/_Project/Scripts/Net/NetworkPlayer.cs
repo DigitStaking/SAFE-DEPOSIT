@@ -76,6 +76,12 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (IsOwner)
         {
+            // Armed HERE and nowhere else. It was briefly re-armed inside
+            // MoveToSpawn, which Update calls - so the countdown reset every
+            // frame it ran and the window never closed. A placement helper
+            // that never lets go is worse than one that places you wrong:
+            // you would have been unable to walk out of the lift.
+            settleLeft = SettleWindow;
             MoveToSpawn();
             ClaimCamera();
         }
@@ -166,8 +172,6 @@ public class NetworkPlayer : NetworkBehaviour
     {
         var lift = SceneRefs.Lift;
         if (lift == null) return;
-
-        settleLeft = SettleWindow;
 
         // FOUR CORNERS, not a line.
         //

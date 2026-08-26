@@ -154,6 +154,20 @@ public class Elevator : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
 
+        // BASELINE IT NOW, NOT AT (0,0,0).
+        //
+        // A Vector3 field starts at the origin, and on a client the first
+        // FixedUpdate computed "how far did the car move" as
+        // rb.position - (0,0,0) - which is not a delta at all, it is the car's
+        // ENTIRE WORLD POSITION. At floor 3 that is fifteen metres, applied to
+        // everybody aboard, in one physics step. They were fired out of the
+        // lift on the frame they joined.
+        //
+        // The host never saw it because its own path re-baselines every step
+        // from the very first one, which is exactly why the report was "the
+        // host is okay" - and that sentence is what identified this.
+        lastCarPosition = rb.position;
+
         // Kinematic: this is a platform, not a falling object. A dynamic
         // elevator would sag under the weight of the crew standing in it,
         // which is a lovely idea and a completely different system.
@@ -420,6 +434,20 @@ public class Elevator : MonoBehaviour
         {
             Vector3 observed = rb.position - lastCarPosition;
             lastCarPosition = rb.position;
+
+            // A JUMP THIS BIG IS NEWS, NOT MOVEMENT.
+            //
+            // The car can move at most fastSpeed * fixedDeltaTime in a step -
+            // 16cm at the fastest this lift travels. Anything larger did not
+            // happen in the shaft: it is NetworkTransform delivering a
+            // position for the first time, or correcting after a stall.
+            //
+            // Carrying riders by it would teleport them the whole way, which
+            // is the bug this guard is here to make impossible to reintroduce.
+            // The baseline above is already updated, so the next step measures
+            // honestly from the new place.
+            float most = Mathf.Max(fastSpeed, slowSpeed) * Time.fixedDeltaTime * 4f;
+            if (observed.sqrMagnitude > most * most) return;
 
             if (observed.sqrMagnitude > 1e-10f)
                 foreach (var r in riders)

@@ -69,7 +69,33 @@ public class ElevatorNet : NetworkBehaviour
     /// host only online. Asked live, never cached - the sixth time that has
     /// been the right call today.
     /// </summary>
-    public static bool Decides => Instance == null || Instance.IsServer;
+    public static bool Decides
+    {
+        get
+        {
+            if (Instance != null) return Instance.IsServer;
+
+            // ---- THE GAP BEFORE THIS COMPONENT EXISTS ----
+            //
+            // The editor log settled the order: a joining client spawns its
+            // PLAYER before the elevator arrives.
+            //
+            //     [Net] spawned Player 2 (me)  owner=True  local=True
+            //     [Net] elevator is following the host
+            //
+            // For those frames Instance is null, and "null means offline"
+            // would have told a connected client it was the authority - so it
+            // would simulate its own car for a moment before being told it
+            // does not get to. Brief, but it is the two-elevator bug in
+            // miniature, and it happens on every single join.
+            //
+            // So ask the NetworkManager instead when the component is not up
+            // yet. Genuinely offline there is no manager and nothing is
+            // listening, and the answer is still yes.
+            var nm = NetworkManager.Singleton;
+            return nm == null || !nm.IsListening || nm.IsServer;
+        }
+    }
 
     static NetworkVariableWritePermission Host => NetworkVariableWritePermission.Server;
 

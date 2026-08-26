@@ -109,10 +109,65 @@ public class NetworkPlayer : NetworkBehaviour
     /// transform is owner-authoritative - anybody else writing it would be
     /// overwritten a frame later.
     /// </summary>
+    // ==================================================================
+    // KEEP PLACING ME UNTIL THE CAR STOPS MOVING UNDER ME.
+    //
+    // Reported as "when i click join i got in top of elevator".
+    //
+    // MoveToSpawn ran once, at the instant of spawn, and put the body inside
+    // the car - correctly, according to where this machine thought the car
+    // was. Which on a fresh client is WHERE THE SCENE FILE SAYS IT IS, because
+    // the elevator's own position had not arrived yet. The host's car was
+    // already down the shaft. A moment later NetworkTransform delivered the
+    // real height, the car dropped away, and the new arrival was left standing
+    // in the air above it.
+    //
+    // Nothing was misplaced. The body was put exactly where the car was, using
+    // an answer that was about to be replaced. Third variation today of the
+    // same mistake: a value about somebody else, read once, going stale.
+    //
+    // So the placement is re-asserted for a moment after spawning, and stops
+    // once the car has held still for a few frames. Cheap, self-cancelling,
+    // and it cannot strand anybody however long the sync takes.
+    // ==================================================================
+
+    float settleLeft;
+    float lastLiftY = float.NaN;
+
+    void Update()
+    {
+        if (!IsSpawned || !IsOwner || settleLeft <= 0f) return;
+
+        var lift = SceneRefs.Lift;
+        if (lift == null) { settleLeft = 0f; return; }
+
+        float y = lift.transform.position.y;
+
+        // Only re-place while the car is still arriving at its real height.
+        // Once it is steady, this is done - it must not fight the player for
+        // control of their own body a second longer than necessary.
+        if (!float.IsNaN(lastLiftY) && Mathf.Approximately(y, lastLiftY))
+        {
+            settleLeft -= Time.deltaTime;
+            if (settleLeft <= 0f) return;
+        }
+        else
+        {
+            settleLeft = SettleWindow;      // it moved - give it another window
+        }
+
+        lastLiftY = y;
+        MoveToSpawn();
+    }
+
+    const float SettleWindow = 0.35f;
+
     void MoveToSpawn()
     {
         var lift = SceneRefs.Lift;
         if (lift == null) return;
+
+        settleLeft = SettleWindow;
 
         // FOUR CORNERS, not a line.
         //

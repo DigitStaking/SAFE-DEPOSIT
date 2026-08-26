@@ -337,23 +337,38 @@ public class Elevator : MonoBehaviour
         Mathf.RoundToInt((surfaceY - y) / floorHeight), 0, lowestFloor);
 
 
-    /// <summary>
-    /// True when the transform hierarchy is already carrying this rider.
-    ///
-    /// PHASE 4 STEP 5. ElevatorNet parents riders to the car so their position
-    /// replicates as an offset rather than an absolute - which is what stopped
-    /// a teammate lagging behind a moving lift.
-    ///
-    /// But a child of the car ALREADY moves when the car moves. Teleporting it
-    /// by the delta on top of that moves it TWICE, and the visible result is a
-    /// rider who accelerates away from the floor, which would have looked like
-    /// a brand new bug rather than the old fix double-counting.
-    ///
-    /// Loot has no NetworkObject and is never parented, so it keeps the
-    /// explicit carry - that is what the delta path is still for.
-    /// </summary>
-    bool CarriedByHierarchy(Rigidbody r) =>
-        r != null && r.transform.parent == transform;
+    // ==================================================================
+    // A PARENT DOES NOT CARRY A DYNAMIC RIGIDBODY. THE TELEPORT DOES.
+    //
+    // The last commit parented riders to the car so their position would
+    // replicate as an offset, and then skipped the teleport for anyone
+    // parented, on the reasoning that the transform hierarchy was already
+    // moving them.
+    //
+    // It is not. A non-kinematic Rigidbody simulates in WORLD space and its
+    // own pose is what counts - move its parent and the physics engine
+    // overwrites the transform back on the next step, as if nothing had
+    // happened. So the skip removed the only thing that was actually
+    // carrying anybody.
+    //
+    // The visible result was precise and is worth recording, because it names
+    // the cause exactly: the car descends, the body does not, so relative to
+    // the car THE BODY RISES. Reported as "if i go down with elevator me and
+    // my friend going up". Opposite to the direction of travel, both players,
+    // every time - not a lag or a fight, a body simply standing still in the
+    // world while the room left.
+    //
+    // So the teleport is back for everyone. Parenting stays, because it does
+    // the OTHER half of the job perfectly well: it gives NetworkTransform a
+    // frame of reference, so what crosses the wire is "where am I in the car"
+    // rather than "where am I in the world". Two jobs, two mechanisms:
+    //
+    //   the TELEPORT moves the body      (physics)
+    //   the PARENT decides what gets sent (replication)
+    //
+    // Conflating them cost one round trip. They do not overlap and neither
+    // one can do the other's work.
+    // ==================================================================
 
     void SnapToFloor(int floor)
     {
@@ -408,7 +423,7 @@ public class Elevator : MonoBehaviour
 
             if (observed.sqrMagnitude > 1e-10f)
                 foreach (var r in riders)
-                    if (r != null && !CarriedByHierarchy(r)) r.position += observed;
+                    if (r != null) r.position += observed;
 
             return;
         }
@@ -456,7 +471,6 @@ public class Elevator : MonoBehaviour
         foreach (var r in riders)
         {
             if (r == null) continue;
-            if (CarriedByHierarchy(r)) continue;   // the parent already moved it
 
             // Teleport, not MovePosition: the rider keeps its own velocity
             // and simply arrives where the floor put it, so you can still

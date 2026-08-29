@@ -243,6 +243,14 @@ public class CampaignNet : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void PayRescueServerRpc(int index, int amount) => Campaign.PayRescue(index, amount);
 
+    /// <summary>
+    /// Somebody has been bought back. Sent to everyone; only their own machine
+    /// can actually write their health, and everyone else learns it from the
+    /// replicated row a moment later.
+    /// </summary>
+    [ClientRpc]
+    public void RescuedClientRpc(int slot) => Campaign.ApplyRescue(slot);
+
     // ================================================================
     // A REVIVE TAKES THREE MACHINES, AND EACH DOES ONLY WHAT IT OWNS.
     //

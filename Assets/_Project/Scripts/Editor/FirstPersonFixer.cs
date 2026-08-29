@@ -296,6 +296,14 @@ public static class FirstPersonFixer
             root.AddComponent<MedSpray>();
             log.AppendLine("  added MedSpray (hold R over a downed crewmate)");
         }
+
+        // PHASE 4 STEP 9. Being held by the mafia has to look like something,
+        // or the ransom is a formality nobody argues about.
+        if (root.GetComponent<LostSpectator>() == null)
+        {
+            root.AddComponent<LostSpectator>();
+            log.AppendLine("  added LostSpectator (TAB to change who you watch)");
+        }
         downed.enabled = true;
 
         // ---- headlamp (re-attached, Phase 3 Step 2) ------------------

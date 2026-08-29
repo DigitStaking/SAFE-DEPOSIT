@@ -322,6 +322,14 @@ transitions together, and nobody mid-load is counted as having left.
 **Done when:** two players finish a round and both see the same shop.
 
 ### Step 9 · Rescue contract — BUILT, needs a crew to mean anything
+**Being held has to look like something.** A crewmate who bled out used to stay
+kneeling next to the crew and come along next round — which empties the step
+out, because nobody argues about two rounds of surplus for a man they can see.
+The body is now hidden and inert while the `PlayerMotor` stays registered (the
+rescue is bookkeeping against a slot; delete the body and there is nobody to
+buy back), and the player **spectates** a living crewmate with TAB, with the
+price they are being held for on screen. That is deliberately not Step 11's
+crew screens — one camera, one line of text.
 *Deferred here from Phase 2 Step 9.* `Rescue(R,f) = Mafia(R) × (1 + f/10)`,
 partial payment carried over, three deaths ends the campaign.
 `Campaign.LostCrew` already records who and on which floor.

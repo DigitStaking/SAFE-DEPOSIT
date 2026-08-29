@@ -347,16 +347,55 @@ public static class Campaign
     /// </summary>
     static void RestoreRescued(LostCrewMember m)
     {
-        for (int slot = 0; slot < Crew.MaxMembers; slot++)
-        {
-            var row = Crew.Of(slot);
-            if (!row.Lost) continue;
+        // ---- THE RIGHT PERSON, AND BY THEIR OWN MACHINE ----
+        //
+        // Two things this cannot do naively.
+        //
+        // IT MUST FIND THE ONE WHO WAS PAID FOR. The first version took the
+        // first Lost row it saw, which is right by luck with one hostage and a
+        // coin flip with two - and the crew would have paid 800 for the mule
+        // and got the other one back.
+        //
+        // AND THE HOST CANNOT WRITE THEIR HEALTH. Step 4 made Health, Lost and
+        // BleedOut owner-written, on purpose: your machine decides what
+        // happens to your body. So the host pays, and the RESCUED PLAYER'S OWN
+        // MACHINE stands them back up - the same three-way split the med spray
+        // uses, for the same reason.
+        //
+        // Without that, the money would leave the pot and nothing would
+        // happen. Silently, because a dropped write on a variable you do not
+        // own is not an error.
+        int slot = SlotOfName(m.name);
+        if (slot < 0) return;
 
-            row.Lost = false;
-            row.Health = Crew.MaxHealth;
-            row.BleedOutLeft = 0f;
+        if (Net != null && Net.IsSpawned)
+        {
+            Net.RescuedClientRpc(slot);
             return;
         }
+
+        ApplyRescue(slot);      // offline
+    }
+
+    static int SlotOfName(string name)
+    {
+        foreach (var p in PlayerRegistry.All)
+            if (p != null && p.gameObject.name == name) return p.Slot;
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Stand back up. Called on every machine; only the owner's write lands,
+    /// which is exactly the intent - everyone else simply learns about it a
+    /// moment later through the replicated row.
+    /// </summary>
+    public static void ApplyRescue(int slot)
+    {
+        var row = Crew.Of(slot);
+        row.Lost = false;
+        row.Health = Crew.MaxHealth;
+        row.BleedOutLeft = 0f;
     }
 
     public static void RecordLost(string who, int floor)

@@ -112,8 +112,20 @@ public class PlayerCarry : MonoBehaviour
 
             if (lh != null && rh != null)
             {
+                // Pushed out by weight, the same way the first-person hold is.
+                // The hands play ONE generic carry pose for everything right
+                // now - per-item poses are not authored yet and are not worth
+                // authoring for this - so a vending machine and a can would
+                // otherwise sit in exactly the same place between the palms.
+                // A big thing needs to look like it is being held away from
+                // the body, and that is a number, not an animation.
+                float reach =
+                    held.Weight == Carryable.WeightClass.Massive ? 0.42f :
+                    held.Weight == Carryable.WeightClass.Heavy   ? 0.26f :
+                                                                   0.12f;
+
                 held.transform.position = (lh.position + rh.position) * 0.5f
-                                        + transform.forward * 0.12f;
+                                        + transform.forward * reach;
                 held.transform.rotation = transform.rotation;
                 return;
             }

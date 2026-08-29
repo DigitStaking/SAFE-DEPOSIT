@@ -60,6 +60,59 @@ public class NetworkPlayer : NetworkBehaviour
 
     void Awake() => motor = GetComponent<PlayerMotor>();
 
+    public override void OnNetworkDespawn()
+    {
+        var nm = NetworkManager.Singleton;
+        if (nm != null && nm.SceneManager != null)
+            nm.SceneManager.OnLoadComplete -= OnSceneLoaded;
+    }
+
+    // ==================================================================
+    // PHASE 4 STEP 8 - A BODY THAT SURVIVES THE ROUND CHANGE.
+    //
+    // The networked scene load keeps the session alive, and it keeps the
+    // PLAYERS alive too - dynamically spawned NetworkObjects persist across
+    // it by design, which is what stops everyone being disconnected and
+    // re-spawned as strangers every round.
+    //
+    // But persisting means OnNetworkSpawn does not run again, and
+    // OnNetworkSpawn is the only thing that has ever placed a body in the
+    // lift. So round 2 began with everybody standing exactly where they were
+    // standing at the surface a moment earlier - which, once the new scene's
+    // elevator had loaded around them, was ON TOP OF IT. Reported as two
+    // players on the roof, and one of them staring into blackness because
+    // their view was inside the ceiling.
+    //
+    // Nothing was misplaced. Nobody moved them, and that was the problem: a
+    // new building was built around bodies that were never told a new round
+    // had started.
+    //
+    // Re-arming the spawn settle rather than teleporting once, because the
+    // new lift does not exist yet at the moment this fires - the same race
+    // that put a joining client on the roof, and the same machinery already
+    // written to survive it. It waits, held still, and places when the car
+    // is there.
+    // ==================================================================
+    void OnSceneLoaded(ulong clientId, string sceneName,
+                       UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        if (!IsOwner) return;
+
+        // OnLoadComplete fires on the HOST once per client that finishes, so
+        // without this the host would re-place its own body every time
+        // somebody else finished loading. Only my own completion means my
+        // scene is ready.
+        if (clientId != NetworkManager.LocalClientId) return;
+
+        placed = false;
+        settleLeft = SettleWindow;
+        waitLeft = MaxWaitForLift;
+        lastLiftY = float.NaN;
+
+        // The old scene's camera went with the old scene. Claim the new one.
+        ClaimCamera();
+    }
+
     public override void OnNetworkSpawn()
     {
         if (motor == null) return;
@@ -84,6 +137,13 @@ public class NetworkPlayer : NetworkBehaviour
             settleLeft = SettleWindow;
             MoveToSpawn();
             ClaimCamera();
+
+            // Every round after this one arrives as a scene load, not a
+            // spawn. Without this the body is placed once, on the first
+            // round, and never again.
+            var nm = NetworkManager.Singleton;
+            if (nm != null && nm.SceneManager != null)
+                nm.SceneManager.OnLoadComplete += OnSceneLoaded;
         }
 
         // KINEMATIC IF IT IS NOT MINE.

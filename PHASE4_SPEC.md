@@ -300,6 +300,15 @@ their own life — it is everybody else's.
 
 The host spends from the **sprayer's** supply, so the person who runs in is
 the person who pays.
+
+**And a spray takes a pack slot.** Anyone can buy one; the price is not only
+the 35, it is a crate you can no longer carry out. That is a better brake than
+a purchase cap — the crew feels it on every trip rather than once at the shop —
+and it makes the medic role cost something continuously: three sprays is one
+crate less, every round, for as long as you keep them.
+
+`PlayerBackpack.Capacity` asks the Crew row live rather than being pushed once
+per round, so spending a spray hands the space straight back.
 *Deferred here from Phase 2 Step 7.* `DownedPlayer.Revive()` is already
 finished — this is the med spray, the use interaction, and the first honest
 test of any of it.

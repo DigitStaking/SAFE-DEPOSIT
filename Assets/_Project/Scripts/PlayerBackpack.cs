@@ -12,7 +12,29 @@ public class PlayerBackpack : MonoBehaviour
 {
     [Header("Capacity")]
     [Tooltip("Start at 2. Shop sells more slots.")]
+    [Tooltip("Offline fallback only. Online and in a run this is ASKED for, " +
+             "not stored - see Capacity below.")]
     public int slots = 2;
+
+    /// <summary>
+    /// How many things fit, asked live.
+    ///
+    /// This used to be a field that RunManager pushed once at the start of a
+    /// round. That was already fragile - buy a pack slot mid-round and the
+    /// bag would not know until next round - and sprays made it wrong outright,
+    /// because using one has to hand the space straight back for loot.
+    ///
+    /// Eighth time the same answer in this phase: ask the owner, every frame.
+    /// The row is the truth; a copy of it is a bug waiting for a reason.
+    /// </summary>
+    public int Capacity
+    {
+        get
+        {
+            var owner = PlayerRegistry.OwnerOf(this);
+            return owner != null ? Crew.Of(owner.Slot).LootSlots : slots;
+        }
+    }
 
     [Header("Placement")]
     public Transform backAnchor;
@@ -24,8 +46,8 @@ public class PlayerBackpack : MonoBehaviour
     public Color packColor = new Color(0.18f, 0.18f, 0.2f);
 
     public int Count => items.Count;
-    public int Slots => slots;
-    public bool HasRoom => items.Count < slots;
+    public int Slots => Capacity;
+    public bool HasRoom => items.Count < Capacity;
     public int SelectedSlot { get; private set; } = -1;
 
     public float TotalMass
@@ -123,7 +145,7 @@ public class PlayerBackpack : MonoBehaviour
     /// <summary>Select slot; if filled and hands free, withdraw into hands.</summary>
     public void UseSlot(int index)
     {
-        if (index < 0 || index >= slots) return;
+        if (index < 0 || index >= Capacity) return;
 
         SelectedSlot = index;
         lastSelectFlash = Time.time;
@@ -242,7 +264,7 @@ public class PlayerBackpack : MonoBehaviour
     {
         if (packVisual == null) return;
         // Scale pack slightly with load so others can read your weight at a glance.
-        float load = slots > 0 ? (float)items.Count / slots : 0f;
+        float load = Capacity > 0 ? (float)items.Count / Capacity : 0f;
         packVisual.localScale = packLocalScale * (0.85f + 0.35f * load);
         packVisual.gameObject.SetActive(true);
     }
@@ -265,11 +287,12 @@ public class PlayerBackpack : MonoBehaviour
         const float box = 40f;
         const float gap = 8f;
 
-        float totalWidth = slots * box + (slots - 1) * gap;
+        int cap = Capacity;
+        float totalWidth = cap * box + (cap - 1) * gap;
         float x = Screen.width - totalWidth - 28f;
         float y = Screen.height - 100f;
 
-        for (int i = 0; i < slots; i++)
+        for (int i = 0; i < cap; i++)
         {
             var r = new Rect(x + i * (box + gap), y, box, box);
             bool filled = i < items.Count && items[i] != null;
@@ -303,12 +326,12 @@ public class PlayerBackpack : MonoBehaviour
         style.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
 
         string tip = items.Count > 0
-            ? $"{TotalMass:0}kg pack   1-{slots} withdraw   G dump"
-            : $"pack {items.Count}/{slots}   keys 1-{slots}";
+            ? $"{TotalMass:0}kg pack   1-{Capacity} withdraw   G dump"
+            : $"pack {items.Count}/{Capacity}   keys 1-{Capacity}";
 
         GUI.Label(new Rect(x - 280f, y + 10f, 270f, 20f), tip, style);
 
-        if (SelectedSlot >= 0 && SelectedSlot < slots && Time.time - lastSelectFlash < 1.5f)
+        if (SelectedSlot >= 0 && SelectedSlot < Capacity && Time.time - lastSelectFlash < 1.5f)
         {
             style.alignment = TextAnchor.MiddleCenter;
             style.normal.textColor = new Color(0.7f, 0.9f, 1f, 0.9f);

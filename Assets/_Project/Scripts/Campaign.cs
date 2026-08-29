@@ -480,8 +480,14 @@ public static class Campaign
     {
         if (Money < MedSprayCost) return false;
 
-        Money -= MedSprayCost;
+        // A SPRAY OCCUPIES A PACK SLOT, so you cannot hold more than you can
+        // carry. Without this, sprays would be free to hoard and LootSlots
+        // would go negative - a pack that reports room for minus one crate is
+        // a pack that quietly stops working.
         var who = Crew.Of(slot);
+        if (who.MedSprays >= who.BackpackSlots) return false;
+
+        Money -= MedSprayCost;
         who.MedSprays = who.MedSprays + 1;
         return true;
     }

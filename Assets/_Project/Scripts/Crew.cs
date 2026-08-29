@@ -175,6 +175,22 @@ public static class Crew
             }
         }
 
+        /// <summary>
+        /// Pack slots left for LOOT once the sprays are in there.
+        ///
+        /// A SPRAY TAKES A SLOT - decided 26 Aug 2026. Everyone can buy them,
+        /// and the price is not only the 35: it is a crate you now cannot
+        /// carry out. That is what stops "everyone buys two" being the
+        /// obvious play, and it is a better brake than a purchase cap,
+        /// because the crew feels it on every trip rather than once at the
+        /// shop.
+        ///
+        /// It also makes the medic role cost something continuously. Somebody
+        /// hauling three sprays is hauling one crate less, every round, for
+        /// as long as they keep them.
+        /// </summary>
+        public int LootSlots => Mathf.Max(0, BackpackSlots - MedSprays);
+
         public bool IsDowned => Health <= 0;
     }
 

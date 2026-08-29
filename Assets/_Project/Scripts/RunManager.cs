@@ -147,8 +147,11 @@ public class RunManager : MonoBehaviour
         foreach (var m in crew)
         {
             if (m == null) continue;
+            // No longer pushed. PlayerBackpack.Capacity asks the Crew row
+            // itself, so buying a slot or spending a spray takes effect the
+            // moment it happens rather than at the start of the next round.
             var pack = m.GetComponent<PlayerBackpack>();
-            if (pack != null) pack.slots = Crew.Of(m.Slot).BackpackSlots;
+            if (pack != null) pack.slots = Crew.Of(m.Slot).LootSlots;
         }
 
         RebuildRubbleFromCampaign();
@@ -974,12 +977,16 @@ public class RunManager : MonoBehaviour
         // who, and if they go down the crew's rescues go with them - so the
         // one carrying the sprays has a reason to play safe, and that reason
         // is not their own life, it is everybody else's.
-        GUI.enabled = Campaign.Money >= Campaign.MedSprayCost;
+        // Greyed out when the pack is full of sprays: one takes a slot, so
+        // you can never carry more than you could have carried crates.
+        GUI.enabled = Campaign.Money >= Campaign.MedSprayCost &&
+                      buyerPack.MedSprays < buyerPack.BackpackSlots;
 
         if (GUI.Button(new Rect(bx + (bw + gap) * 3f, by, bw, 40f),
                        $"+1 med spray  ({Campaign.MedSprayCost})" +
                        $"   {(buyer != null ? buyer.gameObject.name : "you")} " +
-                       $"has {buyerPack.MedSprays}"))
+                       $"has {buyerPack.MedSprays}   " +
+                       $"({buyerPack.LootSlots} slot(s) left for loot)"))
         {
             Campaign.BuyMedSpray(buyerSlot);
         }

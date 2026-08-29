@@ -87,6 +87,24 @@ public class CampaignNet : NetworkBehaviour
     /// <summary>Med sprays in the crew's kit. PHASE 4 STEP 7.</summary>
     public readonly NetworkVariable<int>   Sprays     = new NetworkVariable<int>(0, default, Host);
 
+    /// <summary>
+    /// Which rooms are rubble, one bit per floor.
+    ///
+    /// A BITMASK RATHER THAN A LIST, because there are twenty floors and a
+    /// uint has thirty-two bits. The whole demolished state of the building
+    /// fits in four bytes and arrives atomically - no list events, no
+    /// half-applied set, no rebuilding the geometry once per entry as the
+    /// entries trickle in.
+    ///
+    /// This is the collection Step 3 deferred, and the note there said it
+    /// would move with the system that owns it. It does: rooms seal on a
+    /// timer that RunManager runs and Campaign.SealRandomRooms rolls, and
+    /// both of those were happening independently on every machine. Two crews
+    /// in two buildings with two different sets of rubble - and the one
+    /// standing in a doorway the other saw as sealed.
+    /// </summary>
+    public readonly NetworkVariable<uint>  Sealed     = new NetworkVariable<uint>(0u, default, Host);
+
     public readonly NetworkVariable<FixedString128Bytes> Epitaph =
         new NetworkVariable<FixedString128Bytes>(default, default, Host);
 
@@ -103,14 +121,35 @@ public class CampaignNet : NetworkBehaviour
         // Clients do the opposite and take whatever arrives. Their own statics
         // are their OWN save from their OWN sessions, and adopting the host's
         // is the entire point of joining somebody's game.
-        if (IsServer) Campaign.PushLocalStateToNetwork();
+        if (IsServer)
+        {
+            Campaign.PushLocalStateToNetwork();
+        }
+        else
+        {
+            // The building's damage arrives as one number. Applying it needs
+            // the geometry sealed too, not just the set updated, so it goes
+            // through RunManager rather than straight into Campaign.
+            Sealed.OnValueChanged += OnSealedChanged;
+            if (Sealed.Value != 0u) OnSealedChanged(0u, Sealed.Value);
+        }
 
         Debug.Log($"[Net] campaign is now {(IsServer ? "HOST-OWNED" : "replicated from the host")} " +
                   $"- bank {Money.Value}, cable {Cable.Value:0}m, run {RunNumber.Value}");
     }
 
+    void OnSealedChanged(uint _, uint now)
+    {
+        Campaign.ApplySealedMask(now);
+
+        var run = SceneRefs.Run;
+        if (run != null) run.RebuildRubbleFromCampaign();
+    }
+
     public override void OnNetworkDespawn()
     {
+        if (!IsServer) Sealed.OnValueChanged -= OnSealedChanged;
+
         // Leave the last known numbers in the statics rather than snapping
         // back to whatever this machine had before it joined. You keep what
         // the run earned.

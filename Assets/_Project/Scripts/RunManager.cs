@@ -151,11 +151,26 @@ public class RunManager : MonoBehaviour
             if (pack != null) pack.slots = Crew.Of(m.Slot).BackpackSlots;
         }
 
-        foreach (int room in Campaign.DestroyedRooms)
-            SealRoomIndex(room, killOccupants: false);
+        RebuildRubbleFromCampaign();
 
         if (Campaign.CableIsUseless)
             Announce("your cable only reaches rooms that are already gone");
+    }
+
+    /// <summary>
+    /// Put rubble in every doorway Campaign says is gone.
+    ///
+    /// PHASE 4 STEP 8. Public because a client learns about demolition as a
+    /// number arriving on the wire, long after this scene was built - so
+    /// something has to be able to say "the building changed, look again".
+    ///
+    /// Safe to call repeatedly: SealRoomIndex is idempotent, and a room that
+    /// is already rubble stays rubble.
+    /// </summary>
+    public void RebuildRubbleFromCampaign()
+    {
+        foreach (int room in Campaign.DestroyedRooms)
+            SealRoomIndex(room, killOccupants: false);
     }
 
     void CacheRubbleMaterial()
@@ -429,7 +444,11 @@ public class RunManager : MonoBehaviour
         if (left > 0f) return;
 
         bool killed = SealRoomIndex(threatenedRoom, killOccupants: true);
-        Campaign.DestroyedRooms.Add(threatenedRoom);
+
+        // Through SealRoom, not straight into the set. SealRoom is host-only
+        // and publishes the result; a bare Add would seal the room on this
+        // machine and tell nobody, which is the bug this whole change is for.
+        Campaign.SealRoom(threatenedRoom);
         sealedThisRun.Add(threatenedRoom);
 
         if (killed)

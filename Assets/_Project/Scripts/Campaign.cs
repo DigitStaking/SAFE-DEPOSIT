@@ -372,6 +372,7 @@ public static class Campaign
         Net.Strain.Value = localStrain;
         Net.Seeded.Value = localSeeded;
         Net.Sprays.Value = localSprays;
+        Net.Sealed.Value = SealedMask();
         Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
     }
 
@@ -392,6 +393,7 @@ public static class Campaign
         localStrain = Net.Strain.Value;
         localSeeded = Net.Seeded.Value;
         localSprays = Net.Sprays.Value;
+        ApplySealedMask(Net.Sealed.Value);
         localEpitaph = Net.Epitaph.Value.ToString();
     }
 
@@ -641,13 +643,64 @@ public static class Campaign
         CapacityBoughtThisRound = 0;
     }
 
+    /// <summary>
+    /// Every sealed room as one number, one bit per floor. Twenty floors, so
+    /// it fits in a uint with room to spare.
+    /// </summary>
+    public static uint SealedMask()
+    {
+        uint m = 0u;
+        foreach (int r in DestroyedRooms)
+            if (r >= 1 && r <= 32) m |= 1u << (r - 1);
+        return m;
+    }
+
+    /// <summary>Adopt the host's demolished building wholesale.</summary>
+    public static void ApplySealedMask(uint m)
+    {
+        DestroyedRooms.Clear();
+        for (int r = 1; r <= 32; r++)
+            if ((m & (1u << (r - 1))) != 0u) DestroyedRooms.Add(r);
+    }
+
+    /// <summary>
+    /// Called by the host after any change to DestroyedRooms. The set is the
+    /// local truth; this is how everyone else hears about it.
+    ///
+    /// Left as an explicit call rather than hidden behind the set, because
+    /// HashSet cannot tell anybody it changed and wrapping it in a property
+    /// would mean touching all ten places that read it - the same trade this
+    /// file made in Step 3 and did not regret.
+    /// </summary>
+    public static void PublishSealedRooms()
+    {
+        if (Net != null && Net.IsServer) Net.Sealed.Value = SealedMask();
+    }
+
+    /// <summary>
+    /// HOST ONLY once a session is running. A client that seals a room on its
+    /// own is a client building a different building - which is exactly what
+    /// was happening: the seal timer runs on every machine, so each one
+    /// demolished whatever its own clock reached first, and one player stood
+    /// in a doorway another saw as rubble.
+    /// </summary>
     public static void SealRoom(int room1Based)
     {
-        if (room1Based >= 1) DestroyedRooms.Add(room1Based);
+        if (room1Based < 1) return;
+        if (!MaySpend) return;
+
+        DestroyedRooms.Add(room1Based);
+        PublishSealedRooms();
     }
 
     public static void SealRandomRooms(int count)
     {
+        // HOST ONLY. This rolls dice. Four machines each rolling their own
+        // would demolish four different buildings, and there is no way to
+        // reconcile that afterwards - which is worse than the timer bug,
+        // because at least a timer eventually agrees on WHICH rooms exist.
+        if (!MaySpend) return;
+
         var candidates = new List<int>();
         int deep = Mathf.Max(DeepestReachableFloor, TotalFloors);
         for (int i = 1; i <= TotalFloors && i <= deep + 2; i++)
@@ -663,6 +716,8 @@ public static class Campaign
             DestroyedRooms.Add(prefer[pick]);
             prefer.RemoveAt(pick);
         }
+
+        PublishSealedRooms();
     }
 
     // ================================================================

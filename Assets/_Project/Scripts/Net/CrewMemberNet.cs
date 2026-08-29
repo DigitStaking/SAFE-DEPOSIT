@@ -72,9 +72,34 @@ public class CrewMemberNet : NetworkBehaviour
     /// slot no player has joined into. Null is the signal that Crew should
     /// fall back to its own static, which is what keeps single player working.
     /// </summary>
-    public static CrewMemberNet ForSlot(int slot) =>
-        slot >= 0 && slot < bySlot.Length && bySlot[slot] != null &&
-        bySlot[slot].IsSpawned ? bySlot[slot] : null;
+    public static CrewMemberNet ForSlot(int slot)
+    {
+        if (slot < 0 || slot >= bySlot.Length) return null;
+
+        var row = bySlot[slot];
+        if (row != null && row.IsSpawned) return row;
+
+        // ---- LOST IT? FIND IT AGAIN. ----
+        //
+        // The table is a cache and the players are the truth, so a missing
+        // entry is a question this can answer for itself rather than a reason
+        // to fall back on stale local numbers - which is what it used to do,
+        // silently, by reporting full health for somebody bleeding out.
+        foreach (var p in PlayerRegistry.All)
+        {
+            if (p == null) continue;
+
+            var candidate = p.GetComponent<CrewMemberNet>();
+            if (candidate == null || !candidate.IsSpawned) continue;
+            if (!candidate.NetworkObject.IsPlayerObject) continue;
+            if ((int)candidate.OwnerClientId != slot) continue;
+
+            bySlot[slot] = candidate;
+            return candidate;
+        }
+
+        return null;
+    }
 
     int slot = -1;
 
@@ -85,6 +110,35 @@ public class CrewMemberNet : NetworkBehaviour
         // binding needs no message: both machines can work it out.
         slot = (int)OwnerClientId;
         if (slot < 0 || slot >= bySlot.Length) return;
+
+        // ==============================================================
+        // ONLY A REAL PLAYER MAY CLAIM A CREW ROW.
+        //
+        // The scene contains a placeholder Player so the game runs offline,
+        // and a server AUTO-SPAWNS in-scene NetworkObjects - so that
+        // placeholder spawned, ran this method, and registered itself as the
+        // crew row for OwnerClientId 0. Which is the HOST.
+        //
+        // NetworkBootstrap then removed it, correctly, and OnNetworkDespawn
+        // cleared the entry it had taken - leaving slot 0 pointing at nothing
+        // while the host's real row sat there unregistered. Every machine then
+        // fell back to its own local statics for the host, and reported full
+        // health for a man bleeding out on the floor.
+        //
+        // Slot 0 ONLY, because a scene object is owned by the server and the
+        // server is client 0. That asymmetry is what named it: the host read
+        // the client's 50 correctly and the client read the host's 0 as 100.
+        //
+        // IsPlayerObject again - third time this exact test has been the
+        // difference between a real player and the placeholder, and the third
+        // time everything else about them was identical.
+        // ==============================================================
+        if (!NetworkObject.IsPlayerObject)
+        {
+            Debug.Log("[Crew] a non-player body spawned and was NOT given a " +
+                      "crew row - that is the offline placeholder.");
+            return;
+        }
 
         bySlot[slot] = this;
 

@@ -97,6 +97,10 @@ public class NetworkBootstrap : MonoBehaviour
         if (net == null) return;
         net.OnClientConnectedCallback += OnConnected;
         net.OnClientDisconnectCallback += OnDisconnected;
+
+        // SceneManager only exists once a session is running, so this cannot
+        // be hooked here - Host and Join do it the moment there is one.
+
     }
 
     void OnDisable()
@@ -104,6 +108,17 @@ public class NetworkBootstrap : MonoBehaviour
         if (net == null) return;
         net.OnClientConnectedCallback -= OnConnected;
         net.OnClientDisconnectCallback -= OnDisconnected;
+    }
+
+    /// <summary>
+    /// Listen for round changes. Called from Host and Join because
+    /// NetworkManager.SceneManager does not exist until a session starts.
+    /// </summary>
+    void HookSceneLoads()
+    {
+        if (net == null || net.SceneManager == null) return;
+        net.SceneManager.OnLoadComplete -= ClearScenePlayersAfterLoad;
+        net.SceneManager.OnLoadComplete += ClearScenePlayersAfterLoad;
     }
 
     void OnConnected(ulong id) => Say($"client {id} connected");
@@ -210,6 +225,53 @@ public class NetworkBootstrap : MonoBehaviour
     }
 
     // ==================================================================
+    // AND AGAIN AFTER EVERY ROUND, BECAUSE THE SCENE BRINGS A NEW ONE.
+    //
+    // The two-bodies bug came back in round 2, and it came back for the same
+    // reason it existed in the first place: THE SCENE CONTAINS A PLAYER, and
+    // a server auto-spawns in-scene NetworkObjects.
+    //
+    // Capturing the hand-placed bodies before StartHost fixed it for the
+    // start of a session, and that was the whole story while a round change
+    // ended the session. Step 8 made the round change a scene LOAD instead -
+    // so the placeholder comes back with every new building, gets spawned by
+    // the host, and the host owns two bodies again.
+    //
+    // The capture-before-start trick cannot help here: there is no "before"
+    // to capture at, the load happens mid-session.
+    //
+    // IsPlayerObject is the test, and it is the one the editor log taught me
+    // the first time round. A real player is somebody's player object. The
+    // placeholder is a spawned, owned, perfectly ordinary NetworkObject that
+    // is nobody's player - identical on every other field, which is exactly
+    // why guessing between them cost three attempts.
+    // ==================================================================
+    void ClearScenePlayersAfterLoad(ulong clientId, string sceneName,
+                                    UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        if (net == null || clientId != net.LocalClientId) return;
+
+        int removed = 0;
+        var bodies = new System.Collections.Generic.List<PlayerMotor>(PlayerRegistry.All);
+
+        foreach (var body in bodies)
+        {
+            if (body == null) continue;
+
+            var netObj = body.GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned && netObj.IsPlayerObject) continue;
+
+            if (netObj != null && netObj.IsSpawned && net.IsServer) netObj.Despawn(true);
+            else Destroy(body.gameObject);
+
+            removed++;
+        }
+
+        if (removed > 0)
+            Say($"{removed} placeholder body(s) removed after the round change");
+    }
+
+    // ==================================================================
     // START FIRST, CLEAR SECOND. THE ORDER IS THE WHOLE THING.
     //
     // Both of these used to clear the scene body and then try to connect. If
@@ -239,6 +301,7 @@ public class NetworkBootstrap : MonoBehaviour
         }
 
         ClearScenePlayer();
+        HookSceneLoads();
         Say("HOSTING - now press JOIN in the other window");
     }
 
@@ -255,6 +318,7 @@ public class NetworkBootstrap : MonoBehaviour
         }
 
         ClearScenePlayer();
+        HookSceneLoads();
         Say("joining...");
     }
 

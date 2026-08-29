@@ -54,6 +54,7 @@ public static class LiftRideAudit
         Vector3 lastCar;
         bool haveLast;
         float nextLog;
+        float nextRemoteLog;
 
         void FixedUpdate()
         {
@@ -79,6 +80,33 @@ public static class LiftRideAudit
             // wolf costs more than no audit at all.
             float deck = car.y + lift.StandLocalY;
             float gap = me.transform.position.y - deck;
+
+            // ---- AND EVERY TEAMMATE, WHICH THIS NEVER WATCHED ----
+            //
+            // This audit only ever measured MY body. So through several
+            // rounds of "the other one is flying" it had nothing to say, and
+            // the one time my own fix silently dropped teammates out of the
+            // rider list - making the deck correction stop running - it
+            // reported a clean bill of health.
+            //
+            // The symptom being reported was never about the reporter's own
+            // body. An audit should watch the thing people are complaining
+            // about.
+            foreach (var r in lift.Riders)
+            {
+                if (r == null || r == me.GetComponent<Rigidbody>()) continue;
+
+                float h = r.transform.position.y - deck;
+                if (Mathf.Abs(h) < 0.4f) continue;
+                if (Time.time < nextRemoteLog) continue;
+                nextRemoteLog = Time.time + 0.25f;
+
+                var rno = r.GetComponent<Unity.Netcode.NetworkObject>();
+                Debug.Log($"[Ride-them] {r.name}  heightAboveDeck={h:+0.00;-0.00}" +
+                          $"  kinematic={r.isKinematic}" +
+                          $"  mine={(rno != null && rno.IsOwner)}" +
+                          $"  carMoving={lift.IsMoving}");
+            }
 
             // Standing on the floor of the car is a gap of roughly zero. Half
             // a metre is already "not in the lift any more".

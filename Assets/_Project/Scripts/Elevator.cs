@@ -668,7 +668,23 @@ public class Elevator : MonoBehaviour
             var other = Overlap[i].attachedRigidbody;
             if (other == null) continue;
             if (other == rb) continue;          // the car's own thirty colliders
-            if (other.isKinematic) continue;    // held loot is kinematic; its carrier moves it
+            // KINEMATIC MEANS "SOMEBODY ELSE MOVES THIS" - AND WHO THAT IS
+            // MATTERS.
+            //
+            // For held loot it is the carrier, so the car must keep its hands
+            // off: that is what this skip was written for and it still holds.
+            //
+            // But remote PLAYERS are kinematic too now - the network moves
+            // them, because local gravity fighting the wire was making them
+            // hover. This skip then quietly dropped every teammate out of the
+            // rider list, and ElevatorNet's deck-height correction walks that
+            // list, so the correction stopped running and a descending
+            // teammate went straight back to rendering where the floor used to
+            // be. Two fixes of mine, cancelling each other exactly.
+            //
+            // A remote player is still standing on this floor. It is still a
+            // rider. It just is not one that PHYSICS carries.
+            if (other.isKinematic && other.GetComponent<PlayerMotor>() == null) continue;
             if (riders.Contains(other)) continue;
             riders.Add(other);
         }

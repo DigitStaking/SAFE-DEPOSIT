@@ -37,6 +37,56 @@ public class PlayerBackpack : MonoBehaviour
         }
     }
 
+    // ================================================================
+    // SPRAYS FILL SLOTS. THEY DO NOT SHRINK THE BAG.
+    //
+    // The first version just reduced Capacity, so buying a spray made a slot
+    // VANISH from the HUD. Reported straight away, and correctly: "it must
+    // fill the spot not take it - i can see 2, an image of medicals, and
+    // click on it".
+    //
+    // The bag is the same size it always was. A spray is a thing IN it, drawn
+    // in a slot, occupying that slot the way a crate would. That is both what
+    // a player expects and what actually communicates the trade - a shrinking
+    // row of boxes reads as a bug, while a box with MED in it reads as a
+    // decision you made at the shop.
+    //
+    // Sprays take the FIRST slots, so their number keys never move as loot
+    // comes and goes. The medic learns "1 is my spray" and it stays true.
+    // ================================================================
+
+    /// <summary>Sprays this player carries, and therefore slots 0..n-1.</summary>
+    public int SprayCount
+    {
+        get
+        {
+            var owner = PlayerRegistry.OwnerOf(this);
+            return owner != null ? Crew.Of(owner.Slot).MedSprays : 0;
+        }
+    }
+
+    /// <summary>Every slot, sprays and loot together. The bag's real size.</summary>
+    public int TotalSlots
+    {
+        get
+        {
+            var owner = PlayerRegistry.OwnerOf(this);
+            return owner != null ? Crew.Of(owner.Slot).BackpackSlots : slots;
+        }
+    }
+
+    /// <summary>
+    /// A spray is in hand, ready to use.
+    ///
+    /// Taking it out is a deliberate act, like withdrawing a crate. It means
+    /// the R prompt only appears for somebody who has actually reached for
+    /// one - so a crewmate with no sprays is never told to press a key that
+    /// will do nothing.
+    /// </summary>
+    public bool SprayReady { get; private set; }
+
+    public void PutSprayAway() => SprayReady = false;
+
     [Header("Placement")]
     public Transform backAnchor;
     public float itemSpacing = 0.22f;
@@ -146,10 +196,22 @@ public class PlayerBackpack : MonoBehaviour
     /// <summary>Select slot; if filled and hands free, withdraw into hands.</summary>
     public void UseSlot(int index)
     {
-        if (index < 0 || index >= Capacity) return;
+        if (index < 0 || index >= TotalSlots) return;
 
         SelectedSlot = index;
         lastSelectFlash = Time.time;
+
+        // A SPRAY SLOT. Taking it out readies it; pressing the same key again
+        // puts it back, so the key is a toggle rather than a one-way door.
+        if (index < SprayCount)
+        {
+            SprayReady = !SprayReady;
+            return;
+        }
+
+        // Loot lives after the sprays, so the visible slot and the list index
+        // are not the same number once somebody is carrying a spray.
+        index -= SprayCount;
 
         if (index >= items.Count || items[index] == null) return;
 
@@ -272,6 +334,12 @@ public class PlayerBackpack : MonoBehaviour
 
     public string SlotLabel(int i)
     {
+        // Spray slots come first and are not in `items` at all, so the visible
+        // index and the list index diverge the moment somebody carries one.
+        if (i < SprayCount)
+            return SprayReady ? "MED SPRAY - in hand" : "MED SPRAY";
+
+        i -= SprayCount;
         if (i < 0 || i >= items.Count || items[i] == null) return "empty";
         return $"{items[i].name} ({items[i].Mass:0}kg)";
     }
@@ -288,7 +356,8 @@ public class PlayerBackpack : MonoBehaviour
         const float box = 40f;
         const float gap = 8f;
 
-        int cap = Capacity;
+        int cap = TotalSlots;
+        int sprays = SprayCount;
         float totalWidth = cap * box + (cap - 1) * gap;
         float x = Screen.width - totalWidth - 28f;
         float y = Screen.height - 100f;
@@ -296,15 +365,34 @@ public class PlayerBackpack : MonoBehaviour
         for (int i = 0; i < cap; i++)
         {
             var r = new Rect(x + i * (box + gap), y, box, box);
-            bool filled = i < items.Count && items[i] != null;
+
+            bool isSpray = i < sprays;
+            int lootIndex = i - sprays;
+            bool filled = isSpray ||
+                          (lootIndex >= 0 && lootIndex < items.Count &&
+                           items[lootIndex] != null);
             bool selected = SelectedSlot == i && Time.time - lastSelectFlash < 0.6f;
 
+            // Green for a spray, and brighter still when it is in hand, so the
+            // medic can tell at a glance whether they are ready to use it.
             GUI.color = selected
                 ? new Color(0.45f, 0.85f, 1f, 0.95f)
-                : (filled
-                    ? new Color(0.85f, 0.55f, 0.15f, 0.92f)
-                    : new Color(1f, 1f, 1f, 0.18f));
+                : isSpray
+                    ? (SprayReady ? new Color(0.4f, 1f, 0.5f, 0.95f)
+                                  : new Color(0.25f, 0.7f, 0.35f, 0.9f))
+                    : (filled
+                        ? new Color(0.85f, 0.55f, 0.15f, 0.92f)
+                        : new Color(1f, 1f, 1f, 0.18f));
             GUI.Box(r, GUIContent.none);
+
+            if (isSpray)
+            {
+                var med = new GUIStyle(GUI.skin.label)
+                { fontSize = 11, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+                med.normal.textColor = Color.white;
+                GUI.color = Color.white;
+                GUI.Label(r, "MED", med);
+            }
 
             var num = new GUIStyle(GUI.skin.label)
             {
@@ -327,12 +415,14 @@ public class PlayerBackpack : MonoBehaviour
         style.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
 
         string tip = items.Count > 0
-            ? $"{TotalMass:0}kg pack   1-{Capacity} withdraw   G dump"
-            : $"pack {items.Count}/{Capacity}   keys 1-{Capacity}";
+            ? $"{TotalMass:0}kg pack   1-{TotalSlots} withdraw   G dump"
+            : $"pack {items.Count}/{Capacity} loot" +
+              (SprayCount > 0 ? $"  +{SprayCount} MED" : "") +
+              $"   keys 1-{TotalSlots}";
 
         GUI.Label(new Rect(x - 280f, y + 10f, 270f, 20f), tip, style);
 
-        if (SelectedSlot >= 0 && SelectedSlot < Capacity && Time.time - lastSelectFlash < 1.5f)
+        if (SelectedSlot >= 0 && SelectedSlot < TotalSlots && Time.time - lastSelectFlash < 1.5f)
         {
             style.alignment = TextAnchor.MiddleCenter;
             style.normal.textColor = new Color(0.7f, 0.9f, 1f, 0.9f);

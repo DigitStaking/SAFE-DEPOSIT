@@ -48,8 +48,8 @@ public class MedSpray : MonoBehaviour
              "you have to be standing over them, not shouting from a doorway.")]
     public float range = 2.6f;
 
-    [Tooltip("Aim tolerance. Generous, because they are lying down and a " +
-             "kneeling body is a small target in the dark.")]
+    [Tooltip("Unused since the aim check became a proximity check - kept so " +
+             "the Inspector does not lose a value somebody may have tuned.")]
     public float radius = 0.7f;
 
     [Header("Cost")]
@@ -90,21 +90,43 @@ public class MedSpray : MonoBehaviour
         Ask(target);
     }
 
+    /// <summary>
+    /// The downed crewmate in front of me, if any.
+    ///
+    /// AN OVERLAP, NOT A SPHERECAST. The first version cast a sphere forward
+    /// from the eye - and the eye sits INSIDE the player's own capsule, so the
+    /// sweep began already touching my own collider, returned that at distance
+    /// zero, and the "is it me?" guard then correctly answered "yes" and
+    /// returned nothing. Standing directly over a dying friend produced no
+    /// prompt at all, which is exactly what was reported.
+    ///
+    /// A single cast can only ever report the nearest thing, and the nearest
+    /// thing is always me. So this asks a different question: WHO IS NEARBY,
+    /// then filters. Nobody has to be aimed at precisely - they are on the
+    /// floor, in the dark, and a kneeling body is a small target.
+    /// </summary>
     DownedPlayer FindDowned()
     {
         var eye = PlayerRegistry.EyeOf(this);
         if (eye == null) return null;
 
-        if (!Physics.SphereCast(eye.position, radius, eye.forward,
-                                out RaycastHit hit, range, ~0,
-                                QueryTriggerInteraction.Ignore))
-            return null;
+        var hits = Physics.OverlapSphere(transform.position, range, ~0,
+                                         QueryTriggerInteraction.Ignore);
 
-        var downed = hit.collider.GetComponentInParent<DownedPlayer>();
-        if (downed == null || !downed.IsDowned) return null;
+        DownedPlayer best = null;
+        float bestDist = float.MaxValue;
 
-        // Not myself, however the ray got there.
-        return downed.gameObject == gameObject ? null : downed;
+        foreach (var c in hits)
+        {
+            var downed = c.GetComponentInParent<DownedPlayer>();
+            if (downed == null || !downed.IsDowned) continue;
+            if (downed.gameObject == gameObject) continue;
+
+            float d = Vector3.Distance(transform.position, downed.transform.position);
+            if (d < bestDist) { bestDist = d; best = downed; }
+        }
+
+        return best;
     }
 
     void Ask(DownedPlayer who)
@@ -154,7 +176,11 @@ public class MedSpray : MonoBehaviour
             // and the right move is to shout rather than give up. Carrying
             // them out is not an option either - that was cut on 26 Aug 2026,
             // see DownedPlayer.BecomeCargo - so this must not suggest it.
-            msg = "YOU HAVE NO MED SPRAY\nsomebody else may - shout for them";
+            // NOT a call to press R. Somebody with no spray was being shown
+            // the same prompt as the medic, so they held R at a dying friend
+            // and nothing happened. This says what is true and what would
+            // help, and names no key at all.
+            msg = "THEY NEED A MED SPRAY\nyou have none - somebody else may";
             colour = new Color(1f, 0.45f, 0.4f);
         }
         else if (progress > 0f)

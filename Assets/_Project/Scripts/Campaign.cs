@@ -33,6 +33,7 @@
 // ====================================================================
 
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
 public static class Campaign
@@ -235,6 +236,129 @@ public static class Campaign
 
     public static bool AnyoneLost => LostCrew.Count > 0;
 
+    // ================================================================
+    // PHASE 4 STEP 9 - THE RESCUE CONTRACT.
+    //
+    // ECONOMY Part 12:  Rescue(R, f) = Mafia(R) x (1 + f/10)
+    //
+    // R IS THE ROUND THEY WERE LOST, not the round you are paying in.
+    //
+    // The other reading - price it at today's Mafia - makes the debt grow
+    // while you save for it, which sounds like good pressure and is actually
+    // incoherent: partial payment carries over, and you cannot chip away at a
+    // total that moves faster than you can pay. A crew would watch the number
+    // climb past their income and simply stop trying, which is the opposite of
+    // the argument this step exists to create.
+    //
+    // Fixed, it is a debt. You can look at it, divide it by your surplus, and
+    // decide how many rounds of cable your friend is worth. That is the
+    // decision ECONOMY wants on the table.
+    //
+    // ECONOMY's own table says 372 for round 5, room 4, and this formula gives
+    // 371 - a rounding difference in the doc, noted in ROADMAP months ago. The
+    // formula is the source of truth; the table is an illustration.
+    // ================================================================
+
+    /// <summary>Host: send the current list to everyone.</summary>
+    public static void PublishLostCrew()
+    {
+        if (Net == null || !Net.IsServer) return;
+
+        Net.Lost.Clear();
+        foreach (var m in LostCrew)
+            Net.Lost.Add(new CampaignNet.LostRec {
+                name = new Unity.Collections.FixedString32Bytes(
+                           m.name != null && m.name.Length > 28
+                               ? m.name.Substring(0, 28) : (m.name ?? "")),
+                floor = m.floor,
+                runLost = m.runLost,
+                paid = m.paid,
+            });
+    }
+
+    /// <summary>Client: adopt the host's list wholesale.</summary>
+    public static void ApplyLostCrew(NetworkList<CampaignNet.LostRec> src)
+    {
+        if (src == null) return;
+
+        LostCrew.Clear();
+        foreach (var r in src)
+            LostCrew.Add(new LostCrewMember {
+                name = r.name.ToString(),
+                floor = r.floor,
+                runLost = r.runLost,
+                paid = r.paid,
+            });
+    }
+
+    public static int RescueCost(LostCrewMember m)
+    {
+        if (m == null) return 0;
+
+        int mafiaThen = Mathf.RoundToInt(
+            BaseMafia * Mathf.Pow(MafiaGrowth, Mathf.Max(0, m.runLost - 1)));
+
+        return Mathf.RoundToInt(mafiaThen * (1f + m.floor / 10f));
+    }
+
+    public static int RescueOwed(LostCrewMember m) =>
+        m == null ? 0 : Mathf.Max(0, RescueCost(m) - m.paid);
+
+    /// <summary>
+    /// Put money toward getting somebody back.
+    ///
+    /// PARTIAL PAYMENT IS THE POINT. A crew that can afford half of a rescue
+    /// this round should be able to pay half, because that turns one big
+    /// impossible number into a thing they are visibly working toward - and
+    /// makes every round after it a choice between the cable and the friend.
+    ///
+    /// Host only. The money is the shared pot and this spends it.
+    /// </summary>
+    public static bool PayRescue(int index, int amount)
+    {
+        if (!MaySpend) return false;
+        if (index < 0 || index >= LostCrew.Count) return false;
+
+        var m = LostCrew[index];
+        int owed = RescueOwed(m);
+        if (owed <= 0) return false;
+
+        int pay = Mathf.Clamp(amount, 0, Mathf.Min(owed, Money));
+        if (pay <= 0) return false;
+
+        Money -= pay;
+        m.paid += pay;
+
+        if (m.paid >= RescueCost(m))
+        {
+            Debug.Log($"[Crew] {m.name} is bought back for {RescueCost(m)}.");
+            LostCrew.RemoveAt(index);
+            RestoreRescued(m);
+        }
+
+        PublishLostCrew();
+        return true;
+    }
+
+    /// <summary>
+    /// They come back at full health with an empty pack. Whatever they were
+    /// carrying when they went down is long gone - the mafia had it, and the
+    /// building has been demolished around it since.
+    /// </summary>
+    static void RestoreRescued(LostCrewMember m)
+    {
+        for (int slot = 0; slot < Crew.MaxMembers; slot++)
+        {
+            var row = Crew.Of(slot);
+            if (!row.Lost) continue;
+
+            row.Lost = false;
+            row.Health = Crew.MaxHealth;
+            row.BleedOutLeft = 0f;
+            return;
+        }
+    }
+
     public static void RecordLost(string who, int floor)
     {
         if (string.IsNullOrEmpty(who)) who = "a crewmate";
@@ -247,7 +371,29 @@ public static class Campaign
         LostCrew.Add(new LostCrewMember {
             name = who, floor = floor, runLost = RunNumber, paid = 0,
         });
+
+        // Everyone has to see who is being held, or only the host can see the
+        // debt and the crew cannot argue about paying it - which is the entire
+        // point of the step.
+        PublishLostCrew();
+
+        // ---- THREE IS THE END ----
+        //
+        // ECONOMY Part 2 lists three survivor deaths alongside a missed mafia
+        // payment as the two ways a campaign ends. Not because a crew of one
+        // cannot function - Phase 2 was explicit that losing somebody is
+        // survivable, which is why Lost is not Buried - but because three
+        // people held to ransom is a debt no surplus can clear, and a campaign
+        // that cannot be won should say so rather than let a crew grind at it.
+        if (LostCrew.Count >= MaxLostBeforeOver && !CampaignOver)
+        {
+            CampaignOver = true;
+            EpitaphReason = $"the mafia is holding {LostCrew.Count} of your crew";
+        }
     }
+
+    /// <summary>ECONOMY Part 2: three survivor deaths ends the campaign.</summary>
+    public const int MaxLostBeforeOver = 3;
 
     /// <summary>
     /// Losing somebody loses what they were carrying.
@@ -396,6 +542,7 @@ public static class Campaign
         Net.Strain.Value = localStrain;
         Net.Seeded.Value = localSeeded;
         Net.Sealed.Value = SealedMask();
+        PublishLostCrew();
         Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
     }
 
@@ -783,6 +930,10 @@ public static class Campaign
     /// <summary>True when this machine is allowed to write the pot: always
     /// offline, host only online.</summary>
     static bool MaySpend => Net == null || Net.IsServer;
+
+    /// <summary>Public form of MaySpend, for UI that has to decide whether to
+    /// act directly or ask the host.</summary>
+    public static bool MayWrite => MaySpend;
 
     public static bool BuyCable()
     {

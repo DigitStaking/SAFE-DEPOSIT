@@ -102,6 +102,51 @@ public class CampaignNet : NetworkBehaviour
     /// </summary>
     public readonly NetworkVariable<uint>  Sealed     = new NetworkVariable<uint>(0u, default, Host);
 
+    /// <summary>
+    /// PHASE 4 STEP 9. Who the mafia is holding, and how much has been paid
+    /// toward each of them.
+    ///
+    /// The LAST of the three collections Step 3 deferred, and the note there
+    /// said each would move with the system that owns it. This one owns
+    /// itself: the rescue contract is the system.
+    ///
+    /// A list rather than a bitmask, unlike the sealed rooms, because these
+    /// entries carry data - a name, a floor, a round, a running total - and
+    /// they change one at a time, rarely, at the shop. Nothing here needs to
+    /// arrive atomically the way a demolished building did.
+    /// </summary>
+    public NetworkList<LostRec> Lost;
+
+    public struct LostRec : INetworkSerializable, System.IEquatable<LostRec>
+    {
+        public FixedString32Bytes name;
+        public int floor;
+        public int runLost;
+        public int paid;
+
+        public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
+        {
+            s.SerializeValue(ref name);
+            s.SerializeValue(ref floor);
+            s.SerializeValue(ref runLost);
+            s.SerializeValue(ref paid);
+        }
+
+        public bool Equals(LostRec o) =>
+            name.Equals(o.name) && floor == o.floor &&
+            runLost == o.runLost && paid == o.paid;
+    }
+
+    void Awake()
+    {
+        // In Awake, not a field initialiser: NGO needs the list to exist
+        // before the object spawns, and one built any later throws instead of
+        // replicating. Same rule LootNet's roster follows.
+        Lost = new NetworkList<LostRec>(
+            default, NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+    }
+
     public readonly NetworkVariable<FixedString128Bytes> Epitaph =
         new NetworkVariable<FixedString128Bytes>(default, default, Host);
 
@@ -129,11 +174,16 @@ public class CampaignNet : NetworkBehaviour
             // through RunManager rather than straight into Campaign.
             Sealed.OnValueChanged += OnSealedChanged;
             if (Sealed.Value != 0u) OnSealedChanged(0u, Sealed.Value);
+
+            Lost.OnListChanged += OnLostChanged;
+            Campaign.ApplyLostCrew(Lost);
         }
 
         Debug.Log($"[Net] campaign is now {(IsServer ? "HOST-OWNED" : "replicated from the host")} " +
                   $"- bank {Money.Value}, cable {Cable.Value:0}m, run {RunNumber.Value}");
     }
+
+    void OnLostChanged(NetworkListEvent<LostRec> _) => Campaign.ApplyLostCrew(Lost);
 
     void OnSealedChanged(uint _, uint now)
     {
@@ -145,7 +195,11 @@ public class CampaignNet : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (!IsServer) Sealed.OnValueChanged -= OnSealedChanged;
+        if (!IsServer)
+        {
+            Sealed.OnValueChanged -= OnSealedChanged;
+            Lost.OnListChanged -= OnLostChanged;
+        }
 
         // Leave the last known numbers in the statics rather than snapping
         // back to whatever this machine had before it joined. You keep what
@@ -179,6 +233,15 @@ public class CampaignNet : NetworkBehaviour
 
     [ServerRpc(RequireOwnership = false)]
     public void BuyMedSprayServerRpc(int slot) => Campaign.BuyMedSprayAuthoritative(slot);
+
+    /// <summary>
+    /// Anybody at the shop can put money toward a rescue. Deliberately not
+    /// restricted to whoever is nominally in charge - the whole argument the
+    /// step exists to create is about the crew's money, so any of them must be
+    /// able to reach for it and the others must see it happen.
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void PayRescueServerRpc(int index, int amount) => Campaign.PayRescue(index, amount);
 
     // ================================================================
     // A REVIVE TAKES THREE MACHINES, AND EACH DOES ONLY WHAT IT OWNS.

@@ -1036,6 +1036,8 @@ public class RunManager : MonoBehaviour
 
         float tail = by + 46f;
 
+        tail = DrawRescueContracts(tail, body);
+
         body.normal.textColor = new Color(1f, 1f, 1f, 0.5f);
         GUI.Label(new Rect(0f, tail, Screen.width, 22f),
             $"next run quota {Campaign.NextQuota}" +
@@ -1086,6 +1088,72 @@ public class RunManager : MonoBehaviour
     // transitions, and the second one interrupts the first. A client's press
     // is a request, exactly like buying cable and calling the lift.
     // ==================================================================
+    /// <summary>
+    /// PHASE 4 STEP 9 - THE RESCUE CONTRACT.
+    ///
+    /// Drawn under the shop, next to the cable, on purpose. ECONOMY's
+    /// done-when for this step is "the crew argues about cable versus their
+    /// friend" - and an argument needs both options visible at once, priced in
+    /// the same currency, on the same screen. Put the rescue on its own menu
+    /// and it stops being a trade-off and becomes a chore.
+    ///
+    /// PAY WHAT YOU CAN. The button offers the whole balance if you have it
+    /// and everything you have if you do not, because a crew that can afford
+    /// 60% of a rescue should be able to pay 60% and watch the number come
+    /// down. One impossible sum is a wall; a shrinking one is a plan.
+    /// </summary>
+    float DrawRescueContracts(float y, GUIStyle body)
+    {
+        if (!Campaign.AnyoneLost) return y;
+
+        float cx = Screen.width * 0.5f;
+
+        var head = new GUIStyle(GUI.skin.label)
+        { fontSize = 15, alignment = TextAnchor.MiddleCenter };
+        head.normal.textColor = new Color(1f, 0.5f, 0.45f);
+
+        GUI.Label(new Rect(0f, y, Screen.width, 22f),
+                  "THE MAFIA IS HOLDING YOUR CREW", head);
+        y += 24f;
+
+        for (int i = 0; i < Campaign.LostCrew.Count; i++)
+        {
+            var m = Campaign.LostCrew[i];
+            int cost = Campaign.RescueCost(m);
+            int owed = Campaign.RescueOwed(m);
+
+            var line = new GUIStyle(GUI.skin.label)
+            { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+            line.normal.textColor = new Color(1f, 0.85f, 0.7f);
+
+            GUI.Label(new Rect(0f, y, Screen.width, 20f),
+                      $"{m.name}  -  lost on room {m.floor:00} in round {m.runLost}" +
+                      $"   paid {m.paid} / {cost}   still owed {owed}", line);
+            y += 22f;
+
+            int pay = Mathf.Min(owed, Campaign.Money);
+
+            GUI.enabled = pay > 0;
+            string label = pay <= 0
+                ? "no money to put toward them"
+                : pay >= owed ? $"BUY THEM BACK  ({owed})"
+                              : $"pay what we have  ({pay})   -   {owed - pay} left after";
+
+            if (GUI.Button(new Rect(cx - 190f, y, 380f, 32f), label))
+            {
+                if (CampaignNet.Instance != null && !Campaign.MayWrite)
+                    CampaignNet.Instance.PayRescueServerRpc(i, pay);
+                else
+                    Campaign.PayRescue(i, pay);
+            }
+
+            GUI.enabled = true;
+            y += 38f;
+        }
+
+        return y + 6f;
+    }
+
     void ReloadScene()
     {
         var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();

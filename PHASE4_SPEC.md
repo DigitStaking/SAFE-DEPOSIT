@@ -321,7 +321,7 @@ Extraction, results, shop, and the **networked scene reload** — everyone
 transitions together, and nobody mid-load is counted as having left.
 **Done when:** two players finish a round and both see the same shop.
 
-### Step 9 · Rescue contract
+### Step 9 · Rescue contract — BUILT, needs a crew to mean anything
 *Deferred here from Phase 2 Step 9.* `Rescue(R,f) = Mafia(R) × (1 + f/10)`,
 partial payment carried over, three deaths ends the campaign.
 `Campaign.LostCrew` already records who and on which floor.

@@ -155,7 +155,35 @@ public class ElevatorNet : NetworkBehaviour
                       "car is simulated on every machine, not streamed.");
         }
 
-        Debug.Log($"[Net] elevator is {(IsServer ? "HOST-DRIVEN" : "drawing the host's trips")}");
+        // ---- THE HOST BRINGS ITS LIFT WITH IT ----
+        //
+        // Every one of these starts at 0, and 0 means "parked at the surface,
+        // going nowhere". So hosting told the whole session the car was at the
+        // top no matter where it actually was - and the dashboard refused
+        // RETURN with ALREADY AT SURFACE while the crew stood on floor 1.
+        //
+        // Reported as exactly that, and it is the same omission twice: Step 3
+        // carries the campaign in on OnNetworkSpawn and Step 4 carries each
+        // Crew row in, and the lift got the replication and not the handover.
+        //
+        // Read from the RAW locals, not the properties - by this line Instance
+        // is already set, so the properties would answer from the network, and
+        // the network is the blank slate we are trying to fill.
+        if (IsServer)
+        {
+            var lift = SceneRefs.Lift;
+            if (lift != null)
+            {
+                Current.Value = lift.RawCurrentFloor;
+                Target.Value = lift.RawTargetFloor;
+                Moving.Value = lift.RawMoving;
+                Fast.Value = lift.RawFast;
+                CarY.Value = lift.CarWorldY;
+            }
+        }
+
+        Debug.Log($"[Net] elevator is {(IsServer ? "HOST-DRIVEN" : "drawing the host's trips")}" +
+                  $" - floor {Current.Value}, target {Target.Value}, moving {Moving.Value}");
     }
 
     public override void OnNetworkDespawn()

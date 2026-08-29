@@ -100,6 +100,21 @@ public class Elevator : MonoBehaviour
     int localCurrent, localTarget;
     bool localMoving;
 
+    // ---- WHAT THIS MACHINE THINKS, IGNORING THE NETWORK ----
+    //
+    // ElevatorNet seeds itself from these the moment it spawns. Without them
+    // it would have to read the properties above, which by that point already
+    // answer from the network - and the network answers 0, because nothing has
+    // written it yet. The lift would seed itself from its own blank slate.
+    //
+    // Same job as Campaign.PushLocalStateToNetwork in Step 3. I remembered to
+    // carry the money in and forgot to carry the lift.
+    internal int RawCurrentFloor => localCurrent;
+    internal int RawTargetFloor => localTarget;
+    internal bool RawMoving => localMoving;
+    internal bool RawFast => localFast;
+    internal float CarWorldY => rb != null ? rb.position.y : transform.position.y;
+
     public int CurrentFloor
     {
         get => Net != null ? Net.Current.Value : localCurrent;

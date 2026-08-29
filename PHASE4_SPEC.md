@@ -145,6 +145,9 @@ that guess would be rewritten at each of those steps anyway.
 **Done when:** two players have different HP and both HUDs are right.
 
 ### Step 5 · The lift — DONE (load gauge waits on Step 6)
+**Riders in sync: met.** Own body correct, teammate correct, no rubber-band,
+walking and jumping work while it travels. What remains is the noise floor of
+a ~100 ms link — a teammate's post-arrival settle, eased rather than shown.
 Floor, moving, doors, bridge. **Riders in sync** — the hard one from Part 3.
 **Done when:** two people ride down together and nobody rubber-bands.
 

@@ -296,8 +296,29 @@ public class ElevatorNet : NetworkBehaviour
             // quarter second of a teammate not being able to crouch after a
             // ride, and it removes the last visible artefact of the whole
             // step.
+            // GENTLY JUST AFTER A TRIP, BRISKLY AFTERWARDS.
+            //
+            // What is left is not a bug any more, it is the noise floor. When
+            // the car stops, the teammate's body settles onto the deck on
+            // THEIR machine - a real, small, physical settle - and it reaches
+            // here a tenth of a second later. Shown at full speed it reads as
+            // a dip.
+            //
+            // So for the first second and a half after a trip the height eases
+            // slowly, which turns that settle into a glide nobody notices.
+            // After that it goes back to being responsive, so a crouch or a
+            // jump while standing around still reads promptly.
+            //
+            // This is smoothing, and it is worth being honest about the
+            // difference: everything before this commit removed a wrong
+            // position. This one renders a right position more kindly. There
+            // is no third fix hiding behind it - below this is just latency,
+            // and latency is not a defect.
             if (!lift.IsMoving && stillFor > 0.25f)
-                h = Mathf.Lerp(h, measured, 1f - Mathf.Exp(-12f * Time.deltaTime));
+            {
+                float rate = stillFor < 1.5f ? 3f : 12f;
+                h = Mathf.Lerp(h, measured, 1f - Mathf.Exp(-rate * Time.deltaTime));
+            }
 
             deckHeights[r] = h;
 

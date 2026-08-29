@@ -291,10 +291,15 @@ cost two sprays and revive them once. The downed player *stands up*, because
 Step 4 made each Crew row owner-written and nobody else **can** set their
 health. That is not an obstacle worked around — it is the rule working.
 
-Stocked for the **crew**, not per person: the opposite call to `BackpackSlots`
-beside it. A pack is a role; a spray is insurance, and the tension is that the
-money could have been cable. Choosing once together is interesting; choosing
-four times is bookkeeping.
+**Carried by a person, not by the crew** (changed 26 Aug 2026, on playtest).
+A crew-wide counter cannot be lost — it follows everyone around and nobody is
+responsible for it. On a person it becomes a **job**: somebody is the medic,
+everyone knows who, and if they go down the crew's rescues go with them. The
+one carrying the sprays has a reason to play safe, and that reason is not
+their own life — it is everybody else's.
+
+The host spends from the **sprayer's** supply, so the person who runs in is
+the person who pays.
 *Deferred here from Phase 2 Step 7.* `DownedPlayer.Revive()` is already
 finished — this is the med spray, the use interaction, and the first honest
 test of any of it.

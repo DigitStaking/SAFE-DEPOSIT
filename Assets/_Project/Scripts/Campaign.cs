@@ -250,6 +250,30 @@ public static class Campaign
     }
 
     /// <summary>
+    /// Losing somebody loses what they were carrying.
+    ///
+    /// This is the whole reason sprays are personal. A crew-wide counter
+    /// cannot be lost, so nobody is responsible for it and there is nothing to
+    /// argue about. On a person, the medic going down takes the crew's
+    /// rescues with them - which is what gives the one carrying them a reason
+    /// to play safe, and the reason is not their own life.
+    ///
+    /// Host only, like every other write to a Crew row that is not the
+    /// owner's own damage.
+    /// </summary>
+    public static void LoseCarriedSupplies(int slot)
+    {
+        if (!MaySpend) return;
+
+        var who = Crew.Of(slot);
+        if (who.MedSprays <= 0) return;
+
+        Debug.Log($"[Crew] slot {slot} is lost, and so are the " +
+                  $"{who.MedSprays} med spray(s) they were carrying.");
+        who.MedSprays = 0;
+    }
+
+    /// <summary>
     /// Rooms sealed when you surface: exactly one, the room whose charge was
     /// counting down as you left. The OTHERS are sealed mid-run, one per
     /// completed 10-minute charge, which together produce the design's
@@ -371,7 +395,6 @@ public static class Campaign
         Net.Over.Value = localOver;
         Net.Strain.Value = localStrain;
         Net.Seeded.Value = localSeeded;
-        Net.Sprays.Value = localSprays;
         Net.Sealed.Value = SealedMask();
         Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
     }
@@ -392,7 +415,6 @@ public static class Campaign
         localOver = Net.Over.Value;
         localStrain = Net.Strain.Value;
         localSeeded = Net.Seeded.Value;
-        localSprays = Net.Sprays.Value;
         ApplySealedMask(Net.Sealed.Value);
         localEpitaph = Net.Epitaph.Value.ToString();
     }
@@ -435,43 +457,48 @@ public static class Campaign
     /// from "the building has never been stocked". Without it, an empty
     /// roster would look like a fresh campaign and refill the whole tower.
     /// </summary>
-    static int localSprays;
-
     /// <summary>
-    /// How many med sprays the crew is carrying. Host-owned, like the money,
-    /// because it is spent out of the same shared decision.
+    /// PER PERSON. Changed 26 Aug 2026 from a crew-wide kit.
+    ///
+    /// A shared counter cannot be lost - it follows everyone around and
+    /// nobody is responsible for it. Sprays carried by a PERSON make somebody
+    /// the medic, and make losing them cost the crew its rescues. The one
+    /// carrying them has a reason to play safe, and it is not their own life,
+    /// it is everybody else's.
     /// </summary>
-    public static int MedSprays
+    public static bool BuyMedSpray(int slot)
     {
-        get => Net != null ? Net.Sprays.Value : localSprays;
-        set { if (Net != null) { if (Net.IsServer) Net.Sprays.Value = value; } else localSprays = value; }
-    }
-
-    public static bool BuyMedSpray()
-    {
+        var who = Crew.Of(slot);
         if (Money < MedSprayCost) return false;
-        if (MaySpend) return BuyMedSprayAuthoritative();
+        if (MaySpend) return BuyMedSprayAuthoritative(slot);
 
-        Net.BuyMedSprayServerRpc();
+        Net.BuyMedSprayServerRpc(slot);
         return true;
     }
 
-    public static bool BuyMedSprayAuthoritative()
+    public static bool BuyMedSprayAuthoritative(int slot)
     {
         if (Money < MedSprayCost) return false;
+
         Money -= MedSprayCost;
-        MedSprays++;
+        var who = Crew.Of(slot);
+        who.MedSprays = who.MedSprays + 1;
         return true;
     }
 
     /// <summary>
-    /// Spend one. Host only - a client that could decrement this could revive
-    /// the whole crew off a kit that ran out three floors ago.
+    /// Spend one FROM A NAMED PERSON. Host only - a client that could
+    /// decrement this could revive the crew off a kit that ran out three
+    /// floors ago.
     /// </summary>
-    public static bool ConsumeMedSpray()
+    public static bool ConsumeMedSpray(int slot)
     {
-        if (!MaySpend || MedSprays <= 0) return false;
-        MedSprays--;
+        if (!MaySpend) return false;
+
+        var who = Crew.Of(slot);
+        if (who.MedSprays <= 0) return false;
+
+        who.MedSprays = who.MedSprays - 1;
         return true;
     }
 

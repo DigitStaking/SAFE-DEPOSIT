@@ -77,7 +77,7 @@ public class MedSpray : MonoBehaviour
         var kb = PlayerRegistry.KeysOf(this);
         bool holding = kb != null && kb[UnityEngine.InputSystem.Key.R].isPressed;
 
-        if (target == null || !holding || Campaign.MedSprays <= 0)
+        if (target == null || !holding || mine.MedSprays <= 0)
         {
             progress = 0f;
             return;
@@ -117,15 +117,20 @@ public class MedSpray : MonoBehaviour
         // costs.
         if (netObj == null || !netObj.IsSpawned || CampaignNet.Instance == null)
         {
-            if (Campaign.MedSprays > 0)
+            var me = Crew.Of(this);
+            if (me.MedSprays > 0)
             {
-                Campaign.MedSprays--;
+                me.MedSprays = me.MedSprays - 1;
                 who.Revive();
             }
             return;
         }
 
-        CampaignNet.Instance.ReviveServerRpc(netObj.OwnerClientId);
+        // MY slot, not the target's. The person who runs in is the person who
+        // pays - that is what makes carrying the sprays a job somebody has to
+        // volunteer for.
+        int mySlot = PlayerRegistry.OwnerOf(this) is PlayerMotor m ? m.Slot : 0;
+        CampaignNet.Instance.ReviveServerRpc(netObj.OwnerClientId, mySlot);
     }
 
     void OnGUI()
@@ -137,16 +142,19 @@ public class MedSpray : MonoBehaviour
         string msg;
         Color colour;
 
-        if (Campaign.MedSprays <= 0)
+        var mine = Crew.Of(this);
+
+        if (mine.MedSprays <= 0)
         {
             // Said plainly, because the alternative is a player holding R at a
             // dying friend and learning nothing from the silence.
-            // Carrying was cut on 26 Aug 2026 - see DownedPlayer.BecomeCargo.
-            // So this line must not offer it. With an empty kit there is now
-            // genuinely nothing anyone can do, and saying so plainly is the
-            // only honest option: a prompt that suggests a rescue which does
-            // not exist is worse than no prompt at all.
-            msg = "NO MED SPRAY LEFT\nnothing you can do - buy one at the surface";
+            //
+            // "YOU have none" rather than "there are none": sprays are carried
+            // by a PERSON now, so somebody else in the crew may still have one
+            // and the right move is to shout rather than give up. Carrying
+            // them out is not an option either - that was cut on 26 Aug 2026,
+            // see DownedPlayer.BecomeCargo - so this must not suggest it.
+            msg = "YOU HAVE NO MED SPRAY\nsomebody else may - shout for them";
             colour = new Color(1f, 0.45f, 0.4f);
         }
         else if (progress > 0f)
@@ -157,7 +165,7 @@ public class MedSpray : MonoBehaviour
         }
         else
         {
-            msg = $"HOLD R  to spray them back up   ({Campaign.MedSprays} left)";
+            msg = $"HOLD R  to spray them back up   ({mine.MedSprays} on you)";
             colour = Color.white;
         }
 

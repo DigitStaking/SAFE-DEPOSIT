@@ -99,6 +99,7 @@ public static class Crew
         float localBleed;
         bool localLost;
         int localPack = StartingBackpackSlots;
+        int localSprays;
 
         // Raw access for CrewMemberNet, which has to seed the network from
         // whatever this machine was holding when it connected.
@@ -106,6 +107,7 @@ public static class Crew
         internal float RawBleedOut => localBleed;
         internal bool RawLost => localLost;
         internal int RawPack => localPack;
+        internal int RawSprays => localSprays;
 
         public int Health
         {
@@ -144,6 +146,32 @@ public static class Crew
             {
                 if (Net == null) { localPack = value; return; }
                 if (Net.IsServer) Net.Pack.Value = value;
+            }
+        }
+
+        /// <summary>
+        /// Med sprays THIS person is carrying.
+        ///
+        /// PER PERSON, NOT PER CREW - changed 26 Aug 2026, and it is the
+        /// better call. A crew-wide kit is a number that follows everyone
+        /// around and cannot be lost; sprays on a PERSON make somebody the
+        /// medic, and make losing them cost the crew its rescues.
+        ///
+        /// The one carrying them has a reason to play safe, and that reason
+        /// is not their own life - it is everybody else's. That is a far more
+        /// interesting thing to argue about in a lift than a shared counter.
+        ///
+        /// Host-written, like BackpackSlots beside it: bought out of the
+        /// shared pot, spent by the host when it grants a revive. Both ends
+        /// of a spray's life are host decisions.
+        /// </summary>
+        public int MedSprays
+        {
+            get => Net != null ? Net.Sprays.Value : localSprays;
+            set
+            {
+                if (Net == null) { localSprays = Mathf.Max(0, value); return; }
+                if (Net.IsServer) Net.Sprays.Value = Mathf.Max(0, value);
             }
         }
 

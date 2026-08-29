@@ -57,6 +57,14 @@ public class CrewMemberNet : NetworkBehaviour
     public readonly NetworkVariable<int> Pack =
         new NetworkVariable<int>(Crew.StartingBackpackSlots, default, Host);
 
+    /// <summary>
+    /// Med sprays THIS person is carrying. Server-write for the same reason
+    /// as Pack: they are bought out of the shared pot, and spent by the host
+    /// when a revive is granted. Both ends of a spray's life are host
+    /// decisions, so the owner never writes it.
+    /// </summary>
+    public readonly NetworkVariable<int> Sprays = new NetworkVariable<int>(0, default, Host);
+
     static readonly CrewMemberNet[] bySlot = new CrewMemberNet[Crew.MaxMembers];
 
     /// <summary>
@@ -94,7 +102,11 @@ public class CrewMemberNet : NetworkBehaviour
             Lost.Value = mine.RawLost;
         }
 
-        if (IsServer) Pack.Value = Crew.LocalRow(slot).RawPack;
+        if (IsServer)
+        {
+            Pack.Value = Crew.LocalRow(slot).RawPack;
+            Sprays.Value = Crew.LocalRow(slot).RawSprays;
+        }
     }
 
     public override void OnNetworkDespawn()

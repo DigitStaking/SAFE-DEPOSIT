@@ -84,9 +84,6 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<float> Strain     = new NetworkVariable<float>(0f, default, Host);
     public readonly NetworkVariable<bool>  Seeded     = new NetworkVariable<bool>(false, default, Host);
 
-    /// <summary>Med sprays in the crew's kit. PHASE 4 STEP 7.</summary>
-    public readonly NetworkVariable<int>   Sprays     = new NetworkVariable<int>(0, default, Host);
-
     /// <summary>
     /// Which rooms are rubble, one bit per floor.
     ///
@@ -181,7 +178,7 @@ public class CampaignNet : NetworkBehaviour
     public void BuyBackpackSlotServerRpc(int slot) => Campaign.BuyBackpackSlotAuthoritative(slot);
 
     [ServerRpc(RequireOwnership = false)]
-    public void BuyMedSprayServerRpc() => Campaign.BuyMedSprayAuthoritative();
+    public void BuyMedSprayServerRpc(int slot) => Campaign.BuyMedSprayAuthoritative(slot);
 
     // ================================================================
     // A REVIVE TAKES THREE MACHINES, AND EACH DOES ONLY WHAT IT OWNS.
@@ -224,11 +221,15 @@ public class CampaignNet : NetworkBehaviour
     }
 
     [ServerRpc(RequireOwnership = false)]
-    public void ReviveServerRpc(ulong target)
+    public void ReviveServerRpc(ulong target, int sprayerSlot)
     {
-        if (!Campaign.ConsumeMedSpray())
+        // Spent from the SPRAYER'S own supply, which is the whole point of
+        // making sprays personal: the person who runs in is the person who
+        // pays, and if they had none, nothing happens no matter how many
+        // somebody safe upstairs is carrying.
+        if (!Campaign.ConsumeMedSpray(sprayerSlot))
         {
-            Debug.Log("[Crew] revive refused - the kit is empty.");
+            Debug.Log($"[Crew] revive refused - slot {sprayerSlot} has no spray.");
             return;
         }
 

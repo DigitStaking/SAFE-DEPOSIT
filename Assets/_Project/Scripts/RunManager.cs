@@ -227,6 +227,12 @@ public class RunManager : MonoBehaviour
         string name = who != null ? who.gameObject.name : "a crewmate";
         Campaign.RecordLost(name, CurrentFloorOfLift());
 
+        // What they were carrying goes with them. Sprays are personal as of
+        // 26 Aug 2026, and this is the line that makes that mean something:
+        // lose the medic and the crew loses its rescues.
+        var lostMotor = PlayerRegistry.OwnerOf(who);
+        if (lostMotor != null) Campaign.LoseCarriedSupplies(lostMotor.Slot);
+
         // A CREW SURVIVES LOSING ONE OF ITS PEOPLE. The run only ends when
         // there is nobody left standing to finish it - which is the whole
         // reason Lost is not Buried, and the reason four players can keep
@@ -259,6 +265,7 @@ public class RunManager : MonoBehaviour
         {
             if (m == null) continue;
             Campaign.RecordLost(m.gameObject.name, floor);
+            Campaign.LoseCarriedSupplies(m.Slot);
         }
 
         State = RunState.Lost;
@@ -958,19 +965,23 @@ public class RunManager : MonoBehaviour
 
         // ---- med spray ----
         //
-        // Stocked for the CREW, not for a person - the opposite call to the
-        // pack beside it, and deliberately. A pack is a role: somebody is the
-        // mule and losing them costs the crew their capacity. A spray is
-        // insurance, and the whole tension of buying one is that the money
-        // could have been cable. Choosing once, together, is the interesting
-        // version; choosing four times is bookkeeping.
+        // Bought FOR A PERSON, like the pack beside it. This was crew-wide
+        // for about an hour and it was the weaker design: a shared counter
+        // cannot be lost, follows everyone around, and nobody is responsible
+        // for it.
+        //
+        // On a person it becomes a job. Somebody is the medic, everyone knows
+        // who, and if they go down the crew's rescues go with them - so the
+        // one carrying the sprays has a reason to play safe, and that reason
+        // is not their own life, it is everybody else's.
         GUI.enabled = Campaign.Money >= Campaign.MedSprayCost;
 
         if (GUI.Button(new Rect(bx + (bw + gap) * 3f, by, bw, 40f),
                        $"+1 med spray  ({Campaign.MedSprayCost})" +
-                       $"   have {Campaign.MedSprays}"))
+                       $"   {(buyer != null ? buyer.gameObject.name : "you")} " +
+                       $"has {buyerPack.MedSprays}"))
         {
-            Campaign.BuyMedSpray();
+            Campaign.BuyMedSpray(buyerSlot);
         }
 
         GUI.enabled = true;

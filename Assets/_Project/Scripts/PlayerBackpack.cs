@@ -11,9 +11,10 @@ using UnityEngine.InputSystem;
 public class PlayerBackpack : MonoBehaviour
 {
     [Header("Capacity")]
-    [Tooltip("Start at 2. Shop sells more slots.")]
-    [Tooltip("Offline fallback only. Online and in a run this is ASKED for, " +
-             "not stored - see Capacity below.")]
+    [Tooltip("Start at 2. Shop sells more slots.\n\n" +
+             "FALLBACK ONLY. Once there is a player to ask, Capacity below " +
+             "reads the Crew row instead, so this value is only used before " +
+             "one exists.")]
     public int slots = 2;
 
     /// <summary>

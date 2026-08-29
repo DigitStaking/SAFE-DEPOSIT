@@ -167,6 +167,11 @@ public class Elevator : MonoBehaviour
     /// client this is the only way to know how far the host moved it.</summary>
     Vector3 lastCarPosition;
 
+    /// <summary>The floor the active door was last chosen for. See
+    /// FixedUpdate - the trigger is learning a new floor, not arriving
+    /// at one.</summary>
+    int sideFloor = int.MinValue;
+
     /// <summary>How far a client's own simulation may drift from the host's
     /// car before it stops trusting itself. Two floors' worth of travel is
     /// far more than interpolation noise and far less than a real desync.</summary>
@@ -323,6 +328,25 @@ public class Elevator : MonoBehaviour
     // shaft is the single source of truth and Step 11 can rearrange floors
     // freely without touching the elevator at all.
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Recompute the active door if this machine has learned a new floor
+    /// since the last time it did.
+    ///
+    /// Public because ElevatorBridge has to be able to ask before it goes
+    /// looking for a deck. The bridge reacts to IsMoving turning false, and
+    /// that is an Update; this runs in FixedUpdate. On a frame where those two
+    /// land the wrong way round the bridge would extend toward the side the
+    /// PREVIOUS floor used - the same mistake as before, one frame wide
+    /// instead of permanent, which is worse to find.
+    /// </summary>
+    public void EnsureActiveSideForCurrentFloor()
+    {
+        if (CurrentFloor == sideFloor) return;
+
+        sideFloor = CurrentFloor;
+        UpdateActiveSide();
+    }
 
     void UpdateActiveSide()
     {
@@ -509,6 +533,29 @@ public class Elevator : MonoBehaviour
         // WHETHER it also runs on a stationary frame is new.
         GatherRiders();
 
+        // ---- WHICH WALL OPENS IS DECIDED BY THE FLOOR, NOT BY ARRIVING ----
+        //
+        // UpdateActiveSide is deterministic: it takes CurrentFloor, finds that
+        // level, and picks the shutter whose outward normal best matches the
+        // doorway. Same floor in, same door out, on any machine.
+        //
+        // But it was CALLED at the moment a machine finished moving, and the
+        // two machines do not learn the new floor at the same instant. The
+        // host sets CurrentFloor and then computes the side. A client reaches
+        // the target a frame earlier or later and computes the side from the
+        // floor it still thinks it is on - so the host opened SOUTH for
+        // floor 2 while the client opened EAST for floor 1, and each crew
+        // stood at a bridge the other could not see.
+        //
+        // Nothing was wrong with the choice. It was made from the wrong floor.
+        //
+        // So the trigger is the FLOOR CHANGING rather than the travelling
+        // stopping. Every machine recomputes when, and only when, it learns
+        // it is somewhere new - which for a client is the moment the number
+        // arrives, whenever that is. Offline the two are the same instant and
+        // nothing changes.
+        EnsureActiveSideForCurrentFloor();
+
         // ==============================================================
         // ONE CAR DECIDES. EVERY MACHINE CARRIES ITS OWN RIDERS.
         //
@@ -648,7 +695,10 @@ public class Elevator : MonoBehaviour
                 useFast = false;
                 CurrentFloor = TargetFloor;
             }
-            UpdateActiveSide();
+
+            // No UpdateActiveSide here any more. Writing CurrentFloor above is
+            // what triggers it, at the top of the next step, on every machine
+            // - including the ones that only find out later.
         }
     }
 

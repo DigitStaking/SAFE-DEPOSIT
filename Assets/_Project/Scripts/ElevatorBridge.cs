@@ -314,6 +314,10 @@ public class ElevatorBridge : MonoBehaviour
         bool moving = elevator.IsMoving;
         if (wasMoving && !moving)
         {
+            // Ask which wall opened BEFORE looking for the deck behind it.
+            // Cheap, guarded, and it removes any dependence on whether this
+            // frame's FixedUpdate happened to run before this Update.
+            elevator.EnsureActiveSideForCurrentFloor();
             FindDeck();
             state = State.Extending;
             t = 0f;

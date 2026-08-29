@@ -77,7 +77,13 @@ public class MedSpray : MonoBehaviour
         var kb = PlayerRegistry.KeysOf(this);
         bool holding = kb != null && kb[UnityEngine.InputSystem.Key.R].isPressed;
 
-        if (target == null || !holding || mine.MedSprays <= 0)
+        // IT HAS TO BE IN YOUR HAND. Taking it out of the pack is a separate,
+        // deliberate act - the same one crates need - so R is never the answer
+        // to a prompt somebody has not prepared for.
+        var pack = GetComponent<PlayerBackpack>();
+        bool ready = pack != null && pack.SprayReady && mine.MedSprays > 0;
+
+        if (target == null || !holding || !ready)
         {
             progress = 0f;
             return;
@@ -88,6 +94,11 @@ public class MedSpray : MonoBehaviour
 
         progress = 0f;
         Ask(target);
+
+        // Used, so it is no longer in hand. Carrying another one means taking
+        // it out again deliberately, which is the right amount of friction for
+        // spending something this scarce.
+        if (pack != null) pack.PutSprayAway();
     }
 
     /// <summary>
@@ -165,8 +176,15 @@ public class MedSpray : MonoBehaviour
         Color colour;
 
         var mine = Crew.Of(this);
+        var pack = GetComponent<PlayerBackpack>();
 
-        if (mine.MedSprays <= 0)
+        if (mine.MedSprays > 0 && (pack == null || !pack.SprayReady))
+        {
+            // Have one, not holding it. Name the key that actually helps.
+            msg = "PRESS 1 TO TAKE OUT YOUR MED SPRAY";
+            colour = new Color(0.6f, 1f, 0.6f);
+        }
+        else if (mine.MedSprays <= 0)
         {
             // Said plainly, because the alternative is a player holding R at a
             // dying friend and learning nothing from the silence.

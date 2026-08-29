@@ -63,6 +63,25 @@ public class NetworkBootstrap : MonoBehaviour
 
     void Awake()
     {
+        // ---- PHASE 4 STEP 8: THE COPY THAT ARRIVES WITH THE NEW SCENE ----
+        //
+        // The round transition is now a NETWORKED scene load, so the running
+        // NetworkManager survives it - it has to, or there is nothing left to
+        // keep the session alive with. But the scene being loaded contains its
+        // own NETWORK object, and that copy arrives into a game that already
+        // has one.
+        //
+        // The new arrival is the one that leaves. It has no session, no
+        // connections and no history; the survivor is mid-round with four
+        // people attached to it. Deciding by "who got here first" would be
+        // exactly backwards.
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.gameObject != gameObject)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         net = GetComponent<NetworkManager>();
         if (net == null)
         {

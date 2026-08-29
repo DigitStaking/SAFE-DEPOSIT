@@ -166,6 +166,24 @@ public class CampaignNet : NetworkBehaviour
     // them kneeling.
     // ================================================================
 
+    /// <summary>
+    /// PHASE 4 STEP 8. A client pressing "go back down".
+    ///
+    /// The host runs the same RunManager code it would have run for its own
+    /// press, so the rules about what a new round costs live in exactly one
+    /// place - the same arrangement as the lift in Step 5, where a client's
+    /// button press re-enters ElevatorBridge on the host rather than
+    /// shortcutting to the car.
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void NextRoundServerRpc()
+    {
+        var run = SceneRefs.Run;
+        if (run != null) run.GoBackDown();
+        else Debug.LogWarning("[Net] a client asked for the next round and the " +
+                              "host has no RunManager to ask.");
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void ReviveServerRpc(ulong target)
     {

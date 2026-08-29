@@ -141,7 +141,12 @@ public class MedSpray : MonoBehaviour
         {
             // Said plainly, because the alternative is a player holding R at a
             // dying friend and learning nothing from the silence.
-            msg = "NO MED SPRAY LEFT\ncarry them to the lift instead";
+            // Carrying was cut on 26 Aug 2026 - see DownedPlayer.BecomeCargo.
+            // So this line must not offer it. With an empty kit there is now
+            // genuinely nothing anyone can do, and saying so plainly is the
+            // only honest option: a prompt that suggests a rescue which does
+            // not exist is worse than no prompt at all.
+            msg = "NO MED SPRAY LEFT\nnothing you can do - buy one at the surface";
             colour = new Color(1f, 0.45f, 0.4f);
         }
         else if (progress > 0f)

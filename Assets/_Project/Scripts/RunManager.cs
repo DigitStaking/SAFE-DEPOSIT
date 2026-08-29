@@ -965,14 +965,69 @@ public class RunManager : MonoBehaviour
 
         if (GUI.Button(new Rect(cx - 110f, tail + 36f, 220f, 40f), "go back down"))
         {
-            Campaign.AdvanceRun();
-            ReloadScene();
+            GoBackDown();
         }
     }
 
+    /// <summary>
+    /// Start the next round.
+    ///
+    /// PHASE 4 STEP 8. One method, because a client's press has to end up
+    /// running exactly this - AdvanceRun spends the round's purchase caps and
+    /// seals a room, and a version of that which only some machines run is
+    /// how two crews end up in different buildings.
+    ///
+    /// AdvanceRun already refuses to do anything on a client (it is guarded on
+    /// MaySpend, Step 3), so a client calling this locally advances nothing
+    /// and simply asks. The host's copy does the work, and everybody is loaded
+    /// into the result together.
+    /// </summary>
+    public void GoBackDown()
+    {
+        Campaign.AdvanceRun();
+        ReloadScene();
+    }
+
+    // ==================================================================
+    // PHASE 4 STEP 8 - EVERYONE GOES DOWN TOGETHER, OR NOBODY DOES.
+    //
+    // This was SceneManager.LoadScene, which reloads the scene on THIS
+    // MACHINE ONLY and takes the NetworkManager with it, because the manager
+    // is a scene object like everything else. So pressing "go back down"
+    // ended the session: round 2 was you, alone, in a fresh single-player
+    // game, wondering where your friend went. Reported exactly that way, and
+    // it is the reason a med spray bought at the surface could never be
+    // carried into a round where somebody needed it.
+    //
+    // NGO's own scene manager loads the scene on EVERY connected machine and
+    // keeps the session alive across it - that is what
+    // NetworkConfig.EnableSceneManagement, set since Step 1, has been for.
+    //
+    // ONLY THE HOST MAY START IT. Not for authority's sake but for a blunter
+    // reason: two machines each loading the scene for everybody produces two
+    // transitions, and the second one interrupts the first. A client's press
+    // is a request, exactly like buying cable and calling the lift.
+    // ==================================================================
     void ReloadScene()
     {
         var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-        UnityEngine.SceneManagement.SceneManager.LoadScene(scene.buildIndex);
+        var net = Unity.Netcode.NetworkManager.Singleton;
+
+        if (net == null || !net.IsListening)
+        {
+            // Offline. Unchanged, and it has to stay unchanged - every step of
+            // this phase has promised the solo game keeps working.
+            UnityEngine.SceneManagement.SceneManager.LoadScene(scene.buildIndex);
+            return;
+        }
+
+        if (net.IsServer)
+        {
+            net.SceneManager.LoadScene(scene.name,
+                                       UnityEngine.SceneManagement.LoadSceneMode.Single);
+            return;
+        }
+
+        if (CampaignNet.Instance != null) CampaignNet.Instance.NextRoundServerRpc();
     }
 }

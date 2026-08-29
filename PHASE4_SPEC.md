@@ -302,7 +302,7 @@ test of any of it.
 onto their feet" is the cheapest possible proof that downed, carry and revive
 all replicate at once.
 
-### Step 8 · The run loop
+### Step 8 · The run loop — BUILT, needs two players
 Extraction, results, shop, and the **networked scene reload** — everyone
 transitions together, and nobody mid-load is counted as having left.
 **Done when:** two players finish a round and both see the same shop.

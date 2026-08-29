@@ -40,13 +40,22 @@ public static class NetworkBuilder
         utp.SetConnectionData("127.0.0.1", 7777);
         net.NetworkConfig.NetworkTransport = utp;
 
-        // NOT "don't destroy on load".
+        // ---- NGO OWNS THE SCENE TRANSITION (STEP 8) ----
         //
-        // RunManager.ReloadScene rebuilds the scene between rounds, and a
-        // surviving NetworkManager would come back into a scene that also
-        // contains a fresh one - two singletons, and NGO picks a fight about
-        // it. Step 8 owns the networked scene transition and is where this
-        // gets a real answer; until then, one per scene is correct and simple.
+        // This block used to say the opposite, and explained that a surviving
+        // NetworkManager would come back into a reloaded scene that also
+        // contains a fresh one - two singletons, and NGO picks a fight.
+        //
+        // That was true while the round transition was SceneManager.LoadScene,
+        // which reloads on one machine and takes the session with it. Step 8
+        // replaced it with NetworkManager.SceneManager.LoadScene, which loads
+        // the scene on every connected machine and keeps the session alive
+        // across it. The manager MUST survive that, or there is nothing left
+        // to keep it alive with.
+        //
+        // The duplicate problem is real and is handled where it belongs, in
+        // NetworkBootstrap.Awake: the copy that arrives in the reloaded scene
+        // finds a manager already running and removes itself.
         net.NetworkConfig.EnableSceneManagement = true;
 
         var boot = go.GetComponent<NetworkBootstrap>();

@@ -207,7 +207,22 @@ public class LootNet : NetworkBehaviour
         // the floor for everyone else. Client pickups worked the whole time,
         // which is the tell I would have wanted and did not ask for.
         var holder = FindCarrier(who);
-        bool minesAlready = holder != null && holder.Held == carry;
+        var owner = FindOwnerMotor(who);
+
+        // IN THEIR HANDS **OR IN THEIR BAG**.
+        //
+        // Taking something back out of your own pack is a pickup, and it would
+        // have been refused: the item is Stowed, which is not Free, and it is
+        // not in their hands either. So the one carry route the player uses
+        // most - stash it, walk, pull it out at the lift - would have gone
+        // through cleanly on the grabber's screen and nowhere else.
+        //
+        // Parented under their own body is the honest test, and it needs no
+        // new bookkeeping: Carryable.Stow parents to that player's back.
+        bool minesAlready =
+            (holder != null && holder.Held == carry) ||
+            (owner != null && carry.State == Carryable.CarryState.Stowed &&
+             carry.transform.IsChildOf(owner.transform));
 
         if (carry.State != Carryable.CarryState.Free && !minesAlready)
         {
@@ -250,6 +265,60 @@ public class LootNet : NetworkBehaviour
 
         hands.ReceiveOverNetwork(carry);
         Debug.Log($"[Loot] item {index} is now in client {who}'s hands here.");
+    }
+
+    // ---- INTO THE BAG, AND BACK OUT ----
+    //
+    // Stowing was the one carry route that sent nothing, so a small item went
+    // into somebody's pack and stayed lying on the floor for everyone else -
+    // and came back out into hands nobody could see holding it.
+    //
+    // It is a third event rather than a variant of pickup because it means
+    // something different on the receiving machine: a HELD item is carried in
+    // front of a body and visible, a STOWED item is parented to that body's
+    // back and hidden. Same journey, two different things to draw.
+    //
+    // Taking it back OUT needs no message of its own - that is a pickup, and
+    // pickup already works. Only the direction into the bag was missing.
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestStowServerRpc(int index, ulong who) => StowClientRpc(index, who);
+
+    [ClientRpc]
+    void StowClientRpc(int index, ulong who)
+    {
+        var item = LootItem.ByIndex(index);
+        if (item == null) return;
+
+        var carry = item.GetComponent<Carryable>();
+        if (carry == null) return;
+
+        var owner = FindOwnerMotor(who);
+        var pack = owner != null ? owner.GetComponent<PlayerBackpack>() : null;
+        if (pack == null) return;
+
+        // Already in their bag - this is the stower's own echo.
+        if (carry.State == Carryable.CarryState.Stowed) return;
+
+        // Out of whatever hands are holding it first. On the stower's machine
+        // PickUp ran a frame ago; on everyone else's, the pickup broadcast may
+        // have arrived and put it in their hands, and a stow that left it
+        // there would show the item in two places at once.
+        var hands = owner.GetComponent<PlayerCarry>();
+        if (hands != null && hands.Held == carry) hands.ForceDrop();
+
+        pack.TryStow(carry);
+    }
+
+    static PlayerMotor FindOwnerMotor(ulong clientId)
+    {
+        foreach (var p in PlayerRegistry.All)
+        {
+            if (p == null) continue;
+            var no = p.GetComponent<NetworkObject>();
+            if (no != null && no.IsSpawned && no.OwnerClientId == clientId) return p;
+        }
+        return null;
     }
 
     [ServerRpc(RequireOwnership = false)]

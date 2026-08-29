@@ -162,6 +162,27 @@ public class PlayerBackpack : MonoBehaviour
         return null;
     }
 
+    /// <summary>
+    /// Take one SPECIFIC item out, wherever it is in the bag.
+    ///
+    /// PHASE 4 STEP 6. TakeLast is what a player uses - they reach in and get
+    /// whatever is on top. The network needs the other question: somebody
+    /// pulled item 17 out of their pack, and this machine has to take THAT one
+    /// out of its copy. Without it the item leaves the bag visually and the
+    /// list still counts it, so the pack stays full of a crate that is now in
+    /// somebody's hands.
+    /// </summary>
+    public bool Release(Carryable item)
+    {
+        if (item == null) return false;
+
+        int i = items.IndexOf(item);
+        if (i < 0) return false;
+
+        TakeAt(i);
+        return true;
+    }
+
     public Carryable TakeAt(int index)
     {
         if (index < 0 || index >= items.Count) return null;

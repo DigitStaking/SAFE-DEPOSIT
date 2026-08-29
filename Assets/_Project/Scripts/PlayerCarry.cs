@@ -134,6 +134,11 @@ public class PlayerCarry : MonoBehaviour
                 {
                     item.PickUp();
                     held = item;
+
+                    // Out of the bag is just a pickup, and pickup already
+                    // travels. The receiving machines take it off that body's
+                    // back and put it in its hands.
+                    Announce(item, true);
                 }
             }
             return;
@@ -168,8 +173,15 @@ public class PlayerCarry : MonoBehaviour
         // out anyway, because "cannot stow a person" is a RULE and leaving it
         // implicit in a mass threshold means it silently stops being true the
         // day somebody retunes the weight classes.
+        // Straight into the bag, and everyone is told - this route used to
+        // send nothing at all, so a small item vanished into a pack on one
+        // machine and went on lying on the floor everywhere else.
         if (!item.IsPerson && item.CanStow && backpack != null &&
-            backpack.TryStow(item)) return;
+            backpack.TryStow(item))
+        {
+            AnnounceStow(item);
+            return;
+        }
 
         item.PickUp();
         held = item;
@@ -188,6 +200,18 @@ public class PlayerCarry : MonoBehaviour
     // Everyone else finds out a moment later, which is fine, because for
     // everyone else this is somebody ELSE's hands.
     // ==================================================================
+    void AnnounceStow(Carryable item)
+    {
+        var net = LootNet.Instance;
+        if (net == null || !net.IsSpawned) return;
+
+        var loot = item != null ? item.GetComponent<LootItem>() : null;
+        if (loot == null || loot.RosterIndex < 0) return;
+
+        net.RequestStowServerRpc(loot.RosterIndex,
+                                 Unity.Netcode.NetworkManager.Singleton.LocalClientId);
+    }
+
     void Announce(Carryable item, bool pickedUp)
     {
         var net = LootNet.Instance;
@@ -213,6 +237,17 @@ public class PlayerCarry : MonoBehaviour
     {
         if (item == null) return;
         if (held != null && held != item) DropHeld();
+
+        // It may be sitting in a bag on THIS machine - theirs or somebody
+        // else's. PickUp would happily un-parent it and leave the bag still
+        // counting it, so the pack would stay full of a crate that is now in
+        // a pair of hands.
+        foreach (var p in PlayerRegistry.All)
+        {
+            if (p == null) continue;
+            var pack = p.GetComponent<PlayerBackpack>();
+            if (pack != null && pack.Release(item)) break;
+        }
 
         item.PickUp();
         held = item;

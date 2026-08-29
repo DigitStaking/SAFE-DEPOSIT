@@ -91,6 +91,22 @@ public static class Campaign
 
     public const int BackpackSlotBaseCost = 120;
 
+    /// <summary>
+    /// ECONOMY Part 8: 35, "revives a downed player where they lie".
+    ///
+    /// STOCKED FOR THE CREW, NOT FOR A PERSON - which is the opposite call to
+    /// BackpackSlots, and deliberately so. A pack is a ROLE: somebody is the
+    /// mule, everyone knows who, and losing them costs the crew their
+    /// carrying capacity. A med spray is an INSURANCE POLICY, and the whole
+    /// tension of buying one is that the money could have been cable instead.
+    /// Making the crew choose once, together, is the interesting version;
+    /// making them choose four times, per person, is bookkeeping.
+    ///
+    /// It also means anybody can carry the kit, so the argument about who
+    /// runs back for the downed player is about courage and not inventory.
+    /// </summary>
+    public const int MedSprayBaseCost = 35;
+
     // ---- OVERLOAD: TEN SECONDS, THEN IT PARTS ----
     //
     // Replaces the per-metre fray model on 21 Aug 2026, on request. That one
@@ -355,6 +371,7 @@ public static class Campaign
         Net.Over.Value = localOver;
         Net.Strain.Value = localStrain;
         Net.Seeded.Value = localSeeded;
+        Net.Sprays.Value = localSprays;
         Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
     }
 
@@ -374,6 +391,7 @@ public static class Campaign
         localOver = Net.Over.Value;
         localStrain = Net.Strain.Value;
         localSeeded = Net.Seeded.Value;
+        localSprays = Net.Sprays.Value;
         localEpitaph = Net.Epitaph.Value.ToString();
     }
 
@@ -415,6 +433,46 @@ public static class Campaign
     /// from "the building has never been stocked". Without it, an empty
     /// roster would look like a fresh campaign and refill the whole tower.
     /// </summary>
+    static int localSprays;
+
+    /// <summary>
+    /// How many med sprays the crew is carrying. Host-owned, like the money,
+    /// because it is spent out of the same shared decision.
+    /// </summary>
+    public static int MedSprays
+    {
+        get => Net != null ? Net.Sprays.Value : localSprays;
+        set { if (Net != null) { if (Net.IsServer) Net.Sprays.Value = value; } else localSprays = value; }
+    }
+
+    public static bool BuyMedSpray()
+    {
+        if (Money < MedSprayCost) return false;
+        if (MaySpend) return BuyMedSprayAuthoritative();
+
+        Net.BuyMedSprayServerRpc();
+        return true;
+    }
+
+    public static bool BuyMedSprayAuthoritative()
+    {
+        if (Money < MedSprayCost) return false;
+        Money -= MedSprayCost;
+        MedSprays++;
+        return true;
+    }
+
+    /// <summary>
+    /// Spend one. Host only - a client that could decrement this could revive
+    /// the whole crew off a kit that ran out three floors ago.
+    /// </summary>
+    public static bool ConsumeMedSpray()
+    {
+        if (!MaySpend || MedSprays <= 0) return false;
+        MedSprays--;
+        return true;
+    }
+
     static bool localSeeded;
     public static bool LootSeeded
     {
@@ -461,6 +519,7 @@ public static class Campaign
 
     public static int CableChunkCost => ScaledPrice(CableChunkBaseCost);
     public static int BackpackSlotCost => ScaledPrice(BackpackSlotBaseCost);
+    public static int MedSprayCost => ScaledPrice(MedSprayBaseCost);
 
     /// <summary>What the cable lifts right now, upgrades included.</summary>
     public static float Capacity => BaseCapacity + CapacityStep * CapacityUpgrades;

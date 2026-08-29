@@ -278,7 +278,23 @@ Carrying, dropping, the deck's load.
 **Done when:** one player watches another carry a crate into the car and the
 gauge moves for both.
 
-### Step 7 · Downed, carried, and REVIVE ★
+### Step 7 · Downed, carried, and REVIVE ★ — BUILT, needs two players
+Med spray in the shop at 35, hold **R** for two seconds over a downed
+crewmate. `DownedPlayer.Revive()` was already finished; what was missing was a
+way for someone else to ask for it.
+
+**A revive takes three machines, and each does only what it owns.** The
+sprayer *asks* — aiming and holding R is the whole of what they are the
+authority on. The host *spends*, because the kit is host-owned like the money,
+and two people spraying the same friend in the same second would otherwise
+cost two sprays and revive them once. The downed player *stands up*, because
+Step 4 made each Crew row owner-written and nobody else **can** set their
+health. That is not an obstacle worked around — it is the rule working.
+
+Stocked for the **crew**, not per person: the opposite call to `BackpackSlots`
+beside it. A pack is a role; a spray is insurance, and the tension is that the
+money could have been cable. Choosing once together is interesting; choosing
+four times is bookkeeping.
 *Deferred here from Phase 2 Step 7.* `DownedPlayer.Revive()` is already
 finished — this is the med spray, the use interaction, and the first honest
 test of any of it.

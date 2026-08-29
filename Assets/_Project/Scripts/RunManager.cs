@@ -874,8 +874,13 @@ public class RunManager : MonoBehaviour
 
         // Three buttons now, so they get a row of their own rather than the
         // two-wide pair this used to be.
-        const float bw = 210f, gap = 10f;
-        float bx = cx - (bw * 3f + gap * 2f) * 0.5f;
+        // FOUR ACROSS NOW. The med spray joins cable, capacity and pack -
+        // ECONOMY Part 8 prices it at 35, which is the cheapest thing on this
+        // row and the only one that buys nothing at all unless somebody goes
+        // down. That is the point of it: it is the line item you regret in
+        // both directions.
+        const float bw = 178f, gap = 8f;
+        float bx = cx - (bw * 4f + gap * 3f) * 0.5f;
 
         // ---- cable ----
         GUI.enabled = Campaign.CableLeftThisRound > 0 &&
@@ -930,6 +935,23 @@ public class RunManager : MonoBehaviour
         if (GUI.Button(new Rect(bx + (bw + gap) * 2f, by, bw, 40f), packLabel))
         {
             Campaign.BuyBackpackSlot(buyerSlot);
+        }
+
+        // ---- med spray ----
+        //
+        // Stocked for the CREW, not for a person - the opposite call to the
+        // pack beside it, and deliberately. A pack is a role: somebody is the
+        // mule and losing them costs the crew their capacity. A spray is
+        // insurance, and the whole tension of buying one is that the money
+        // could have been cable. Choosing once, together, is the interesting
+        // version; choosing four times is bookkeeping.
+        GUI.enabled = Campaign.Money >= Campaign.MedSprayCost;
+
+        if (GUI.Button(new Rect(bx + (bw + gap) * 3f, by, bw, 40f),
+                       $"+1 med spray  ({Campaign.MedSprayCost})" +
+                       $"   have {Campaign.MedSprays}"))
+        {
+            Campaign.BuyMedSpray();
         }
 
         GUI.enabled = true;

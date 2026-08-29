@@ -287,6 +287,15 @@ public static class FirstPersonFixer
             downed = root.AddComponent<DownedPlayer>();
             log.AppendLine("  added DownedPlayer");
         }
+
+        // PHASE 4 STEP 7. On the person who might USE one, not on the person
+        // who needs one - reviving is something you do TO somebody, so every
+        // player carries the ability to do it and the crew shares the stock.
+        if (root.GetComponent<MedSpray>() == null)
+        {
+            root.AddComponent<MedSpray>();
+            log.AppendLine("  added MedSpray (hold R over a downed crewmate)");
+        }
         downed.enabled = true;
 
         // ---- headlamp (re-attached, Phase 3 Step 2) ------------------

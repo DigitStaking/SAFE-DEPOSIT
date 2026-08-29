@@ -84,6 +84,9 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<float> Strain     = new NetworkVariable<float>(0f, default, Host);
     public readonly NetworkVariable<bool>  Seeded     = new NetworkVariable<bool>(false, default, Host);
 
+    /// <summary>Med sprays in the crew's kit. PHASE 4 STEP 7.</summary>
+    public readonly NetworkVariable<int>   Sprays     = new NetworkVariable<int>(0, default, Host);
+
     public readonly NetworkVariable<FixedString128Bytes> Epitaph =
         new NetworkVariable<FixedString128Bytes>(default, default, Host);
 
@@ -137,4 +140,57 @@ public class CampaignNet : NetworkBehaviour
 
     [ServerRpc(RequireOwnership = false)]
     public void BuyBackpackSlotServerRpc(int slot) => Campaign.BuyBackpackSlotAuthoritative(slot);
+
+    [ServerRpc(RequireOwnership = false)]
+    public void BuyMedSprayServerRpc() => Campaign.BuyMedSprayAuthoritative();
+
+    // ================================================================
+    // A REVIVE TAKES THREE MACHINES, AND EACH DOES ONLY WHAT IT OWNS.
+    //
+    //   THE SPRAYER asks. They aimed, they held R for two seconds, and that
+    //   is the entire extent of what they are the authority on.
+    //
+    //   THE HOST spends. The kit is host-owned like the money, so it is the
+    //   only machine that can honestly answer "is there a spray left" - and
+    //   the check has to happen here, because two people spraying the same
+    //   friend in the same second would otherwise cost two sprays and revive
+    //   them once.
+    //
+    //   THE DOWNED PLAYER stands up. Step 4 made each Crew row owner-written,
+    //   so nobody else CAN set their health. That is not an obstacle to work
+    //   around, it is the rule working: the alternative is four machines each
+    //   deciding somebody else's HP.
+    //
+    // Sent to everyone rather than just the target, because the target's
+    // machine has to do the revive and every other machine has to stop drawing
+    // them kneeling.
+    // ================================================================
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ReviveServerRpc(ulong target)
+    {
+        if (!Campaign.ConsumeMedSpray())
+        {
+            Debug.Log("[Crew] revive refused - the kit is empty.");
+            return;
+        }
+
+        ReviveClientRpc(target);
+    }
+
+    [ClientRpc]
+    void ReviveClientRpc(ulong target)
+    {
+        foreach (var p in PlayerRegistry.All)
+        {
+            if (p == null) continue;
+
+            var no = p.GetComponent<NetworkObject>();
+            if (no == null || !no.IsSpawned || no.OwnerClientId != target) continue;
+
+            var downed = p.GetComponent<DownedPlayer>();
+            if (downed != null) downed.Revive();
+            return;
+        }
+    }
 }

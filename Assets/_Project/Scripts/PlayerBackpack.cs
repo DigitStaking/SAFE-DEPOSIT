@@ -268,6 +268,25 @@ public class PlayerBackpack : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Forget items that were just handed over at extraction.
+    ///
+    /// The objects are destroyed by RunManager a moment later, and a list of
+    /// destroyed references is worse than an empty one: Count still includes
+    /// them, so the bag reports itself full and refuses the next round's loot
+    /// while showing empty slots.
+    /// </summary>
+    public void ClearSold(System.Collections.Generic.HashSet<Carryable> sold)
+    {
+        if (sold == null) return;
+
+        for (int i = items.Count - 1; i >= 0; i--)
+            if (items[i] == null || sold.Contains(items[i])) items.RemoveAt(i);
+
+        Reposition();
+        RefreshPackVisual();
+    }
+
     public Carryable TakeAt(int index)
     {
         if (index < 0 || index >= items.Count) return null;

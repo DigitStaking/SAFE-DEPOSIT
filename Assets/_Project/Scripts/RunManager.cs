@@ -352,6 +352,47 @@ public class RunManager : MonoBehaviour
         // ones this crew left behind rather than a fresh set.
         LootSpawner.CaptureRemaining(sold);
 
+        // ==============================================================
+        // SOLD MEANS GONE. THE CREW HANDED IT OVER.
+        //
+        // Counting it and leaving it lying there was survivable while a round
+        // change ended the session and reloaded everything - the objects went
+        // with the scene, so nobody noticed they had never actually been
+        // taken away.
+        //
+        // Step 8 changed that. Players now PERSIST across the round load, and
+        // a stowed item is PARENTED TO ITS CARRIER - so anything still in a
+        // backpack rode into round 2 in that backpack, was found again by
+        // CountRecoveredValue as Stowed, and was paid for a second time. And a
+        // third. Free money for as long as you never took it out.
+        //
+        // Reported as exactly that, with the tell attached: the items could be
+        // pulled back out and could not be picked up again, because the roster
+        // had correctly written them off while the objects themselves lived on.
+        //
+        // Destroyed here, at the moment they are paid for. The packs are
+        // cleared too - a bag holding six destroyed references reports itself
+        // full and quietly refuses the next round's loot.
+        // ==============================================================
+        foreach (var m in crew)
+        {
+            if (m == null) continue;
+            var pack = m.GetComponent<PlayerBackpack>();
+            if (pack != null) pack.ClearSold(sold);
+        }
+
+        int handedOver = 0;
+        foreach (var c in sold)
+        {
+            if (c == null) continue;
+            Destroy(c.gameObject);
+            handedOver++;
+        }
+
+        if (handedOver > 0)
+            Debug.Log($"[Run] {handedOver} item(s) handed over for ${Recovered} " +
+                      "and removed - they are the mafia's now.");
+
         State = RunState.Extracted;
     }
 

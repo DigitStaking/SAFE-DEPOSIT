@@ -441,6 +441,38 @@ public class Elevator : MonoBehaviour
     // one can do the other's work.
     // ==================================================================
 
+
+    /// <summary>
+    /// Move a rider by the same distance the car just moved - BODY AND
+    /// TRANSFORM BOTH.
+    ///
+    /// Writing only rb.position looks complete and is not. Rigidbody.position
+    /// moves the physics body; the TRANSFORM does not catch up until the
+    /// simulation runs, later in the same step. And PlayerMotor's ground check
+    /// reads transform.position:
+    ///
+    ///     Vector3 origin = transform.position + Vector3.up * capsule.radius;
+    ///
+    /// So with the car ordered first, the motor was casting from where the
+    /// body used to be, at a floor that had already moved. Going UP the origin
+    /// sat 16cm low - level with or inside the floor it was trying to find -
+    /// the cast found nothing, grounded came back false, and you could not
+    /// jump. Reported exactly that way, and only going up, which is the tell:
+    /// down, the ray merely got longer and the check went flaky instead of
+    /// failing outright. That was the "hard to walk".
+    ///
+    /// Both written, so everything reading either one agrees within the step.
+    /// </summary>
+    static void CarryRider(Rigidbody r, Vector3 delta)
+    {
+        // Teleport, not MovePosition: the rider keeps its own velocity and
+        // simply arrives where the floor put it, so you can still walk and
+        // jump normally on a moving lift. At most 0.16m a step, far too small
+        // to tunnel through anything.
+        r.position += delta;
+        r.transform.position = r.position;
+    }
+
     void SnapToFloor(int floor)
     {
         var p = rb.position;
@@ -575,15 +607,19 @@ public class Elevator : MonoBehaviour
         // ==============================================================
         rb.position = to;
 
+        // The car has the same body-vs-transform split its riders do, and it
+        // matters for the same reason: ElevatorNet computes the deck height
+        // from transform.position, and the audit read a steady drift=-0.05
+        // between the two - one step of travel, every step. A remote body held
+        // at "deck + h" against a deck that is permanently one step behind is
+        // held permanently one step wrong.
+        transform.position = to;
+
         foreach (var r in riders)
         {
             if (r == null) continue;
 
-            // Teleport, not MovePosition: the rider keeps its own velocity
-            // and simply arrives where the floor put it, so you can still
-            // walk and jump normally on a moving lift. At most 0.16m a step,
-            // far too small to tunnel through anything.
-            r.position += delta;
+            CarryRider(r, delta);
         }
 
         if (Mathf.Approximately(newY, target))

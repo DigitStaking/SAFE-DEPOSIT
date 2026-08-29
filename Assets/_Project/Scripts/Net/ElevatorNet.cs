@@ -258,13 +258,30 @@ public class ElevatorNet : NetworkBehaviour
             var no = r.GetComponent<NetworkObject>();
             if (no == null || !no.IsSpawned || no.IsOwner) continue;
 
-            if (!lift.IsMoving)
-            {
-                deckHeights[r] = r.transform.position.y - deck;
-                continue;
-            }
+            float measured = r.transform.position.y - deck;
 
-            if (!deckHeights.TryGetValue(r, out float h)) continue;
+            // ALWAYS RENDERED AT deck + h. THE HEIGHT EASES; THE POSITION
+            // NEVER JUMPS.
+            //
+            // The first version simply stopped correcting when the car
+            // stopped, which handed the body straight back to its raw network
+            // position - still about 80cm stale, in the direction of travel.
+            // So it popped, and the direction was the giveaway: stop after
+            // going DOWN and the stale position is ABOVE the deck, so they
+            // appear to jump; stop after going UP and they dip. Reported
+            // exactly that way round.
+            //
+            // There is no moment of handover now. The body is always drawn at
+            // deck + h; only h changes, and while the car is still it EASES
+            // toward what is actually arriving. A real crouch or jump still
+            // reads, about a tenth of a second behind, and the catch-up after
+            // a trip is a glide instead of a snap.
+            if (!deckHeights.TryGetValue(r, out float h)) h = measured;
+
+            if (!lift.IsMoving)
+                h = Mathf.Lerp(h, measured, 1f - Mathf.Exp(-12f * Time.deltaTime));
+
+            deckHeights[r] = h;
 
             var p = r.transform.position;
             r.transform.position = new Vector3(p.x, deck + h, p.z);

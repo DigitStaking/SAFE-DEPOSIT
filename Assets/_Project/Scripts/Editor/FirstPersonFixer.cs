@@ -91,7 +91,12 @@ public static class FirstPersonFixer
     const float NearClip = 0.3f;   // 0.05 exposes the inside of your own skull
 
     [MenuItem("SAFE DEPOSIT/Fix First Person Setup")]
-    static void Fix()
+    /// <summary>
+    /// Public so PlayerFbxSetupTool can call it. That tool DESTROYS and
+    /// rebuilds PlayerModel_FBX_VISUAL, and FirstPersonHands lives on that
+    /// child - so rebuilding the model silently takes the hand IK with it.
+    /// </summary>
+    public static void Fix()
     {
         var ac = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath);
         if (ac == null)

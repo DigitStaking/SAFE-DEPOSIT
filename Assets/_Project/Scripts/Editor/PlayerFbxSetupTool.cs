@@ -71,6 +71,24 @@ public static class PlayerFbxSetupTool
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+
+        // ---- AND PUT THE HANDS BACK ----
+        //
+        // RemoveOldVisual DESTROYS PlayerModel_FBX_VISUAL and this rebuilds it
+        // from the FBX. FirstPersonHands lives on that child - it has to,
+        // because OnAnimatorIK is only delivered to components sharing a
+        // GameObject with the Animator, and the Animator is on the model.
+        //
+        // So every run of this tool silently took the hand IK with it. The
+        // prefab looked correct, the model looked correct, and the hands just
+        // stopped following the camera. Reported the first time this tool was
+        // run for any reason at all - here, to delete a leftover grey cube.
+        //
+        // FirstPersonFixer already knows how to put it back. It is the
+        // known-good player setup and it was one call away the whole time.
+        // A tool that breaks another tool's work should finish the job, not
+        // leave a note.
+        FirstPersonFixer.Fix();
     }
 
     [MenuItem("SAFE DEPOSIT/Player/Create/Update Player FBX Materials")]

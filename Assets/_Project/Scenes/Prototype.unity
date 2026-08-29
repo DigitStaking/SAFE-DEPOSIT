@@ -7442,6 +7442,10 @@ PrefabInstance:
       propertyPath: rightHand.y
       value: -0.22
       objectReference: {fileID: 0}
+    - target: {fileID: 7179629295030242302, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 518035421fefd5046a53c8a942c08f08, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects:
     - {fileID: 3781667393484996263, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}

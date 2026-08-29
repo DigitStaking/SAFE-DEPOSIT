@@ -341,7 +341,11 @@ public class PlayerBackpack : MonoBehaviour
 
         i -= SprayCount;
         if (i < 0 || i >= items.Count || items[i] == null) return "empty";
-        return $"{items[i].name} ({items[i].Mass:0}kg)";
+        // Value shown alongside the mass, because "the item came back with no
+        // value" was reported and there was no way to see a value anywhere in
+        // the pack UI to check it against. A number on screen turns the next
+        // report into evidence.
+        return $"{items[i].name} ({items[i].Mass:0}kg, ${items[i].value})";
     }
 
     void OnGUI()

@@ -84,8 +84,24 @@ public class PlayerHealth : MonoBehaviour
     /// and with two bodies both of them would have been reading the same
     /// hundred points.
     /// </summary>
-    Crew.Member me;
-    Crew.Member Me => me ?? (me = Crew.Of(this));
+    /// <summary>
+    /// My Crew row, asked LIVE.
+    ///
+    /// This was `me ?? (me = Crew.Of(this))` - resolved once, on first access,
+    /// and kept. But the row is chosen by SLOT, and a networked body does not
+    /// know its slot until OnNetworkSpawn assigns it from OwnerClientId. First
+    /// access almost always came earlier, so a body latched onto whatever row
+    /// it happened to resolve to and never looked again.
+    ///
+    /// The visible result was two machines DISAGREEING ABOUT WHO IS DOWN: the
+    /// host saw a kneeling crewmate and offered a rescue, while the one
+    /// holding the med spray stood over the same body and was shown nothing,
+    /// because on their machine that body's row said full health.
+    ///
+    /// Ninth time this phase, and the rule has not changed: ask the owner,
+    /// every frame. A cached answer about somebody else goes stale.
+    /// </summary>
+    Crew.Member Me => Crew.Of(this);
 
     public int Current => Me.Health;
     public int Max => Crew.MaxHealth;

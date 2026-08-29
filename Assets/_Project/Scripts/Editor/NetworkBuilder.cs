@@ -95,6 +95,12 @@ public static class NetworkBuilder
         if (go.GetComponent<CampaignNet>() == null)
             go.AddComponent<CampaignNet>();
 
+        // PHASE 4 STEP 6. The loot roster rides on the same object as the
+        // money, because they are the same thing: the campaign's memory of
+        // what the building contains and what the crew is owed for it.
+        if (go.GetComponent<LootNet>() == null)
+            go.AddComponent<LootNet>();
+
         EditorSceneManager.MarkSceneDirty(go.scene);
     }
 

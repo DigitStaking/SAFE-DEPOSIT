@@ -237,8 +237,27 @@ countdown read what is physically inside the car, and most of that is loot.
 Loot is Step 6. The gauge is not broken — it is correctly weighing two
 different piles.
 
-### Step 6 · Loot
+### Step 6 · Loot — DONE
 Host spawns from the roster; clients rebuild rather than receive 60 spawns.
+
+**The recipe travels, each machine cooks.** `Campaign.LootRoster` already
+described the building completely, and `RestoreRoster()` already rebuilt from
+it — both built in Phase 2 so the building could survive the scene reload
+between rounds. So one list replaces sixty spawn messages, and the rebuilding
+code has been shipping for months.
+
+**No `NetworkObject` on any crate.** Sixty things that lie still for the whole
+game do not each want a replicated transform. Instead an item's *place in the
+roster* is a name every machine already knows — item 17 is the same crate
+everywhere, because everyone built it from entry 17 — so pickups and drops
+travel as **events**: "client 2 took 17", "17 is on the floor here". Between
+events the crate is held by a body everyone already tracks, so its position
+comes free. Two messages per crate per trip.
+
+**Your own hands close first**, and the message goes afterwards. Waiting on a
+round trip to feel your own grab is the one lag a player always notices, and
+if the host refuses — someone else got there in the same frame — the worst
+case is a crate that briefly appeared and then did not.
 Carrying, dropping, the deck's load.
 **Done when:** one player watches another carry a crate into the car and the
 gauge moves for both.

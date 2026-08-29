@@ -63,7 +63,30 @@ public class PlayerCarry : MonoBehaviour
 
     void LateUpdate()
     {
-        if (held == null || cam == null) return;
+        if (held == null) return;
+
+        // A REMOTE BODY HAS NO CAMERA, AND STILL HAS HANDS.
+        //
+        // cam is my eye, and PlayerRegistry.EyeOf returns null for anybody
+        // else - only the local player has a camera. So this used to return
+        // early for every teammate, and a crate they were carrying just hung
+        // in the air where they picked it up while they walked off with
+        // nothing.
+        //
+        // In front of the chest, from the body's own facing. Not as precise as
+        // a camera-relative hold, and it does not need to be: what matters
+        // from across a dark floor is that the crate is with them.
+        if (cam == null)
+        {
+            Vector3 anchor = transform.position + Vector3.up * 1.15f
+                           + transform.forward * 0.55f;
+
+            held.transform.position = Vector3.Lerp(
+                held.transform.position, anchor, holdSnapSpeed * Time.deltaTime);
+            held.transform.rotation = Quaternion.Slerp(
+                held.transform.rotation, transform.rotation, holdSnapSpeed * Time.deltaTime);
+            return;
+        }
 
         // Hold offset by weight: small crate close, cabinet two-hand, vending hug.
         Vector3 offset = holdOffset;
@@ -150,6 +173,49 @@ public class PlayerCarry : MonoBehaviour
 
         item.PickUp();
         held = item;
+        Announce(item, true);
+    }
+
+    // ==================================================================
+    // PHASE 4 STEP 6 - TELL EVERYONE, BUT DO IT FIRST.
+    //
+    // My hands close IMMEDIATELY and the message goes out afterwards. Waiting
+    // for a round trip before your own grab registers is the one lag a player
+    // always notices, and there is nothing to be gained by it: if the host
+    // refuses - somebody else got there in the same frame - the worst case is
+    // that a crate briefly appeared in my hands and then did not.
+    //
+    // Everyone else finds out a moment later, which is fine, because for
+    // everyone else this is somebody ELSE's hands.
+    // ==================================================================
+    void Announce(Carryable item, bool pickedUp)
+    {
+        var net = LootNet.Instance;
+        if (net == null || !net.IsSpawned) return;      // offline: nobody to tell
+
+        var loot = item != null ? item.GetComponent<LootItem>() : null;
+        if (loot == null || loot.RosterIndex < 0) return;
+
+        ulong me = Unity.Netcode.NetworkManager.Singleton.LocalClientId;
+
+        if (pickedUp) net.RequestPickupServerRpc(loot.RosterIndex, me);
+        else net.RequestDropServerRpc(loot.RosterIndex,
+                                      item.transform.position,
+                                      item.transform.rotation, me);
+    }
+
+    /// <summary>
+    /// Somebody else's pickup, arriving. Puts the item in THIS body's hands
+    /// without sending anything back - otherwise the confirmation would be
+    /// re-announced and bounce around the session forever.
+    /// </summary>
+    public void ReceiveOverNetwork(Carryable item)
+    {
+        if (item == null) return;
+        if (held != null && held != item) DropHeld();
+
+        item.PickUp();
+        held = item;
     }
 
     /// <summary>
@@ -167,6 +233,12 @@ public class PlayerCarry : MonoBehaviour
     void DropHeld()
     {
         if (held == null) return;
+
+        // Announced BEFORE the drop, while the item is still in my hands and
+        // therefore still where I can see it. Afterwards it is a falling
+        // object and the position I would send is already a frame out of date.
+        Announce(held, false);
+
         held.Drop(rb.linearVelocity);
         held = null;
     }

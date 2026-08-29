@@ -259,10 +259,49 @@ public class LootSpawner : MonoBehaviour
     // RESTORE
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// PHASE 4 STEP 6. Demolish my building and put up the host's.
+    ///
+    /// A joining client has already stocked a whole building of its own -
+    /// LootSpawner.Start ran before anything connected, and it used
+    /// Random.Range with no shared seed, so not one crate of it matches
+    /// anybody else's. That is what "each one have 3 items that he is the only
+    /// one can see them" was.
+    ///
+    /// So this is a REPLACEMENT, not a merge. Everything currently in the
+    /// world goes, including anything already in somebody's hands - which is
+    /// safe only because this runs during the join, before anyone has had a
+    /// chance to pick anything up.
+    /// </summary>
+    public void ClearAndRebuild()
+    {
+        int removed = 0;
+        foreach (var item in FindObjectsByType<LootItem>(FindObjectsSortMode.None))
+        {
+            if (item == null) continue;
+            Destroy(item.gameObject);
+            removed++;
+        }
+
+        RestoreRoster();
+
+        Debug.Log($"[Loot] cleared {removed} of my own items and rebuilt " +
+                  $"{Campaign.LootRoster.Count} from the host.");
+    }
+
     void RestoreRoster()
     {
-        foreach (var r in Campaign.LootRoster)
-            BuildItem(r.tier, r.value, r.mass, r.name, r.position, r.rotation);
+        // Stamped with its place in the roster as it is built. Every machine
+        // walks this same list in this same order, so index 17 is the same
+        // crate everywhere - which is what lets a pickup be sent as a number.
+        for (int i = 0; i < Campaign.LootRoster.Count; i++)
+        {
+            var r = Campaign.LootRoster[i];
+            var go = BuildItem(r.tier, r.value, r.mass, r.name, r.position, r.rotation);
+
+            var item = go != null ? go.GetComponent<LootItem>() : null;
+            if (item != null) item.SetRosterIndex(i);
+        }
 
         Debug.Log($"[Loot] round {Campaign.RunNumber}: restored " +
                   $"{Campaign.LootRoster.Count} items exactly where the last " +
@@ -294,6 +333,16 @@ public class LootSpawner : MonoBehaviour
 
             var c = item.GetComponent<Carryable>();
             if (sold != null && c != null && sold.Contains(c)) continue;
+
+            // STAMPED AS IT IS CAPTURED, so the live item and its roster
+            // entry carry the same number.
+            //
+            // Without this the host's own first-seed items never got an index
+            // - only RestoreRoster stamps, and the host that STOCKS a building
+            // never restores it - so the host could see a crate, pick it up,
+            // and be unable to say which crate it was. Clients would have
+            // watched it float away in nobody's hands.
+            item.SetRosterIndex(Campaign.LootRoster.Count);
 
             Campaign.LootRoster.Add(new Campaign.LootRecord {
                 tier = item.tier,

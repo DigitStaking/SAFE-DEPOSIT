@@ -36,6 +36,18 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(Rigidbody))]
+// THE FLOOR MOVES BEFORE THE PEOPLE ON IT.
+//
+// Reported as "hard to walk in elevator" while it travels. Both scripts ran
+// their FixedUpdate in undefined order, so on some steps PlayerMotor moved
+// and checked its footing FIRST, against a floor that had not descended yet,
+// and on others the floor went first. The ground check flickered, and walking
+// on a flickering floor is exactly as awkward as it sounds.
+//
+// A negative order puts the car first, every step, on every machine. The
+// floor is always already where it is going to be by the time anybody tries
+// to stand on it.
+[DefaultExecutionOrder(-50)]
 public class Elevator : MonoBehaviour
 {
     [Header("Shaft")]

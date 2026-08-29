@@ -205,6 +205,26 @@ and a snap does not carry riders, because a snap is news, not travel.
 Clients only draw. Nobody else gets an opinion about where the car goes, only
 about how to animate getting there.
 
+**A teammate's height above the deck, not their height in the world.** Once
+your own body rode correctly, one symptom was left and it was symmetric: each
+of you saw the *other* one float. A remote body's position arrives in world
+space ~100 ms old; at 8 m/s that is 80 cm, so they render where the floor
+*was*. So while the car is still — when there is no lag error worth the name —
+each machine measures how high every remote body stands above the deck, and
+while the car moves it holds that height and renders them at `deck + h`.
+
+X and Z are left alone on purpose: the shaft is vertical, so a late
+*horizontal* position is not late at all. Only Y ever needed correcting. The
+cost is that a teammate who jumps mid-trip holds their previous height until
+the car stops — a far better trade than a friend who floats out through the
+ceiling every time somebody presses a button.
+
+**The floor moves before the people on it.** `Elevator` runs at execution
+order −50. Both scripts previously ran `FixedUpdate` in undefined order, so
+`PlayerMotor` sometimes checked its footing against a floor that had not
+descended yet. The ground check flickered, and that was the "hard to walk
+while it moves".
+
 `ElevatorBridge.RequestGoToFloor` was already the only way anything commanded
 the car, so the client redirect is **one branch**. Second time this phase that
 Phase 1–2 architecture turned a rewrite into a single `if`.

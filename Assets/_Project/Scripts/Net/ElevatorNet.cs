@@ -200,6 +200,77 @@ public class ElevatorNet : NetworkBehaviour
     // its own attempt, without touching the physics.
     // ================================================================
 
+    // ================================================================
+    // A TEAMMATE'S HEIGHT ABOVE THE DECK, NOT THEIR HEIGHT IN THE WORLD.
+    //
+    // The last thing left, and it is now precisely described: your own body
+    // rides correctly, and the OTHER one appears to fly or sink - and it looks
+    // that way from both machines at once. Each machine carries its own rider
+    // properly; what it cannot do is un-delay somebody else's.
+    //
+    // A remote body's position arrives in world space, about 100ms old. While
+    // the car travels at 8m/s that is 80cm, so their body renders where the
+    // floor WAS. Nothing is broken and no smoothing helps, because the number
+    // is right and simply late.
+    //
+    // Parenting was the textbook answer and it failed twice - see the note
+    // further up. So this does the same job arithmetically, on the one axis
+    // that needs it:
+    //
+    //   WHILE THE CAR IS STILL, measure how high each remote body stands
+    //   above the deck. There is no lag error to speak of when nothing is
+    //   moving, so this number is trustworthy.
+    //
+    //   WHILE THE CAR MOVES, hold that height and render them at deck + h.
+    //
+    // X and Z are left completely alone, and that is not laziness: the shaft
+    // is vertical, the car never moves sideways, so a late horizontal
+    // position is not late at all. Only Y ever needed correcting.
+    //
+    // The cost is honest and small: a teammate who jumps or crouches DURING a
+    // trip will hold their previous height until the car stops. Standing
+    // still in a moving lift is what people actually do, and a frozen crouch
+    // for four seconds is a far better trade than a friend who floats out
+    // through the ceiling every time you press a button.
+    //
+    // LateUpdate, because NetworkTransform writes during Update - a
+    // correction applied any earlier is simply overwritten.
+    // ================================================================
+
+    readonly System.Collections.Generic.Dictionary<Rigidbody, float> deckHeights =
+        new System.Collections.Generic.Dictionary<Rigidbody, float>();
+
+    void LateUpdate()
+    {
+        if (!IsSpawned) return;
+
+        var lift = SceneRefs.Lift;
+        if (lift == null) return;
+
+        float deck = lift.transform.position.y + lift.StandLocalY;
+
+        foreach (var r in lift.Riders)
+        {
+            if (r == null) continue;
+
+            // Mine is already right - this machine carried it. Touching it
+            // here would fight the physics that just got it correct.
+            var no = r.GetComponent<NetworkObject>();
+            if (no == null || !no.IsSpawned || no.IsOwner) continue;
+
+            if (!lift.IsMoving)
+            {
+                deckHeights[r] = r.transform.position.y - deck;
+                continue;
+            }
+
+            if (!deckHeights.TryGetValue(r, out float h)) continue;
+
+            var p = r.transform.position;
+            r.transform.position = new Vector3(p.x, deck + h, p.z);
+        }
+    }
+
     /// <summary>
     /// A client asking for a floor.
     ///

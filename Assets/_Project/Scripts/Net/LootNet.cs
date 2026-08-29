@@ -192,10 +192,29 @@ public class LootNet : NetworkBehaviour
         var carry = item.GetComponent<Carryable>();
         if (carry == null) return;
 
-        // Already in somebody's hands. Two players reached for it in the same
-        // frame and this is the second one - it gets nothing, which is the
-        // correct answer and the reason a host exists.
-        if (carry.State != Carryable.CarryState.Free) return;
+        // HELD BY SOMEBODY ELSE. Not merely "held".
+        //
+        // The first version tested State != Free and refused, which was right
+        // for a client and silently broke the HOST. Everyone grabs optimistically
+        // - your hands close before the message goes - so by the time this runs
+        // the asker is already holding it. On a client that does not matter,
+        // because the host's copy is still Free. On the host, the asker and the
+        // arbiter are the same machine: it had just set the item to Held itself,
+        // then read that back as "somebody has this" and refused its own
+        // request. No ClientRpc, so nobody else ever saw it move.
+        //
+        // Reported as exactly that: he picked it up, and the crate stayed on
+        // the floor for everyone else. Client pickups worked the whole time,
+        // which is the tell I would have wanted and did not ask for.
+        var holder = FindCarrier(who);
+        bool minesAlready = holder != null && holder.Held == carry;
+
+        if (carry.State != Carryable.CarryState.Free && !minesAlready)
+        {
+            Debug.Log($"[Loot] refused pickup of {index} for client {who} - " +
+                      $"already {carry.State} and not theirs.");
+            return;
+        }
 
         PickupClientRpc(index, who);
     }
@@ -204,11 +223,24 @@ public class LootNet : NetworkBehaviour
     void PickupClientRpc(int index, ulong who)
     {
         var item = LootItem.ByIndex(index);
-        if (item == null) return;
+        if (item == null)
+        {
+            // Every machine builds from the same roster in the same order, so
+            // this should be impossible. If it ever prints, the buildings have
+            // diverged and nothing below can be trusted.
+            Debug.LogWarning($"[Loot] told about item {index} and I have no such " +
+                             "item - my building does not match the host's.");
+            return;
+        }
 
         var carry = item.GetComponent<Carryable>();
         var hands = FindCarrier(who);
-        if (carry == null || hands == null) return;
+        if (carry == null || hands == null)
+        {
+            Debug.LogWarning($"[Loot] cannot give item {index} to client {who} - " +
+                             $"{(carry == null ? "it is not carryable" : "I have no body for them")}.");
+            return;
+        }
 
         // The asker already has it in their hands - they picked it up locally
         // the instant they pressed E, because waiting on a round trip to feel
@@ -217,6 +249,7 @@ public class LootNet : NetworkBehaviour
         if (hands.Held == carry) return;
 
         hands.ReceiveOverNetwork(carry);
+        Debug.Log($"[Loot] item {index} is now in client {who}'s hands here.");
     }
 
     [ServerRpc(RequireOwnership = false)]

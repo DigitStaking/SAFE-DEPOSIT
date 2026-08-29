@@ -234,13 +234,22 @@ public class PlayerCarry : MonoBehaviour
     {
         if (held == null) return;
 
-        // Announced BEFORE the drop, while the item is still in my hands and
-        // therefore still where I can see it. Afterwards it is a falling
-        // object and the position I would send is already a frame out of date.
-        Announce(held, false);
-
-        held.Drop(rb.linearVelocity);
+        // TAKEN OUT OF MY HANDS FIRST, then announced, then dropped.
+        //
+        // On the HOST a ServerRpc is dispatched to itself, so DropClientRpc can
+        // come back round and call ForceDrop on this very object - which sets
+        // held to null underneath us. The next line would then be dropping a
+        // null. Holding the item in a local and clearing the field before
+        // announcing means the echo finds nothing to do and this method
+        // finishes the job it started.
+        var item = held;
         held = null;
+
+        // Announced while it is still where I can see it. A moment later it is
+        // a falling object and the position I would send is already stale.
+        Announce(item, false);
+
+        item.Drop(rb.linearVelocity);
     }
 
     public void ReceiveFromPack(Carryable item)

@@ -455,6 +455,29 @@ public class PlayerMotor : MonoBehaviour
 
     void FixedUpdate()
     {
+        // ==============================================================
+        // A BODY YOU DO NOT OWN IS PLACED, NOT SIMULATED.
+        //
+        // This ran on every body in the scene, including teammates. So a
+        // remote body had gravity applied locally, its own ground check run
+        // locally, and its velocity damped locally - all while
+        // NetworkTransform was writing its position from the wire.
+        //
+        // Two authorities, one body, every frame. The visible result was a
+        // teammate hovering a few centimetres off the deck and refusing to
+        // settle, and a small pop whenever the lift stopped: the network put
+        // them on the floor, local gravity pulled them off it, and neither
+        // ever won.
+        //
+        // Their machine already did all of this correctly. Doing it again
+        // here was never going to agree with the answer that arrived, because
+        // the answer that arrived is 100ms older than the physics running
+        // now.
+        //
+        // Offline every body is local, so single player is untouched.
+        // ==============================================================
+        if (!IsLocal) return;
+
         GroundCheck();
         ApplyMovement();
         ApplyJump();

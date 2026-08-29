@@ -86,6 +86,27 @@ public class NetworkPlayer : NetworkBehaviour
             ClaimCamera();
         }
 
+        // KINEMATIC IF IT IS NOT MINE.
+        //
+        // NetworkTransform owns this body's position outright. Leaving the
+        // Rigidbody dynamic means gravity keeps pulling at a transform the
+        // network keeps re-placing, so it never rests - it hovers, and it pops
+        // when the lift stops.
+        //
+        // Kinematic still collides: you can walk into a teammate and be
+        // stopped by them. They just do not get shoved, which is correct
+        // anyway - only their own machine may move them.
+        if (!IsOwner)
+        {
+            var body = GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                body.isKinematic = true;
+            }
+        }
+
         gameObject.name = IsOwner
             ? $"Player {OwnerClientId} (me)"
             : $"Player {OwnerClientId}";

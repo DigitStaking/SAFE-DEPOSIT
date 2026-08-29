@@ -237,6 +237,10 @@ public class ElevatorNet : NetworkBehaviour
     // correction applied any earlier is simply overwritten.
     // ================================================================
 
+    /// <summary>How long the car has been stopped. The stream keeps
+    /// delivering trip-era positions for a moment after it does.</summary>
+    float stillFor;
+
     readonly System.Collections.Generic.Dictionary<Rigidbody, float> deckHeights =
         new System.Collections.Generic.Dictionary<Rigidbody, float>();
 
@@ -246,6 +250,8 @@ public class ElevatorNet : NetworkBehaviour
 
         var lift = SceneRefs.Lift;
         if (lift == null) return;
+
+        stillFor = lift.IsMoving ? 0f : stillFor + Time.deltaTime;
 
         float deck = lift.transform.position.y + lift.StandLocalY;
 
@@ -278,7 +284,19 @@ public class ElevatorNet : NetworkBehaviour
             // a trip is a glide instead of a snap.
             if (!deckHeights.TryGetValue(r, out float h)) h = measured;
 
-            if (!lift.IsMoving)
+            // WAIT FOR THE STREAM TO CATCH UP BEFORE BELIEVING IT AGAIN.
+            //
+            // Easing began the instant the car stopped, and for the first
+            // tenth of a second after that, what is still arriving was SENT
+            // DURING THE TRIP - stale by the height of one interpolation
+            // buffer. So h chased a wrong value, then came back, and that
+            // round trip is the small dip and the small hop that were left.
+            //
+            // stillFor holds h steady until the tail has passed. It costs a
+            // quarter second of a teammate not being able to crouch after a
+            // ride, and it removes the last visible artefact of the whole
+            // step.
+            if (!lift.IsMoving && stillFor > 0.25f)
                 h = Mathf.Lerp(h, measured, 1f - Mathf.Exp(-12f * Time.deltaTime));
 
             deckHeights[r] = h;

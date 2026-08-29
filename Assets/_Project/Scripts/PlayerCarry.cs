@@ -43,6 +43,7 @@ public class PlayerCarry : MonoBehaviour
     Transform cam;
     PlayerBackpack backpack;
     PlayerHealth health;
+    Animator remoteRig;
 
     void Awake()
     {
@@ -78,6 +79,47 @@ public class PlayerCarry : MonoBehaviour
         // from across a dark floor is that the crate is with them.
         if (cam == null)
         {
+            // ---- BETWEEN THEIR ACTUAL HANDS ----
+            //
+            // The first version hung the crate at a fixed spot in front of the
+            // chest. It travelled with them, and it did not MOVE with them:
+            // they reached, leaned, turned their head, and the box sat there
+            // like it was glued to the air. Reported as "the boxe not moving,
+            // staying in top".
+            //
+            // The fix costs nothing because the work is already done. Step 6's
+            // animation change put OwnerNetworkAnimator on the wire, so a
+            // remote body's hands are ALREADY playing the real carry pose,
+            // driven by their machine. The bones are right there and nobody
+            // was reading them.
+            //
+            // Midpoint of the two hands. Not a hand-relative offset, which
+            // would need the model's grip to be authored consistently - the
+            // point between the palms is where a two-handed carry looks like
+            // it is, on any rig.
+            //
+            // No lerp either. The hands are already smoothed by the animator
+            // and by NetworkTransform's interpolation, so easing toward them a
+            // second time would only add lag to a pose that has arrived.
+            Transform lh = null, rh = null;
+            var anim = remoteRig != null ? remoteRig : remoteRig = GetComponentInChildren<Animator>();
+
+            if (anim != null && anim.isHuman)
+            {
+                lh = anim.GetBoneTransform(HumanBodyBones.LeftHand);
+                rh = anim.GetBoneTransform(HumanBodyBones.RightHand);
+            }
+
+            if (lh != null && rh != null)
+            {
+                held.transform.position = (lh.position + rh.position) * 0.5f
+                                        + transform.forward * 0.12f;
+                held.transform.rotation = transform.rotation;
+                return;
+            }
+
+            // No humanoid rig - chest height, and at least it travels with
+            // them. A carry that is roughly right beats a crate left behind.
             Vector3 anchor = transform.position + Vector3.up * 1.15f
                            + transform.forward * 0.55f;
 

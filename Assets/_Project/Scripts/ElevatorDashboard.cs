@@ -379,6 +379,26 @@ public class ElevatorDashboard : MonoBehaviour
         {
             if (motor == null) continue;
 
+            // ---- THE LOST ARE NOT COMING ----
+            //
+            // This waited for EVERY registered body, including one that had
+            // already bled out and been taken. So the moment somebody was
+            // lost, the survivors could never leave: the lift refused to
+            // depart without a person the mafia was already holding, and the
+            // crew stood at the panel until the timer killed them too.
+            //
+            // Which also made the whole rescue contract unreachable. You
+            // cannot buy back a crewmate from a surface you can never get to,
+            // and PHASE4_SPEC's done-when for Step 9 - the crew arguing about
+            // cable versus their friend - needs somebody to survive the round
+            // in which the friend was lost.
+            //
+            // A DOWNED crewmate still blocks, and should: they are alive, they
+            // are savable, and refusing to leave without them is the pressure
+            // the whole rescue design is built on. Wait for the bleed-out and
+            // they stop blocking, because by then the decision has been made.
+            if (Crew.Of(motor.Slot).Lost) continue;
+
             bool aboard = false;
             foreach (var rb in elevator.Riders)
                 if (rb != null && rb.gameObject == motor.gameObject) { aboard = true; break; }

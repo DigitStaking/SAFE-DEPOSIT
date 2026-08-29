@@ -99,7 +99,29 @@ public class RunManager : MonoBehaviour
     // Typed as PlayerMotor since the rope went: the only things this list is
     // used for are the transform (is this player inside a sealing room) and
     // the name (who is it), and every player has a motor.
-    readonly List<PlayerMotor> crew = new List<PlayerMotor>();
+    /// <summary>
+    /// The crew, ASKED rather than snapshotted.
+    ///
+    /// This was a List filled once in Start with PlayerRegistry.All, and the
+    /// comment defending it said Unity runs every OnEnable before any Start,
+    /// so the list is complete by then. That was true, and it stopped being
+    /// true the moment players started arriving over a network: a spawned
+    /// body registers long after this scene's Start, and a client that joins
+    /// mid-session later still.
+    ///
+    /// So the list was EMPTY, and everything downstream believed it. The
+    /// results screen read "crew 0/0". CrewStanding returned 0, which is the
+    /// test for "is anybody left up there" - so the first crewmate to bleed
+    /// out ended the whole run with "there is nobody left above ground to come
+    /// back for you", while their teammate was standing right next to them.
+    ///
+    /// And that made Step 9 unreachable: you cannot argue about buying a
+    /// friend back from a surface the run never lets you return to.
+    ///
+    /// Tenth time in this phase. The registry is the truth; a copy of it taken
+    /// at Start is a copy of who had spawned by Start.
+    /// </summary>
+    IReadOnlyList<PlayerMotor> crew => PlayerRegistry.All;
 
     readonly List<Transform> levels = new List<Transform>();
     readonly HashSet<int> sealedThisRun = new HashSet<int>();
@@ -115,12 +137,6 @@ public class RunManager : MonoBehaviour
 
     void Start()
     {
-        // The registry, not a sweep. PlayerMotor registers in OnEnable and
-        // Unity runs every OnEnable before any Start, so by the time this
-        // line executes the list is complete - and it is the SAME list every
-        // other system reads, which a second independent scan would not be.
-        crew.AddRange(PlayerRegistry.All);
-
         CollectLevels();
         CacheRubbleMaterial();
         ApplyCampaign();

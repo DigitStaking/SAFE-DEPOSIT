@@ -56,16 +56,33 @@ public class PriceScanner : MonoBehaviour
 
     void Start()
     {
-        // Single-player lookup, same caveat as every other script that does
-        // this: Phase C replaces it with a player registry.
-        var motor = PlayerRegistry.Local;
-        if (motor != null)
-        {
-            player = motor.transform;
-            carry = motor.GetComponent<PlayerCarry>();
-        }
-
         BuildReadout();
+    }
+
+    /// <summary>
+    /// Who is standing here, asked LIVE.
+    ///
+    /// This used to be looked up once in Start and kept. Offline that worked,
+    /// because the scene player exists before anything else runs. Online it
+    /// could not: a spawned player arrives well after Start, so the scanner
+    /// bound to nothing and stayed bound to nothing for the whole session -
+    /// silently, because an empty readout looks exactly like standing away
+    /// from the pad.
+    ///
+    /// Seventh time this pattern has been the answer in this phase, and by now
+    /// it is not a fix so much as a house rule: a cached answer about somebody
+    /// else goes stale, a live one cannot. It costs one property read a frame
+    /// and it cannot be wrong.
+    /// </summary>
+    void Rebind()
+    {
+        var motor = PlayerRegistry.Local;
+        if (motor == null) { player = null; carry = null; return; }
+
+        if (player == motor.transform && carry != null) return;
+
+        player = motor.transform;
+        carry = motor.GetComponent<PlayerCarry>();
     }
 
     /// <summary>
@@ -103,6 +120,8 @@ public class PriceScanner : MonoBehaviour
     void Update()
     {
         if (readout == null) return;
+
+        Rebind();
 
         Carryable item = InRange() && carry != null ? carry.Held : null;
 

@@ -144,6 +144,29 @@ public static class NetworkBuilder
         if (go.GetComponent<ElevatorNet>() == null)
             go.AddComponent<ElevatorNet>();
 
+        // ---- AND THE PRICE SCANNER, IF THE CAR HAS LOST IT ----
+        //
+        // The scanner is built by ElevatorBuilder, which rebuilds the entire
+        // car - far too destructive to ask for when the only thing missing is
+        // one component on one plinth. A scene built before the scanner
+        // existed simply does not have it, and the symptom is a readout that
+        // stays blank, which is indistinguishable from standing in the wrong
+        // place.
+        var plinth = lift.transform.Find("Car/Scanner");
+        if (plinth == null) plinth = lift.transform.Find("Scanner");
+
+        if (plinth != null && plinth.GetComponent<PriceScanner>() == null)
+        {
+            plinth.gameObject.AddComponent<PriceScanner>();
+            Debug.Log("[Net] added the missing PriceScanner to the car.");
+        }
+        else if (plinth == null)
+        {
+            Debug.LogWarning("[Net] this car has no Scanner plinth at all - " +
+                             "run SAFE DEPOSIT > Build Elevator Car to get one. " +
+                             "That rebuilds the whole car.");
+        }
+
         EditorSceneManager.MarkSceneDirty(go.scene);
         Debug.Log("[Net] ELEVATOR networked: NetworkObject + NetworkTransform " +
                   "(server authority, Y only) + ElevatorNet.");

@@ -64,25 +64,98 @@ public static class Crew
     public const int StartingBackpackSlots = 2;
     public const int MaxBackpackSlots = 6;
 
+    // ================================================================
+    // PHASE 4 STEP 4 - ONE ROW PER PERSON, AND EACH PERSON OWNS THEIRS.
+    //
+    // These were plain fields on a static list, so four players had four
+    // private opinions about everybody's health and each machine only ever
+    // updated its own. You could watch a teammate take a fall and their HP,
+    // on your screen, would not move.
+    //
+    // Now each field asks that slot's CrewMemberNet - which rides on that
+    // player's own object, and which that player writes. The names do not
+    // change, so PlayerHealth, DownedPlayer, the HUD and the shop all go on
+    // reading exactly what they read before. Same trick as Campaign in Step 3
+    // and Elevator in Step 5; third time it has cost nothing but the class it
+    // was applied to.
+    //
+    // Offline there is no CrewMemberNet, the private fields answer, and single
+    // player is untouched.
+    // ================================================================
+
     public class Member
     {
-        public int Health = MaxHealth;
+        public Member(int slot) { this.slot = slot; }
+
+        readonly int slot;
+
+        CrewMemberNet Net => CrewMemberNet.ForSlot(slot);
+
+        /// <summary>True when this row is mine to write. Damage that happens
+        /// to somebody else is reported BY them, never guessed at here.</summary>
+        bool Mine => Net == null || Net.IsOwner;
+
+        int localHealth = MaxHealth;
+        float localBleed;
+        bool localLost;
+        int localPack = StartingBackpackSlots;
+
+        // Raw access for CrewMemberNet, which has to seed the network from
+        // whatever this machine was holding when it connected.
+        internal int RawHealth => localHealth;
+        internal float RawBleedOut => localBleed;
+        internal bool RawLost => localLost;
+        internal int RawPack => localPack;
+
+        public int Health
+        {
+            get => Net != null ? Net.Health.Value : localHealth;
+            set { if (Net != null) { if (Mine) Net.Health.Value = value; } else localHealth = value; }
+        }
 
         /// <summary>Seconds left on the bleed-out, 0 when not downed.</summary>
-        public float BleedOutLeft;
+        public float BleedOutLeft
+        {
+            get => Net != null ? Net.BleedOut.Value : localBleed;
+            set { if (Net != null) { if (Mine) Net.BleedOut.Value = value; } else localBleed = value; }
+        }
 
         /// <summary>The bleed-out completed. NOT death - ECONOMY Part 7.</summary>
-        public bool Lost;
+        public bool Lost
+        {
+            get => Net != null ? Net.Lost.Value : localLost;
+            set { if (Net != null) { if (Mine) Net.Lost.Value = value; } else localLost = value; }
+        }
 
         /// <summary>
         /// Bought FOR this person by the leader, not for the crew. Decided
         /// 21 Aug 2026: it makes pack capacity a role, so somebody is the
         /// mule, everyone knows who, and losing them loses the pack.
+        ///
+        /// THE ONE FIELD ITS OWNER DOES NOT WRITE. It is bought out of the
+        /// shared pot by whoever is at the shop, so the host writes it - the
+        /// authority follows the money. Damage happens to you, so you report
+        /// it; a pack is bought for you, so the wallet reports that.
         /// </summary>
-        public int BackpackSlots = StartingBackpackSlots;
+        public int BackpackSlots
+        {
+            get => Net != null ? Net.Pack.Value : localPack;
+            set
+            {
+                if (Net == null) { localPack = value; return; }
+                if (Net.IsServer) Net.Pack.Value = value;
+            }
+        }
 
         public bool IsDowned => Health <= 0;
     }
+
+    /// <summary>
+    /// The row as this machine holds it, ignoring the network entirely.
+    /// CrewMemberNet uses it to seed itself on spawn, so joining does not wipe
+    /// what you walked in with.
+    /// </summary>
+    internal static Member LocalRow(int slot) => Of(slot);
 
     static readonly List<Member> members = new List<Member>();
 
@@ -103,7 +176,7 @@ public static class Crew
             slot = MaxMembers - 1;
         }
 
-        while (members.Count <= slot) members.Add(new Member());
+        while (members.Count <= slot) members.Add(new Member(members.Count));
         return members[slot];
     }
 

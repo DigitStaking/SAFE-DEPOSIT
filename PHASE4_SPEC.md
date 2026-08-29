@@ -140,9 +140,25 @@ the same rules and the new number replicates back.
 system that writes it is networked means guessing at when it changes, and
 that guess would be rewritten at each of those steps anyway.
 
-### Step 4 · Per-person state
+### Step 4 · Per-person state — DONE
 `Crew` slots bind to client ids. HP, injury, bleed-out.
 **Done when:** two players have different HP and both HUDs are right.
+
+**Each row rides on its owner's player object, and the owner writes it.** The
+money went host-owned in Step 3 because there is *one* pot and two writers have
+no answer. Health is the opposite shape: there are four of them and each has an
+obvious author. Your machine already decides where your body is and how far it
+fell — asking the host to also decide what that fall cost would mean a round
+trip before your own screen turns red.
+
+Slot **is** client id, so the binding needs no message: both machines work it
+out.
+
+**Except the pack, which is bought, not suffered.** `BackpackSlots` is the one
+field its owner does not write — the leader buys it out of the shared pot, so
+the host writes it. Not an inconsistency: **the authority follows the money.**
+Damage happens to you, so you report it; a pack is bought for you, so the
+machine holding the wallet reports that.
 
 ### Step 5 · The lift — DONE (load gauge waits on Step 6)
 **Riders in sync: met.** Own body correct, teammate correct, no rubber-band,

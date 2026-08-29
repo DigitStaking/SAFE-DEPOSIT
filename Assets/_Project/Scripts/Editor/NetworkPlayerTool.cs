@@ -80,6 +80,11 @@ public static class NetworkPlayerTool
                 Debug.LogWarning("[Net] no Animator found under the player prefab - " +
                                  "emotes and the walk cycle will not replicate.");
 
+            // PHASE 4 STEP 4. Your Crew row rides on your own body, because
+            // you are the one who writes it.
+            if (contents.GetComponent<CrewMemberNet>() == null)
+                contents.AddComponent<CrewMemberNet>();
+
             if (contents.GetComponent<NetworkPlayer>() == null)
                 contents.AddComponent<NetworkPlayer>();
 

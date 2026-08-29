@@ -73,6 +73,7 @@ public class MedSpray : MonoBehaviour
         if (mine.IsDowned) { target = null; progress = 0f; return; }
 
         target = FindDowned();
+        if (target == null) ReportWhyNot();
 
         var kb = PlayerRegistry.KeysOf(this);
         bool holding = kb != null && kb[UnityEngine.InputSystem.Key.R].isPressed;
@@ -99,6 +100,52 @@ public class MedSpray : MonoBehaviour
         // it out again deliberately, which is the right amount of friction for
         // spending something this scarce.
         if (pack != null) pack.PutSprayAway();
+    }
+
+    /// <summary>
+    /// Say why nobody is being offered a rescue, when somebody is standing
+    /// right there.
+    ///
+    /// "I still cannot see the HOLD R message" has now survived two fixes -
+    /// the self-hit spherecast, and the crew row cached before the slot was
+    /// known - and there are three remaining ways it can fail that look
+    /// identical from inside the game:
+    ///
+    ///   NO NEARBY BODY AT ALL      the overlap is not finding them
+    ///   FOUND, BUT NOT DOWNED      this machine thinks they are fine, which
+    ///                              means health is not replicating
+    ///   FOUND AND DOWNED           then FindDowned is rejecting them, and
+    ///                              the only reason left is the self test
+    ///
+    /// Silent unless another player is within reach, so a normal run costs
+    /// nothing.
+    /// </summary>
+    float nextWhyLog;
+
+    void ReportWhyNot()
+    {
+        if (Time.time < nextWhyLog) return;
+
+        foreach (var other in PlayerRegistry.All)
+        {
+            if (other == null || other.gameObject == gameObject) continue;
+
+            float d = Vector3.Distance(transform.position, other.transform.position);
+            if (d > range) continue;
+
+            nextWhyLog = Time.time + 1f;
+
+            var health = other.GetComponent<PlayerHealth>();
+            var downed = other.GetComponent<DownedPlayer>();
+
+            Debug.Log($"[Spray] {other.gameObject.name} is {d:0.0}m away  " +
+                      $"slot={other.Slot}  " +
+                      $"crewHP={Crew.Of(other.Slot).Health}  " +
+                      $"health.IsDowned={(health != null ? health.IsDowned.ToString() : "no PlayerHealth")}  " +
+                      $"downed.IsDowned={(downed != null ? downed.IsDowned.ToString() : "no DownedPlayer")}  " +
+                      $"- and I am offering nothing.");
+            return;
+        }
     }
 
     /// <summary>

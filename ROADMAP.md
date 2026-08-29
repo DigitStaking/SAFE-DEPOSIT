@@ -81,7 +81,7 @@ payment carrying over is untestable for the same reason: you cannot earn the
 rest while you are the one who is missing.
 
 **Step 7 moved for a blunter one.** Both ways of saving someone —
-med spray *on them*, or carrying them out — need a second player to be
+med spray *on them* — needs a second player to be
 tested at all, and a rescue verified only by reading the code is not
 verified. The seam is already built and working: `DownedPlayer.Revive()`
 exists, restores you at 20 HP, drops you out of your carrier's arms and

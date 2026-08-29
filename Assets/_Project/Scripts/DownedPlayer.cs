@@ -218,13 +218,41 @@ public class DownedPlayer : MonoBehaviour
     /// loot, and RunManager.CountRecoveredValue sums Carryable.value for
     /// everything aboard. Carrying a crewmate out must not pay the mafia.
     /// </summary>
+    /// <summary>
+    /// CUT 26 AUG 2026. A downed crewmate is no longer luggage.
+    ///
+    /// WHY IT WAS CUT RATHER THAN FIXED
+    ///
+    /// It did not survive contact with the netcode, and the reason is
+    /// structural rather than a bug to chase. Step 4 made every body
+    /// OWNER-AUTHORITATIVE: your machine decides where your body is, and
+    /// nobody else's may overrule it. So a carrier could pick somebody up -
+    /// the HUD said "carrying a crewmate (70kg)", correctly, because their own
+    /// hands really were full - and the body did not move an inch, because the
+    /// downed player's machine went on reporting the floor it was lying on.
+    ///
+    /// Making it work means handing the carrier temporary ownership of another
+    /// player's body. That is doable, and it drags in a distinction the whole
+    /// project currently does not need: "a body I own" would stop meaning "my
+    /// player", so every input gate, HUD gate, camera binding and health write
+    /// keyed on ownership would need re-reading. That is a real risk of
+    /// reintroducing the two-bodies bug for a feature the crew can live
+    /// without.
+    ///
+    /// WHAT IT COSTS, HONESTLY
+    ///
+    /// PHASE2_SPEC wanted "two real ways to save someone and both hurt" - the
+    /// spray costs money, carrying costs time. There is one way now, and it
+    /// costs money. WITH AN EMPTY KIT, A DOWNED CREWMATE IS LOST. That makes
+    /// the 35 at the shop closer to mandatory than optional, and it is a
+    /// change to the economy, not just to the controls.
+    ///
+    /// Left as a method rather than deleted, so putting it back is one commit
+    /// and the reasoning above is still attached to it.
+    /// </summary>
     void BecomeCargo()
     {
-        if (cargo != null) return;
-
-        cargo = GetComponent<Carryable>();
-        if (cargo == null) cargo = gameObject.AddComponent<Carryable>();
-        cargo.value = 0;
+        // Deliberately nothing. See above.
     }
 
     /// <summary>

@@ -188,9 +188,19 @@ watch the load gauge go amber as you do.
 
 ### Step 7 · Revive — ⏭️ MOVED TO PHASE 4 (21 Aug 2026)
 
-Med spray revives in place at partial health. Carrying to the lift is the
-free alternative that costs time instead of money.
-**Done when:** there are two real ways to save someone and both hurt.
+Med spray revives in place at partial health.
+**Done when:** somebody sprays somebody else back onto their feet.
+
+**CARRYING CUT, 26 Aug 2026.** It did not survive the netcode. Step 4 made
+every body owner-authoritative, so a carrier's hands filled correctly and the
+body never moved — the downed player's own machine went on reporting the floor
+it was lying on. Making it work means handing the carrier temporary ownership
+of another player's body, which would stop "a body I own" meaning "my player"
+for every input gate, camera binding and health write in the project.
+
+**The cost, honestly:** there is one way to save someone now and it costs
+money. With an empty kit, a downed crewmate is lost. That makes the 35 closer
+to mandatory than optional — a change to the economy, not just the controls.
 
 **Deferred because it cannot be tested solo.** Both ways of saving someone
 need a second player — you cannot spray yourself, and carrying yourself out

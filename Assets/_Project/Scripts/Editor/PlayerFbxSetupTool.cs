@@ -235,16 +235,38 @@ public static class PlayerFbxSetupTool
     // Old graybox capsule/arms must not fight the real FBX silhouette.
     static void HideLegacyGraybody(Transform root)
     {
+        // DELETED NOW, NOT DEACTIVATED.
+        //
         // "Head" belongs on this list and was missing, which is why a grey
         // cube floated at eye height in every screenshot: LocalFirstPersonBodyCull
         // only ever touches SkinnedMeshRenderers, and the graybox head is a
         // plain MeshRenderer, so nothing was hiding it.
-        string[] hide = { "Body", "Head", "Cube", "ChestPivot", "Arm_L", "Arm_R" };
-        foreach (var n in hide)
+        //
+        // Hiding it fixed the screenshot and left the object in the prefab, so
+        // it came back the moment anybody looked at the hierarchy - and it is
+        // still in every build, and still on every teammate. A disabled
+        // GameObject is not gone, it is just quiet.
+        //
+        // The FBX has been the real body since Phase 1 and none of this is
+        // coming back. Deleting is the honest operation, and doing it HERE
+        // rather than by hand is what stops it drifting back: this tool is the
+        // known-good player setup, and anything it does not do is not part of
+        // the player.
+        string[] legacy = { "Body", "Head", "Cube", "ChestPivot", "Arm_L", "Arm_R" };
+        int removed = 0;
+
+        foreach (var n in legacy)
         {
             var t = root.Find(n);
-            if (t != null) t.gameObject.SetActive(false);
+            if (t == null) continue;
+
+            Object.DestroyImmediate(t.gameObject);
+            removed++;
         }
+
+        if (removed > 0)
+            Debug.Log($"[FBX] removed {removed} leftover graybox part(s) - " +
+                      "the grey cube at head height is one of them.");
     }
 
     static void SetColor(Material mat, string prop, Color value)

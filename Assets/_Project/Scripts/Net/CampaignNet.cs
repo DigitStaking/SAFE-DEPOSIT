@@ -260,7 +260,7 @@ public class CampaignNet : NetworkBehaviour
     public void BuyMedSprayServerRpc(int slot) => Campaign.BuyMedSprayAuthoritative(slot);
 
     [ServerRpc(RequireOwnership = false)]
-    public void BuyWalkieServerRpc(int slot) => Campaign.BuyWalkiePairAuthoritative(slot);
+    public void BuyWalkieServerRpc(int slot) => Campaign.BuyWalkieAuthoritative(slot);
 
     /// <summary>
     /// Anybody at the shop can put money toward a rescue. Deliberately not

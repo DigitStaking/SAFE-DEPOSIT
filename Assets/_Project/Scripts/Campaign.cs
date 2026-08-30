@@ -108,8 +108,18 @@ public static class Campaign
     /// </summary>
     public const int MedSprayBaseCost = 35;
 
-    /// <summary>ECONOMY Part 8: 30 for a PAIR. One purchase, two radios.</summary>
-    public const int WalkiePairBaseCost = 30;
+    /// <summary>
+    /// 20, PER PERSON, chosen by whoever is at the shop.
+    ///
+    /// ECONOMY priced a fixed pair at 30. Changed 30 Aug 2026 on request, and
+    /// it is the better shape: the crew decides how many radios it wants and
+    /// WHO gets them, rather than the item deciding for them. Two is still the
+    /// obvious buy at 40, but a crew that can afford four can arm everybody -
+    /// and that changes nothing about the tension, because the channel still
+    /// only holds one voice. Four radios means four people who CAN talk and
+    /// still only one who IS talking.
+    /// </summary>
+    public const int WalkieBaseCost = 20;
 
     // ---- OVERLOAD: TEN SECONDS, THEN IT PARTS ----
     //
@@ -737,53 +747,35 @@ public static class Campaign
     /// it is everybody else's.
     /// </summary>
     /// <summary>
-    /// A PAIR of radios, per ECONOMY: 30, and the buyer picks who gets them.
+    /// One radio, for a named crewmate.
     ///
-    /// For now it arms the buyer and the first crewmate without one, which is
-    /// exactly right with two players and a placeholder with four - the leader
-    /// picking two specific names out of a crew is Phase 7's shop screen, and
-    /// ECONOMY already says so. The MECHANIC is the pair; the picker is UI.
-    ///
-    /// It has to be a pair rather than one each, and that is not just the
-    /// price: a crew of four with one pair is a crew where two people can
-    /// coordinate and two cannot, and everybody knows which is which. One each
-    /// would just be a group call.
+    /// Anybody at the shop can buy one for anybody, which is deliberate: it is
+    /// the shared pot, and ECONOMY is explicit that visible spending breeds
+    /// arguments and arguments are content. Making it host-only is one line if
+    /// that turns out to matter.
     /// </summary>
-    public static bool BuyWalkiePair(int buyerSlot)
+    public static bool BuyWalkie(int forSlot)
     {
-        if (Money < WalkiePairCost) return false;
-        if (MaySpend) return BuyWalkiePairAuthoritative(buyerSlot);
+        if (Money < WalkieCost) return false;
+        if (Crew.Of(forSlot).HasWalkie) return false;
 
-        Net.BuyWalkieServerRpc(buyerSlot);
+        if (MaySpend) return BuyWalkieAuthoritative(forSlot);
+
+        Net.BuyWalkieServerRpc(forSlot);
         return true;
     }
 
-    public static bool BuyWalkiePairAuthoritative(int buyerSlot)
+    public static bool BuyWalkieAuthoritative(int forSlot)
     {
-        if (Money < WalkiePairCost) return false;
+        if (Money < WalkieCost) return false;
 
-        var buyer = Crew.Of(buyerSlot);
+        var who = Crew.Of(forSlot);
+        if (who.HasWalkie) return false;      // never sell a second one
 
-        int partner = -1;
-        for (int i = 0; i < Crew.MaxMembers; i++)
-        {
-            if (i == buyerSlot) continue;
-            if (Crew.Of(i).HasWalkie) continue;
-            partner = i;
-            break;
-        }
+        Money -= WalkieCost;
+        who.HasWalkie = true;
 
-        // Nobody to pair with, and the buyer already has one. Refuse rather
-        // than sell a second radio to the same person - it would do nothing
-        // and they would have paid for it.
-        if (partner < 0 && buyer.HasWalkie) return false;
-
-        Money -= WalkiePairCost;
-        buyer.HasWalkie = true;
-        if (partner >= 0) Crew.Of(partner).HasWalkie = true;
-
-        Debug.Log($"[Crew] radios to slot {buyerSlot}" +
-                  (partner >= 0 ? $" and slot {partner}" : " (no partner yet)"));
+        Debug.Log($"[Crew] radio bought for slot {forSlot}.");
         return true;
     }
 
@@ -876,7 +868,7 @@ public static class Campaign
     public static int CableChunkCost => ScaledPrice(CableChunkBaseCost);
     public static int BackpackSlotCost => ScaledPrice(BackpackSlotBaseCost);
     public static int MedSprayCost => ScaledPrice(MedSprayBaseCost);
-    public static int WalkiePairCost => ScaledPrice(WalkiePairBaseCost);
+    public static int WalkieCost => ScaledPrice(WalkieBaseCost);
 
     /// <summary>What the cable lifts right now, upgrades included.</summary>
     public static float Capacity => BaseCapacity + CapacityStep * CapacityUpgrades;

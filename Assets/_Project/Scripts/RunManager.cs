@@ -1157,32 +1157,47 @@ public class RunManager : MonoBehaviour
             Campaign.BuyMedSpray(buyerSlot);
         }
 
-        // ---- walkie-talkie ----
+        // ---- walkie-talkies: one button per crewmate ----
         //
-        // A PAIR, per ECONOMY: 30 for two, and the leader picks who. A crew of
-        // four with one pair is a crew where two people can coordinate and two
-        // cannot, and everybody knows which is which. One each would just be a
-        // group call.
+        // A PICKER, not a fixed pair. The crew decides how many radios it
+        // wants and WHO gets them - two is still the obvious buy at 40, but a
+        // crew that can afford four can arm everybody, and that changes
+        // nothing about the tension: the channel holds one voice regardless.
+        // Four radios means four people who CAN talk and still exactly one who
+        // IS talking.
         //
-        // Drawn on a second row because the first is full, and because this is
-        // the only item here that changes who can talk to whom.
+        // Names, not slot numbers. "Radio for Player 2" is a decision about a
+        // person; "radio for slot 2" is a settings menu.
         float row2 = by + 46f;
 
-        GUI.enabled = Campaign.Money >= Campaign.WalkiePairCost;
-
-        int radios = 0;
-        for (int i = 0; i < Crew.MaxMembers; i++) if (Crew.Of(i).HasWalkie) radios++;
-
-        if (GUI.Button(new Rect(cx - bw * 0.5f, row2, bw, 34f),
-                       $"walkie-talkie PAIR  ({Campaign.WalkiePairCost})   " +
-                       $"{radios} carried"))
+        var withRadios = new List<PlayerMotor>(PlayerRegistry.All);
+        if (withRadios.Count > 0)
         {
-            Campaign.BuyWalkiePair(buyerSlot);
+            const float rw = 190f, rgap = 8f;
+            float rx = cx - (withRadios.Count * rw + (withRadios.Count - 1) * rgap) * 0.5f;
+
+            for (int i = 0; i < withRadios.Count; i++)
+            {
+                var m = withRadios[i];
+                if (m == null) continue;
+
+                bool has = Crew.Of(m.Slot).HasWalkie;
+
+                GUI.enabled = !has && Campaign.Money >= Campaign.WalkieCost;
+
+                string label = has
+                    ? $"{m.gameObject.name}  HAS A RADIO"
+                    : $"radio for {m.gameObject.name}  ({Campaign.WalkieCost})";
+
+                if (GUI.Button(new Rect(rx + i * (rw + rgap), row2, rw, 34f), label))
+                    Campaign.BuyWalkie(m.Slot);
+            }
+
+            GUI.enabled = true;
+            row2 += 40f;
         }
 
-        GUI.enabled = true;
-
-        float tail = row2 + 40f;
+        float tail = row2 + 6f;
 
         tail = DrawRescueContracts(tail, body);
 

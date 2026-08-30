@@ -38,8 +38,9 @@ public class WalkieChannel : NetworkBehaviour
 {
     public static WalkieChannel Instance { get; private set; }
 
-    [Tooltip("Hold to talk on the radio.")]
-    public KeyCode key = KeyCode.V;
+    [Tooltip("Hold to talk on the radio. U, not V - V is the third-person " +
+         "debug toggle and was moved back to it.")]
+    public KeyCode key = KeyCode.U;
 
     /// <summary>
     /// Who is holding the channel, or ulong.MaxValue for nobody.
@@ -80,7 +81,7 @@ public class WalkieChannel : NetworkBehaviour
         if (me == null) return;
 
         var kb = PlayerRegistry.KeysOf(me);
-        bool down = kb != null && kb[UnityEngine.InputSystem.Key.V].isPressed;
+        bool down = kb != null && kb[UnityEngine.InputSystem.Key.U].isPressed;
 
         if (down == pressed) return;
         pressed = down;
@@ -145,7 +146,7 @@ public class WalkieChannel : NetworkBehaviour
         if (Time.time - noRadioAt < 1.5f)
         {
             msg = "YOU HAVE NO WALKIE-TALKIE
-buy a pair at the surface - it arms two of you";
+somebody can buy you one at the surface";
             colour = new Color(1f, 0.55f, 0.4f);
         }
         else if (HeldByMe)

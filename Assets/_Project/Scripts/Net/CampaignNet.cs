@@ -110,6 +110,18 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<int>   Threatened = new NetworkVariable<int>(0, default, Host);
 
     /// <summary>
+    /// The SERVER TIME at which the condemned room seals - not the seconds
+    /// remaining.
+    ///
+    /// Seconds remaining would have to be resent constantly and would still be
+    /// a tick out of date on arrival. A deadline is sent once and stays true:
+    /// NGO keeps ServerTime synchronised on every machine, so each one
+    /// subtracts its own clock and gets the same countdown. One number, sent
+    /// when the charge is set, and nobody drifts.
+    /// </summary>
+    public readonly NetworkVariable<double> SealAt = new NetworkVariable<double>(0d, default, Host);
+
+    /// <summary>
     /// PHASE 4 STEP 9. Who the mafia is holding, and how much has been paid
     /// toward each of them.
     ///

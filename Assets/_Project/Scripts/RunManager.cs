@@ -127,13 +127,64 @@ public class RunManager : MonoBehaviour
     readonly HashSet<int> sealedThisRun = new HashSet<int>();
     Material rubbleMat;
     float runStartTime;
-    float nextRoomDeadline;
-    int threatenedRoom;
+    // ================================================================
+    // WHICH ROOM, AND WHEN - ASKED, NOT REMEMBERED.
+    //
+    // Both of these were plain fields on a class that runs on EVERY machine,
+    // and both were derived from a dice roll and a local clock. So each copy
+    // condemned a different room and counted down to a different second: one
+    // screen said "room 01 seals in 9:37" while the other said "room 03 seals
+    // in 9:06", and both were telling the truth about their own game.
+    //
+    // The previous attempt had clients read the replicated room ONCE, inside
+    // ChooseThreatenedRoom - which is the same one-shot mistake this phase has
+    // now made a dozen times. A value that arrives over a wire has to be
+    // ASKED FOR, every time it is used, or it is only ever as fresh as the
+    // moment somebody happened to look.
+    //
+    // The deadline travels as an absolute SERVER TIME rather than a countdown.
+    // A countdown would need resending constantly and would still be a tick
+    // stale on arrival; a deadline is sent once and stays true, because NGO
+    // keeps ServerTime synchronised and each machine just subtracts its own
+    // clock.
+    // ================================================================
+
+    float localRoomDeadline;
+    int localThreatened;
+
+    static CampaignNet Net => CampaignNet.Instance;
+    static bool HostDecides => Campaign.MayWrite;
+
+    int threatenedRoom
+    {
+        get => HostDecides || Net == null ? localThreatened : Net.Threatened.Value;
+        set
+        {
+            localThreatened = value;
+            if (Net != null && Net.IsServer) Net.Threatened.Value = value;
+        }
+    }
+
+    /// <summary>Seconds until the condemned room seals, on any machine.</summary>
+    float RoomSecondsLeft
+    {
+        get
+        {
+            if (HostDecides || Net == null)
+                return Mathf.Max(0f, localRoomDeadline - Time.time);
+
+            double now = Unity.Netcode.NetworkManager.Singleton != null
+                ? Unity.Netcode.NetworkManager.Singleton.ServerTime.Time
+                : 0d;
+
+            return Mathf.Max(0f, (float)(Net.SealAt.Value - now));
+        }
+    }
     bool roomWarned;
     string lastEvent = "";
     float lastEventTime = -99f;
 
-    public float TimeLeft => Mathf.Max(0f, nextRoomDeadline - Time.time);
+    public float TimeLeft => RoomSecondsLeft;
 
     void Start()
     {
@@ -510,6 +561,19 @@ public class RunManager : MonoBehaviour
 
         if (left > 0f) return;
 
+        // ---- THE HOST DETONATES IT ----
+        //
+        // The clock and the room are shared now, so every machine would reach
+        // this line at the same moment with the same number - and would then
+        // each decide, independently, who was standing in that room when it
+        // went. killOccupants is a life-or-death call and it must be made
+        // once.
+        //
+        // Clients get the rubble from the replicated Sealed mask, which
+        // already rebuilds their geometry, so nothing is missing on their end
+        // except the decision.
+        if (!HostDecides) return;
+
         bool killed = SealRoomIndex(threatenedRoom, killOccupants: true);
 
         // Through SealRoom, not straight into the set. SealRoom is host-only
@@ -569,7 +633,12 @@ public class RunManager : MonoBehaviour
         // last thing runTime did. With no run timer there is nothing to take
         // a minimum against: every charge, first or not, is one full
         // roomChargeTime.
-        nextRoomDeadline = Time.time + roomChargeTime;
+        localRoomDeadline = Time.time + roomChargeTime;
+
+        // Published as an absolute server time, so every machine counts down
+        // to the same instant instead of starting its own stopwatch.
+        if (Net != null && Net.IsServer && Unity.Netcode.NetworkManager.Singleton != null)
+            Net.SealAt.Value = Unity.Netcode.NetworkManager.Singleton.ServerTime.Time + roomChargeTime;
         roomWarned = false;
         threatenedRoom = 0;
         ChooseThreatenedRoom();
@@ -596,18 +665,11 @@ public class RunManager : MonoBehaviour
         // Same shape as SealRandomRooms in Campaign, which was host-guarded
         // for the same reason a few commits ago. This is the other roll, and
         // it was still loose.
-        if (!Campaign.MayWrite)
-        {
-            threatenedRoom = CampaignNet.Instance != null
-                ? CampaignNet.Instance.Threatened.Value
-                : 0;
-            return;
-        }
+        // Clients do not choose at all any more - the property above reads the
+        // host's answer live, so there is nothing for them to do here.
+        if (!HostDecides) return;
 
         threatenedRoom = opts.Count == 0 ? 0 : opts[Random.Range(0, opts.Count)];
-
-        if (CampaignNet.Instance != null && CampaignNet.Instance.IsServer)
-            CampaignNet.Instance.Threatened.Value = threatenedRoom;
     }
 
     bool IsRoomSealed(int room1Based)

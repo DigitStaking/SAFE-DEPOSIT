@@ -436,7 +436,24 @@ Polish lands in Phase 8's audio pass, which already lists "survivors screaming
 through concrete" — the same system, pointed at an NPC. Step 10 owes the
 mechanism; Phase 8 owes the tuning.
 
-### Step 11 · The crew screens
+### Step 11 · The crew screens — LOBBY + STEAM TRANSPORT BUILT
+A real screen: crew name, who is aboard, INVITE FRIENDS through Steam's own
+overlay, and a host **START**. It replaces the two-button corner panel, which
+only ever worked because there were exactly two windows on one machine and I
+knew which was which — neither of which is true for a friend who has just been
+sent a zip file.
+
+**No server browser.** App 480 is Valve's public test id, shared by every
+developer doing this, so its lobby list is full of strangers running unrelated
+games. You invite people you know, which is what four-player co-op wants.
+
+**START holds the RUN, not the SPAWN.** Everyone is already standing in the
+lift; what changes is that the building begins counting. A crew that can walk
+around and see each other first is a crew that arrives having already decided
+who carries the radios.
+
+**Steam off is still a supported state.** No Steam means local 127.0.0.1 play,
+exactly as it has worked all phase.
 Leader, Change Leader vote, and the departure vote that names whoever is not
 aboard.
 **Done when:** three players ride together and the vote names the person still

@@ -545,6 +545,18 @@ public class RunManager : MonoBehaviour
         if (!enableCollapse) return;
         if (levels.Count == 0) return;
 
+        // NOTHING BURNS BEFORE THE HOST SAYS GO.
+        //
+        // The charge timer is the one thing that makes waiting expensive, so
+        // it must not run while the crew is standing in the lobby deciding who
+        // takes the radios. Offline there is no lobby and RunHasStarted is
+        // always true, so the solo game is unaffected.
+        if (!CrewLobby.RunHasStarted)
+        {
+            localRoomDeadline = Time.time + roomChargeTime;
+            return;
+        }
+
         if (threatenedRoom <= 0 || IsRoomSealed(threatenedRoom) || !IsRoomReachable(threatenedRoom))
             ChooseThreatenedRoom();
 

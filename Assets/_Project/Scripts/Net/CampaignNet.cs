@@ -122,6 +122,17 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<double> SealAt = new NetworkVariable<double>(0d, default, Host);
 
     /// <summary>
+    /// The host has pressed START. Until then the crew is aboard and the
+    /// building is not counting.
+    ///
+    /// PHASE 4 STEP 11. Holding the RUN rather than holding the SPAWN is
+    /// deliberate: a crew that can walk around and see each other before the
+    /// timer starts is a crew that arrives having already decided who is
+    /// carrying the radios.
+    /// </summary>
+    public readonly NetworkVariable<bool> Started = new NetworkVariable<bool>(false, default, Host);
+
+    /// <summary>
     /// PHASE 4 STEP 9. Who the mafia is holding, and how much has been paid
     /// toward each of them.
     ///

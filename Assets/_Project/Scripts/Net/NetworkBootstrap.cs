@@ -54,8 +54,10 @@ public class NetworkBootstrap : MonoBehaviour
 
     public ushort port = 7777;
 
-    [Tooltip("Draw the HOST / JOIN panel. Turn off once lobbies exist (Step 11).")]
-    public bool showPanel = true;
+    [Tooltip("The old corner HOST/JOIN panel. OFF by default since Step 11 - " +
+             "CrewLobby replaced it. Kept because it is still the fastest way " +
+             "to start two local windows when Steam is not running.")]
+    public bool showPanel = false;
 
     NetworkManager net;
     string lastEvent = "";

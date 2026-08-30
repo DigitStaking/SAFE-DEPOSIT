@@ -58,6 +58,16 @@ public static class NetworkBuilder
         // finds a manager already running and removes itself.
         net.NetworkConfig.EnableSceneManagement = true;
 
+        // PHASE 4 STEP 11. Both transports live on the object; which one is
+        // active is the one NetworkConfig points at. Keeping UnityTransport
+        // attached is what preserves local two-window testing on a machine
+        // with no Steam.
+        if (go.GetComponent<SteamTransport>() == null)
+            go.AddComponent<SteamTransport>();
+
+        if (go.GetComponent<CrewLobby>() == null)
+            go.AddComponent<CrewLobby>();
+
         var boot = go.GetComponent<NetworkBootstrap>();
         if (boot == null) boot = go.AddComponent<NetworkBootstrap>();
         boot.address = "127.0.0.1";

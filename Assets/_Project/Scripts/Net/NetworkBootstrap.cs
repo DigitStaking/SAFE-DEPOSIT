@@ -100,9 +100,52 @@ public class NetworkBootstrap : MonoBehaviour
         net.OnClientConnectedCallback += OnConnected;
         net.OnClientDisconnectCallback += OnDisconnected;
 
-        // SceneManager only exists once a session is running, so this cannot
-        // be hooked here - Host and Join do it the moment there is one.
+        // ---- EVERY WAY IN, NOT JUST MINE ----
+        //
+        // The placeholder removal used to live inside this file's own Host and
+        // Join methods. Then CrewLobby arrived and called StartHost directly -
+        // correctly, it is the menu now - and skipped the cleanup entirely, so
+        // the host stood next to a second copy of itself again.
+        //
+        // A rule that only applies to one entry point is not a rule, it is a
+        // habit. NGO fires these whenever a session begins, by any route, so
+        // this is the one place that cannot be bypassed by adding another
+        // button somewhere.
+        net.OnServerStarted += ClearPlaceholders;
+        net.OnClientStarted += ClearPlaceholders;
 
+        // SceneManager only exists once a session is running, so the
+        // round-change hook cannot go here - Host and Join do it the moment
+        // there is one.
+    }
+
+    /// <summary>
+    /// Remove any body that is not somebody's player object.
+    ///
+    /// IsPlayerObject, for the fifth time in this phase. The scene holds a
+    /// Player so the game runs offline, and a server auto-spawns in-scene
+    /// NetworkObjects - so the placeholder is spawned, owned, and identical to
+    /// a real player on every field except this one.
+    /// </summary>
+    void ClearPlaceholders()
+    {
+        int removed = 0;
+        var bodies = new System.Collections.Generic.List<PlayerMotor>(PlayerRegistry.All);
+
+        foreach (var body in bodies)
+        {
+            if (body == null) continue;
+
+            var netObj = body.GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned && netObj.IsPlayerObject) continue;
+
+            if (netObj != null && netObj.IsSpawned && net.IsServer) netObj.Despawn(true);
+            else Destroy(body.gameObject);
+
+            removed++;
+        }
+
+        if (removed > 0) Say(removed + " placeholder body(s) removed");
     }
 
     void OnDisable()
@@ -110,6 +153,8 @@ public class NetworkBootstrap : MonoBehaviour
         if (net == null) return;
         net.OnClientConnectedCallback -= OnConnected;
         net.OnClientDisconnectCallback -= OnDisconnected;
+        net.OnServerStarted -= ClearPlaceholders;
+        net.OnClientStarted -= ClearPlaceholders;
     }
 
     /// <summary>

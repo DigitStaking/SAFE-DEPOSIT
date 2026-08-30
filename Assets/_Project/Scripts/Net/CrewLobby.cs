@@ -100,12 +100,48 @@ public class CrewLobby : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    // WHICH TRANSPORT
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Point NetworkManager at the transport that can actually reach the other
+    /// person, and do it before every start.
+    /// </summary>
+    /// <remarks>
+    /// THE MISSING STEP. The Steam lobby worked, the invite arrived, the
+    /// friend accepted - and the host still read "1 connected", because
+    /// NetworkConfig was still pointing at UnityTransport and the join went to
+    /// 127.0.0.1. Everything Steam-shaped was correct and the packets were
+    /// being posted to the wrong address.
+    ///
+    /// Chosen at runtime rather than set in the editor, because the right
+    /// answer changes with circumstance and neither one is "the" setting:
+    /// with Steam running you want the relay, and without it you want two
+    /// windows on one machine, which is still how this gets tested alone.
+    /// </remarks>
+    void UseRightTransport()
+    {
+        if (net == null) return;
+
+        if (SteamBoot.Running && steam != null)
+        {
+            net.NetworkConfig.NetworkTransport = steam;
+            return;
+        }
+
+        var utp = GetComponent<Unity.Netcode.Transports.UTP.UnityTransport>();
+        if (utp != null) net.NetworkConfig.NetworkTransport = utp;
+    }
+
+    // ------------------------------------------------------------------
     // HOSTING
     // ------------------------------------------------------------------
 
     public void Host()
     {
         if (net == null || net.IsListening) return;
+
+        UseRightTransport();
 
         if (!SteamBoot.Running)
         {
@@ -192,6 +228,7 @@ public class CrewLobby : MonoBehaviour
         }
 
         steam.HostSteamId = hostId;
+        UseRightTransport();
 
         if (net.StartClient()) { Where = Stage.Joining; Say("connecting over Steam..."); }
         else Say("could not start the client");
@@ -207,6 +244,8 @@ public class CrewLobby : MonoBehaviour
     public void JoinLocal()
     {
         if (net == null || net.IsListening) return;
+
+        UseRightTransport();
 
         if (net.StartClient()) { Where = Stage.Joining; Say("joining locally..."); }
         else Say("nothing is hosting on this machine");

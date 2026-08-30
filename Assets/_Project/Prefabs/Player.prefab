@@ -62,6 +62,7 @@ GameObject:
   - component: {fileID: 7537295202248656672}
   - component: {fileID: 8226343589863061691}
   - component: {fileID: 8495429309997284004}
+  - component: {fileID: 333751317616968057}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -694,6 +695,20 @@ MonoBehaviour:
   onRadio: 0
   radioLowCut: 400
   radioHighCut: 2800
+--- !u!114 &333751317616968057
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d953bd47735423e4b93d5a73e133e09a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VoiceTransmit
+  proximityKey: 36
+  radioKey: 35
 --- !u!1001 &3659666608676451951
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -663,7 +663,16 @@ public class CrewLobby : MonoBehaviour
             return y + 38f;
         }
 
-        GUI.Label(new Rect(x, y, iw, 18f), "microphone", body);
+        // SAYING WHAT THIS ACTUALLY CONTROLS.
+        //
+        // Steam captures from the WINDOWS DEFAULT recording device and there
+        // is no API to point it elsewhere, so this picker chooses which mic
+        // the TEST METER listens to - not which one is transmitted.
+        //
+        // Hiding that would cost somebody an hour: the meter can be right
+        // while the transmission is wrong, and there would be nothing on
+        // screen to suggest it.
+        GUI.Label(new Rect(x, y, iw, 18f), "microphone (test meter only)", body);
         y += 20f;
 
         // One button per device. A dropdown in IMGUI is a fight; four buttons
@@ -707,6 +716,14 @@ public class CrewLobby : MonoBehaviour
             GUI.Label(new Rect(x, y, iw, 18f), "say something - the bar should move", body);
             y += 20f;
         }
+
+        var note = new GUIStyle(body);
+        note.normal.textColor = new Color(1f, 1f, 1f, 0.45f);
+
+        GUI.Label(new Rect(x, y, iw, 30f),
+                  "Voice is sent using Steam's microphone, which is the Windows " +
+                  "default device. Change it in Windows sound settings.", note);
+        y += 34f;
 
         return y;
     }

@@ -85,6 +85,12 @@ public static class NetworkPlayerTool
             if (contents.GetComponent<CrewMemberNet>() == null)
                 contents.AddComponent<CrewMemberNet>();
 
+            // PHASE 4 STEP 10. Voice rides on the player because voice comes
+            // FROM a person and arrives AT their body - which is what makes it
+            // positional without anything extra being told where they are.
+            if (contents.GetComponent<VoiceStream>() == null)
+                contents.AddComponent<VoiceStream>();
+
             if (contents.GetComponent<NetworkPlayer>() == null)
                 contents.AddComponent<NetworkPlayer>();
 

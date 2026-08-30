@@ -336,7 +336,25 @@ partial payment carried over, three deaths ends the campaign.
 **Done when:** the crew argues about cable versus their friend — which is the
 whole point, and needs a crew to happen at all.
 
-### Step 10 · 🎙️ PROXIMITY VOICE — and it has to sound like concrete
+### Step 10 · 🎙️ PROXIMITY VOICE — BUILT END TO END
+Capture, compress, send, decompress, play — through `VoiceStream`, using
+Steam's own codec. Speech at 16 kHz is ~256 kbit/s raw and unsendable; Steam
+returns the same speech at roughly **16 kbit/s**, and that sixteen-fold saving
+is the whole reason Steam Voice was chosen over paying for Dissonance.
+
+**Owner captures, host relays.** Three sends for a four-player crew rather
+than six, and the host is already the machine everything defers to. Bytes go
+straight into the listener's `VoiceMouth`, where distance, concrete and the
+radio filter are applied — nothing in the transport knows how far away anybody
+is.
+
+**The honest cost:** Steam captures from the **Windows default** recording
+device and offers no API to change it. So the in-game picker selects what the
+**test meter** listens to, not what is transmitted. The menu says so, because
+the meter can be right while the transmission is wrong and that would cost
+somebody an hour.
+
+### Step 10 details · sounding like concrete
 **PROVIDER CHOSEN 30 Aug 2026: Steam Voice.** Free, and the reason it can be
 free is the thing this spec already said — all four qualities are Unity audio
 on top of a human voice, not a feature of the voice library. So the audio

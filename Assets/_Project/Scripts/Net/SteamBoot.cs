@@ -86,15 +86,13 @@ public static class SteamBoot
                     "steam_appid.txt"));
 
             Debug.LogWarning("[Steam] not initialised. Two things it needs, and " +
-                             "one of them is usually the answer:
-" +
-                             "  1. Steam open and logged in
-" +
-                             "  2. steam_appid.txt beside the executable - " +
-                             (haveAppId ? "FOUND" : "NOT FOUND, and that is " +
-                              "almost certainly it") + "
-" +
-                             "Playing on Unity Transport instead, which is " +
+                             "one of them is usually the answer.  " +
+                             "1: Steam open and logged in.  " +
+                             "2: steam_appid.txt beside the executable - " +
+                             (haveAppId
+                                 ? "FOUND, so it is probably the first one."
+                                 : "NOT FOUND, and that is almost certainly it.") +
+                             "  Playing on Unity Transport instead, which is " +
                              "local-only. Everything else works normally.");
             return;
         }

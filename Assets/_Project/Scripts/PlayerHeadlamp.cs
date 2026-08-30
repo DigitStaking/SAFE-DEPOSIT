@@ -453,11 +453,31 @@ public class PlayerHeadlamp : MonoBehaviour
         }
         else if (headBone != null)
         {
-            // No camera found at all (should not happen in play, kept for
-            // safety) - better a beam that only yaws with the body than no
-            // beam.
+            // ---- SOMEBODY ELSE'S LAMP ----
+            //
+            // There is no camera for a remote body, so this branch is what
+            // every teammate's headlamp actually uses - and on its own it only
+            // knows which way the BODY faces. NetworkTransform replicates yaw;
+            // pitch lives in a camera that does not exist here.
+            //
+            // The result was a lamp pointing flat down the corridor while its
+            // owner was plainly looking at the ceiling. Reported exactly that
+            // way, and it is the kind of thing that makes a teammate feel like
+            // a puppet rather than a person.
+            //
+            // CrewMemberNet.LookPitch is one float, written by the only
+            // machine that knows it.
+            float pitch = 0f;
+            var owner = PlayerRegistry.OwnerOf(this);
+            var row = owner != null ? CrewMemberNet.ForSlot(owner.Slot) : null;
+            if (row != null) pitch = row.LookPitch.Value;
+
             pos = headBone.position + headBone.TransformDirection(headOffset);
-            aim = headBone.rotation * Quaternion.Euler(aimEuler);
+
+            // Body yaw for direction, replicated pitch for elevation - which
+            // between them is the whole of where a person is looking.
+            aim = Quaternion.Euler(pitch, transform.eulerAngles.y, 0f)
+                  * Quaternion.Euler(aimEuler);
         }
         else if (cameraFallback != null)
         {

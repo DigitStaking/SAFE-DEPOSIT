@@ -175,6 +175,9 @@ public class WalkieChannel : NetworkBehaviour
         { fontSize = 14, alignment = TextAnchor.MiddleCenter };
         style.normal.textColor = colour;
 
-        GUI.Label(new Rect(0f, 90f, Screen.width, 22f), msg, style);
+        // Moved down out of the run HUD. At y=90 it sat on top of the quota
+        // block and the seal timer, which is why "YOU HAVE NO WALKIE-TALKIE"
+        // arrived as unreadable overlapping text.
+        GUI.Label(new Rect(0f, Screen.height - 172f, Screen.width, 40f), msg, style);
     }
 }

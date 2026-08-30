@@ -69,6 +69,40 @@ public class CrewMemberNet : NetworkBehaviour
     /// two people at once. Server-write, like everything bought.</summary>
     public readonly NetworkVariable<bool> Walkie = new NetworkVariable<bool>(false, default, Host);
 
+    /// <summary>
+    /// Where this player is LOOKING, in degrees of pitch. Owner-written, like
+    /// their health, because only their machine knows it.
+    ///
+    /// PHASE 4 STEP 11. NetworkTransform replicates the BODY, which yaws but
+    /// never pitches - a first-person player looks up by moving the camera,
+    /// and the camera does not exist on anybody else's machine. So a teammate
+    /// looking at the ceiling had a headlamp pointing flat down the corridor,
+    /// and nobody could tell where they were looking.
+    ///
+    /// One float. The alternative is replicating the whole camera, which is a
+    /// transform per player for one number nobody else can see anyway.
+    /// </summary>
+    public readonly NetworkVariable<float> LookPitch =
+        new NetworkVariable<float>(0f, default, NetworkVariableWritePermission.Owner);
+
+    void Update()
+    {
+        if (!IsSpawned || !IsOwner) return;
+
+        var motor = GetComponent<PlayerMotor>();
+        var eye = motor != null ? motor.Eye : null;
+        if (eye == null) return;
+
+        // Signed, so it reads as "up is negative" the way Unity pitch does
+        // everywhere else in this project rather than jumping to 350 degrees.
+        float pitch = eye.eulerAngles.x;
+        if (pitch > 180f) pitch -= 360f;
+
+        // Only when it has actually moved. A float that resends every frame is
+        // four players' worth of traffic for a number that is usually still.
+        if (Mathf.Abs(pitch - LookPitch.Value) > 0.75f) LookPitch.Value = pitch;
+    }
+
     static readonly CrewMemberNet[] bySlot = new CrewMemberNet[Crew.MaxMembers];
 
     /// <summary>

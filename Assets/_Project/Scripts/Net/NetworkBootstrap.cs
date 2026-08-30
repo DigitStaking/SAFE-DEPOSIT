@@ -129,6 +129,17 @@ public class NetworkBootstrap : MonoBehaviour
     /// </summary>
     void ClearPlaceholders()
     {
+        // ---- AND HOOK THE ROUND CHANGE WHILE WE ARE HERE ----
+        //
+        // HookSceneLoads was called from this file's own Host and Join, and
+        // CrewLobby bypasses both - which is exactly the bug this method was
+        // written to fix, one level up. So the placeholder came back in round
+        // 2 through the door I had just finished locking on round 1.
+        //
+        // Hooking it here means it happens on any session start by any route,
+        // because that is when NetworkManager.SceneManager first exists.
+        HookSceneLoads();
+
         int removed = 0;
         var bodies = new System.Collections.Generic.List<PlayerMotor>(PlayerRegistry.All);
 

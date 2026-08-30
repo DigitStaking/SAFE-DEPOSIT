@@ -77,15 +77,51 @@ public class VoiceTransmit : MonoBehaviour
         if (!RunHudGate.ShouldDrawGameplayHud()) return;
         if (Local == Channel.Silent) return;
 
-        // The radio draws its own ON AIR line, and two banners saying the same
-        // thing in different words is how a HUD starts lying to people.
-        if (Local == Channel.Radio) return;
+        // ================================================================
+        // A BAR THAT MOVES, NOT AN ICON THAT APPEARS.
+        //
+        // "when i click V i can't talk and there is nothing means that i am
+        // talking". An icon would only prove the KEY works. A level meter
+        // proves the MICROPHONE works, which is the thing actually in doubt -
+        // and it separates "the key does nothing" from "the mic hears nothing"
+        // without anybody having to read a log.
+        // ================================================================
 
-        var style = new GUIStyle(GUI.skin.label)
+        bool radio = Local == Channel.Radio;
+
+        Color tint = radio
+            ? new Color(1f, 0.45f, 0.35f)
+            : new Color(0.55f, 1f, 0.65f);
+
+        const float w = 260f, h = 12f;
+        float x = (Screen.width - w) * 0.5f;
+        float y = Screen.height - 120f;
+
+        var label = new GUIStyle(GUI.skin.label)
         { fontSize = 13, alignment = TextAnchor.MiddleCenter };
-        style.normal.textColor = new Color(0.6f, 1f, 0.7f, 0.9f);
+        label.normal.textColor = tint;
 
-        GUI.Label(new Rect(0f, 112f, Screen.width, 20f),
-                  "speaking - they can only hear you in this room", style);
+        GUI.Label(new Rect(x, y - 20f, w, 18f),
+                  radio ? "ON THE RADIO - the whole crew hears you"
+                        : "SPEAKING - only this room hears you", label);
+
+        // The trough, so the bar has somewhere to be empty. Without it a quiet
+        // voice looks like nothing at all rather than like a quiet voice.
+        GUI.color = new Color(1f, 1f, 1f, 0.15f);
+        GUI.DrawTexture(new Rect(x, y, w, h), Texture2D.whiteTexture);
+
+        GUI.color = tint;
+        GUI.DrawTexture(new Rect(x, y, w * VoiceMic.Level, h), Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        if (!VoiceMic.HasMic)
+        {
+            var warn = new GUIStyle(GUI.skin.label)
+            { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+            warn.normal.textColor = new Color(1f, 0.5f, 0.4f);
+
+            GUI.Label(new Rect(x - 60f, y + 14f, w + 120f, 18f),
+                      "NO MICROPHONE FOUND - nobody can hear you", warn);
+        }
     }
 }

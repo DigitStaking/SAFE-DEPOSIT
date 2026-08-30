@@ -145,8 +145,7 @@ public class WalkieChannel : NetworkBehaviour
 
         if (Time.time - noRadioAt < 1.5f)
         {
-            msg = "YOU HAVE NO WALKIE-TALKIE
-somebody can buy you one at the surface";
+            msg = "YOU HAVE NO WALKIE-TALKIE\nsomebody can buy you one at the surface";
             colour = new Color(1f, 0.55f, 0.4f);
         }
         else if (HeldByMe)

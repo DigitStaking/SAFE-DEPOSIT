@@ -79,9 +79,11 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     public string[] hideNameParts = { "helmet", "visor", "hair", "hat" };
 
     [Header("Third person check")]
-    // Back on V - push-to-talk moved to U on request, so there is no longer
-    // a conflict to design around.
-    public KeyCode thirdPersonToggle = KeyCode.V;   // shown for reference
+    // F3, and staying there. V is push-to-talk for your actual voice and U is
+    // the radio - both are mechanics, and a debug camera toggle does not get
+    // to sit on either. This moved twice while the voice keys were being
+    // decided; it is settled now.
+    public KeyCode thirdPersonToggle = KeyCode.F3;   // shown for reference
     public float thirdPersonDistance = 3.2f;
     public float thirdPersonHeight = 1.4f;
 
@@ -214,7 +216,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     void Update()
     {
         var kb = PlayerRegistry.KeysOf(this);
-        if (kb != null && kb.vKey.wasPressedThisFrame)
+        if (kb != null && kb.f3Key.wasPressedThisFrame)
         {
             thirdPerson = !thirdPerson;
             HideSeparateProps(!thirdPerson);
@@ -233,7 +235,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
             Debug.Log(thirdPerson
                 ? "[Cull] third person ON - the camera is detached and will " +
-                  "not follow you. Press V again."
+                  "not follow you. Press F3 again."
                 : "[Cull] third person off - camera reattached.");
         }
     }
@@ -257,7 +259,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             {
                 reported = true;
                 Debug.Log($"[FP Cull] head bone shrunk, body kept. " +
-                          $"{hidden.Count} separate head props hidden. Press V for third person.");
+                          $"{hidden.Count} separate head props hidden. Press F3 for third person.");
             }
         }
 

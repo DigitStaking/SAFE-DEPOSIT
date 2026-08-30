@@ -312,6 +312,15 @@ public static class FirstPersonFixer
             root.AddComponent<VoiceMouth>();
             log.AppendLine("  added VoiceMouth (positional voice + occlusion)");
         }
+
+        // V speaks, U is the radio. The rule lives apart from the audio and
+        // apart from the capture, because it is the only one of the three that
+        // is a game rule rather than plumbing.
+        if (root.GetComponent<VoiceTransmit>() == null)
+        {
+            root.AddComponent<VoiceTransmit>();
+            log.AppendLine("  added VoiceTransmit (V speak, U radio)");
+        }
         downed.enabled = true;
 
         // ---- headlamp (re-attached, Phase 3 Step 2) ------------------

@@ -349,8 +349,17 @@ done and testable with any sample source. Steam Voice only has to fill an
 Steam **running**, not Steam **networking** — the compressed bytes travel over
 whatever connection already exists. Step 11 stays where it is.
 
-**THE RADIO IS BOUGHT, AND IT IS A PAIR.** ECONOMY Part 8: 30 for two, leader
-picks the two who can talk. It gates **hearing** as well as talking — a pair is
+**KEYS: `V` speaks, `U` is the radio.** Both push-to-talk, and that is a design
+choice rather than a default — open-mic proximity would be more "realistic"
+and much worse, because four people breathing into a horror game is four
+people who never hear the building. The silence between voices *is* the
+atmosphere. The radio wins when both are held: if you are holding `U` you have
+decided to talk to the crew, and a key you are also leaning on should not
+overrule that. Third-person debug is on `F3` and staying there.
+
+**THE RADIO IS BOUGHT — 20 each, you pick who.** ECONOMY priced a fixed pair at 30;
+changed on request so the crew decides how many and who. It gates **hearing**
+as well as talking — a pair is
 a private line, not a broadcast; if everybody heard it, buying two would just
 be a licence to shout building-wide. Somebody without one still hears that
 speaker *normally*, through the concrete, if they are close enough: you can

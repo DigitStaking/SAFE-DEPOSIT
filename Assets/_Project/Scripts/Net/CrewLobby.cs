@@ -240,11 +240,66 @@ public class CrewLobby : MonoBehaviour
         if (CampaignNet.Instance == null || !CampaignNet.Instance.IsServer) return;
 
         CampaignNet.Instance.Started.Value = true;
+        localStarted = true;
         Where = Stage.InGame;
     }
 
+    /// <summary>
+    /// Set by PLAY ALONE, and by START on the host. Separate from the
+    /// networked flag because a solo player has no CampaignNet to read - and
+    /// without this, "has the run started" answered TRUE offline while the
+    /// menu was still on screen, which is why the whole gameplay HUD was
+    /// drawing over the top of it.
+    /// </summary>
+    static bool localStarted;
+
     public static bool RunHasStarted =>
-        CampaignNet.Instance == null || CampaignNet.Instance.Started.Value;
+        localStarted ||
+        (CampaignNet.Instance != null && CampaignNet.Instance.Started.Value);
+
+    /// <summary>
+    /// The menu is on screen and owns the mouse.
+    ///
+    /// One property, asked by everything that has to stand aside: the HUD, the
+    /// old corner panel, and the camera. Three separate opinions about whether
+    /// a menu is up is how a cursor ends up locked behind a button somebody is
+    /// trying to press.
+    /// </summary>
+    public static bool PanelUp => !RunHasStarted;
+
+    /// <summary>Solo. No networking, no waiting, straight in.</summary>
+    public void PlayAlone()
+    {
+        localStarted = true;
+        Where = Stage.InGame;
+        Say("solo run");
+    }
+
+    void Update()
+    {
+        // A CLIENT LEARNS IT STARTED BY READING, NOT BY BEING TOLD. The host
+        // writes Started; everybody else notices. Doing it here rather than in
+        // an RPC means a player who joins after START is already past the menu
+        // rather than stuck behind it.
+        if (!localStarted && CampaignNet.Instance != null &&
+            CampaignNet.Instance.Started.Value)
+        {
+            localStarted = true;
+            Where = Stage.InGame;
+        }
+
+        // THE MENU OWNS THE MOUSE WHILE IT IS UP.
+        //
+        // FirstPersonCamera locks the cursor on Start and re-locks it on any
+        // left click - which is correct in a first-person game and exactly
+        // wrong over a menu, because clicking a button was what took the
+        // cursor away.
+        if (PanelUp)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
 
     void Say(string s)
     {
@@ -258,8 +313,7 @@ public class CrewLobby : MonoBehaviour
 
     void OnGUI()
     {
-        if (net == null) return;
-        if (net.IsListening && RunHasStarted) return;   // in a run; get out of the way
+        if (net == null || !PanelUp) return;
 
         // A SOLID BACKDROP OVER THE WHOLE SCREEN.
         //
@@ -316,6 +370,13 @@ public class CrewLobby : MonoBehaviour
             if (GUI.Button(new Rect(x, y, iw, 38f), "JOIN A RUN"))
                 JoinLocal();
             y += 44f;
+
+            // PLAY ALONE, because a main menu that cannot be skipped would
+            // break the promise every step of this phase has kept: press Play
+            // and the solo game works.
+            if (GUI.Button(new Rect(x, y, iw, 30f), "play alone"))
+                PlayAlone();
+            y += 38f;
 
             GUI.Label(new Rect(x, y, iw, 46f),
                       SteamBoot.Running

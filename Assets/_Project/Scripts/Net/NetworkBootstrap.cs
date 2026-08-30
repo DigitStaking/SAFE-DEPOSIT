@@ -362,7 +362,10 @@ public class NetworkBootstrap : MonoBehaviour
 
     void OnGUI()
     {
-        if (!showPanel || net == null) return;
+        // Never over the lobby. This is the panel the lobby replaced, kept for
+        // fast local testing - and two sets of HOST/JOIN buttons on one screen
+        // is worse than either alone.
+        if (!showPanel || net == null || CrewLobby.PanelUp) return;
 
         const float w = 190f, h = 26f, pad = 10f;
         float x = Screen.width - w - pad;

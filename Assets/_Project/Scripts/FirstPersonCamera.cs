@@ -201,6 +201,11 @@ public class FirstPersonCamera : MonoBehaviour
         // old UnityEngine.Input API throws InvalidOperationException because
         // Active Input Handling is set to Input System Package. The two
         // systems cannot be mixed.
+        // NOT WHILE THE MENU IS UP. Re-locking on left click is right in a
+        // first-person game and exactly wrong over a menu: pressing a button
+        // was what took the cursor away again.
+        if (CrewLobby.PanelUp) return;
+
         var kb = target != null ? PlayerRegistry.KeysOf(target) : null;
         if (kb != null && kb.escapeKey.wasPressedThisFrame)
         {

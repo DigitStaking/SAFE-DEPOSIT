@@ -73,7 +73,10 @@ public class LostSpectator : MonoBehaviour
         var living = FindSomebodyStanding();
         if (living == null) return;
 
-        if (cam == null) cam = Object.FindFirstObjectByType<FirstPersonCamera>();
+        // Asked every frame, not kept - the round change destroys this camera
+        // like everything else in the scene, and a spectator holding a dead
+        // reference simply stops seeing anything.
+        cam = Object.FindFirstObjectByType<FirstPersonCamera>();
         if (cam == null) return;
 
         // The camera belongs to a body that is no longer in the world, so it

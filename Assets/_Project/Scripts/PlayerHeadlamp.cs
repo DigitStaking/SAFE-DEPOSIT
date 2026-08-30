@@ -148,7 +148,32 @@ public class PlayerHeadlamp : MonoBehaviour
 
     Transform headBone;
     Animator anim;
-    FirstPersonCamera fpCam;
+    FirstPersonCamera cachedCam;
+
+    /// <summary>
+    /// The camera this lamp aims with, ASKED rather than kept.
+    ///
+    /// It was resolved once in Start. The scene reload between rounds destroys
+    /// the old camera, so from round 2 this was null - and the aim quietly
+    /// fell through to the head-bone branch, which points the beam wherever
+    /// the BODY is facing rather than wherever you are LOOKING.
+    ///
+    /// That is why it "worked in round 1 and followed the face afterwards".
+    /// Nothing about the lamp changed; it lost the thing it was aiming with
+    /// and used its fallback without saying so.
+    /// </summary>
+    FirstPersonCamera fpCam
+    {
+        get
+        {
+            if (cachedCam != null) return cachedCam;
+
+            var owner = PlayerRegistry.OwnerOf(this);
+            cachedCam = owner != null ? owner.View : null;
+            return cachedCam;
+        }
+        set => cachedCam = value;
+    }
     GameObject rig;
     Light spot;
     LightShaft shaft;
@@ -400,6 +425,19 @@ public class PlayerHeadlamp : MonoBehaviour
         // exactly the round the first scene load happens.
         if (rig == null) BuildRig();
         if (rig == null) return;
+
+        // ---- NO LAMP FOR SOMEBODY WHO IS NOT THERE ----
+        //
+        // The rig is unparented, so hiding the body does nothing to it: a
+        // player taken by the mafia left their headlamp burning in mid-air
+        // where they fell, and it followed a body nobody could see.
+        //
+        // Reported as "looks like the spectator have light too".
+        if (Crew.Of(this).Lost)
+        {
+            rig.SetActive(false);
+            return;
+        }
 
         Vector3 pos;
         Quaternion aim;

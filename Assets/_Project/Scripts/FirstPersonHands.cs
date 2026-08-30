@@ -206,12 +206,11 @@ public class FirstPersonHands : MonoBehaviour
 
     void Bind()
     {
-        cam = cameraTransform;
-        if (cam == null)
-        {
-            cam = PlayerRegistry.EyeOf(this);
-            cameraTransform = cam;
-        }
+        // cameraTransform is an INSPECTOR override, and a stale one is worse
+        // than none: it survives the scene reload as a destroyed reference and
+        // would be handed straight back. Unity's null overload catches that,
+        // so the registry answers whenever the override is gone or dead.
+        cam = cameraTransform != null ? cameraTransform : PlayerRegistry.EyeOf(this);
         camComponent = cam != null ? cam.GetComponent<Camera>() : null;
         fpCam = cam != null ? cam.GetComponent<FirstPersonCamera>() : null;
     }
@@ -241,6 +240,11 @@ public class FirstPersonHands : MonoBehaviour
     // method is simply never called and nothing happens.
     void OnAnimatorIK(int layerIndex)
     {
+        // Rebind if the camera went. Same reason the lamp had to: the scene
+        // reload between rounds destroys the old one, and a one-shot Bind in
+        // Start leaves the hands aiming at nothing from round 2 onward.
+        if (cam == null) Bind();
+
         if (layerIndex != 0) return;          // apply once, not per layer
         if (anim == null || !anim.isHuman) return;
         if (cam == null) { Bind(); if (cam == null) return; MeasureReach(); }

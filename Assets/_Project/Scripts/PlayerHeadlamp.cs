@@ -426,6 +426,24 @@ public class PlayerHeadlamp : MonoBehaviour
         if (rig == null) BuildRig();
         if (rig == null) return;
 
+        // ---- SOMEBODY ELSE'S SWITCH IS THEIRS TO PRESS ----
+        //
+        // A remote body never runs the toggle - the key press happens on their
+        // machine - so its IsOn stayed at whatever it started as, and a
+        // crewmate who went dark stayed lit for everybody else.
+        //
+        // That matters more here than it sounds. Darkness is information in
+        // this game: somebody turning their lamp off is telling you something,
+        // and a light that lies about it is worse than no light.
+        var mine = PlayerRegistry.IsLocalFor(this);
+        if (!mine)
+        {
+            var owner = PlayerRegistry.OwnerOf(this);
+            var row = owner != null ? CrewMemberNet.ForSlot(owner.Slot) : null;
+
+            if (row != null && row.LampOn.Value != IsOn) SetOn(row.LampOn.Value);
+        }
+
         // ---- NO LAMP FOR SOMEBODY WHO IS NOT THERE ----
         //
         // The rig is unparented, so hiding the body does nothing to it: a

@@ -452,7 +452,7 @@ public class CrewLobby : MonoBehaviour
         GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        const float w = 470f, h = 430f;
+        const float w = 470f, h = 560f;
         var panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
 
         var title = new GUIStyle(GUI.skin.label)
@@ -515,7 +515,9 @@ public class CrewLobby : MonoBehaviour
             // and the solo game works.
             if (GUI.Button(new Rect(x, y, iw, 30f), "play alone"))
                 PlayAlone();
-            y += 38f;
+            y += 36f;
+
+            y = DrawMicSettings(x, y, iw, body);
 
             GUI.Label(new Rect(x, y, iw, 46f),
                       SteamBoot.Running
@@ -632,6 +634,81 @@ public class CrewLobby : MonoBehaviour
             s.normal.textColor = new Color(1f, 0.8f, 0.4f);
             GUI.Label(new Rect(panel.x, panel.y + h + 4f, w, 20f), status, s);
         }
+    }
+
+    /// <summary>
+    /// Choose a microphone and prove it works, before joining anything.
+    ///
+    /// Microphone.devices[0] is whatever Windows lists first, and on a machine
+    /// with a webcam, a headset and a capture card that is very often the
+    /// wrong one - which is indistinguishable from voice being broken.
+    ///
+    /// The TEST holds the mic open on the menu with the level bar showing, so
+    /// somebody can say "hello" and SEE it move. Deliberately usable with no
+    /// session, no lobby and no second player, because that is exactly when
+    /// you want to find out - not while a crewmate is bleeding out.
+    /// </summary>
+    float DrawMicSettings(float x, float y, float iw, GUIStyle body)
+    {
+        var devices = VoiceMic.Devices;
+
+        if (devices.Length == 0)
+        {
+            var warn = new GUIStyle(body);
+            warn.normal.textColor = new Color(1f, 0.5f, 0.4f);
+
+            GUI.Label(new Rect(x, y, iw, 34f),
+                      "NO MICROPHONE FOUND. The game runs, but nobody will " +
+                      "hear you. Check Windows sound settings.", warn);
+            return y + 38f;
+        }
+
+        GUI.Label(new Rect(x, y, iw, 18f), "microphone", body);
+        y += 20f;
+
+        // One button per device. A dropdown in IMGUI is a fight; four buttons
+        // are not, and nobody has forty microphones.
+        foreach (var d in devices)
+        {
+            bool current = d == VoiceMic.Device;
+
+            GUI.enabled = !current;
+            if (GUI.Button(new Rect(x, y, iw, 24f), (current ? "> " : "   ") + d))
+                VoiceMic.Use(d);
+            GUI.enabled = true;
+            y += 27f;
+        }
+
+        y += 4f;
+
+        if (GUI.Button(new Rect(x, y, 150f, 26f),
+                       VoiceMic.Testing ? "stop test" : "TEST MIC"))
+        {
+            if (VoiceMic.Testing) VoiceMic.StopTest();
+            else VoiceMic.StartTest();
+        }
+
+        // The bar, beside the button rather than under it, so pressing TEST
+        // and watching it move is one glance rather than two.
+        var bar = new Rect(x + 160f, y + 7f, iw - 160f, 12f);
+
+        GUI.color = new Color(1f, 1f, 1f, 0.15f);
+        GUI.DrawTexture(bar, Texture2D.whiteTexture);
+
+        GUI.color = new Color(0.55f, 1f, 0.65f);
+        GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * VoiceMic.Level, bar.height),
+                        Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        y += 30f;
+
+        if (VoiceMic.Testing)
+        {
+            GUI.Label(new Rect(x, y, iw, 18f), "say something - the bar should move", body);
+            y += 20f;
+        }
+
+        return y;
     }
 
     /// <summary>

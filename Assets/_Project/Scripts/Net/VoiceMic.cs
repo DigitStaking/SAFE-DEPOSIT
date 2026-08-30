@@ -46,6 +46,43 @@ public static class VoiceMic
 
     public static bool HasMic => !string.IsNullOrEmpty(Device);
 
+    /// <summary>Every microphone Windows is offering.</summary>
+    public static string[] Devices => Microphone.devices ?? new string[0];
+
+    /// <summary>
+    /// Pick a different microphone.
+    ///
+    /// Devices[0] is whatever Windows happens to list first, and on a machine
+    /// with a webcam, a headset and a capture card that is very often the
+    /// wrong one - which looks exactly like voice being broken. Choosing has
+    /// to be possible before anybody joins anything, because the moment to
+    /// find out your mic is wrong is not while a crewmate is bleeding out.
+    /// </summary>
+    public static void Use(string device)
+    {
+        if (string.IsNullOrEmpty(device)) return;
+
+        if (Testing) StopTest();
+        Device = device;
+        PlayerPrefs.SetString(PrefKey, device);
+        PlayerPrefs.Save();
+
+        Debug.Log("[Voice] microphone set to " + device);
+    }
+
+    const string PrefKey = "safedeposit.mic";
+
+    // ---- TESTING, BEFORE IT MATTERS ----
+    //
+    // Holding the mic open on the menu, with the level bar visible, so
+    // somebody can say "hello" and SEE it. Separate from transmitting: this
+    // deliberately works before there is a session, a lobby or another player,
+    // because that is when you want to find out.
+    public static bool Testing { get; private set; }
+
+    public static void StartTest() { Testing = true; }
+    public static void StopTest() { Testing = false; }
+
     const int SampleRate = 16000;      // plenty for speech, and what voice codecs want
     const int ClipSeconds = 1;
     const int Window = 512;            // samples measured per frame
@@ -65,7 +102,10 @@ public static class VoiceMic
             return;
         }
 
-        Device = devices[0];
+        // A remembered choice wins, if it is still plugged in. Nobody should
+        // have to pick their headset every time they launch the game.
+        string saved = PlayerPrefs.GetString(PrefKey, "");
+        Device = System.Array.IndexOf(devices, saved) >= 0 ? saved : devices[0];
 
         var sb = new System.Text.StringBuilder();
         sb.Append("[Voice] microphone: ").Append(Device);
@@ -87,7 +127,8 @@ public static class VoiceMic
 
         void Update()
         {
-            bool wantOn = VoiceTransmit.Local != VoiceTransmit.Channel.Silent;
+            bool wantOn = Testing ||
+                          VoiceTransmit.Local != VoiceTransmit.Channel.Silent;
 
             if (wantOn && !recording) Open();
             else if (!wantOn && recording) Close();

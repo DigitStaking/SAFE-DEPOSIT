@@ -85,6 +85,18 @@ public class CrewMemberNet : NetworkBehaviour
     public readonly NetworkVariable<float> LookPitch =
         new NetworkVariable<float>(0f, default, NetworkVariableWritePermission.Owner);
 
+    /// <summary>
+    /// Is this player's headlamp on. Owner-written, like their look direction:
+    /// they pressed the switch, so they report it.
+    ///
+    /// It was never replicated at all, so a crewmate who turned their lamp off
+    /// stayed lit on everybody else's screen - and the whole point of a lamp
+    /// in this game is that darkness is information. Somebody going dark is
+    /// telling you something, and it has to reach you.
+    /// </summary>
+    public readonly NetworkVariable<bool> LampOn =
+        new NetworkVariable<bool>(true, default, NetworkVariableWritePermission.Owner);
+
     void Update()
     {
         if (!IsSpawned || !IsOwner) return;
@@ -101,6 +113,9 @@ public class CrewMemberNet : NetworkBehaviour
         // Only when it has actually moved. A float that resends every frame is
         // four players' worth of traffic for a number that is usually still.
         if (Mathf.Abs(pitch - LookPitch.Value) > 0.75f) LookPitch.Value = pitch;
+
+        var lamp = GetComponent<PlayerHeadlamp>();
+        if (lamp != null && lamp.IsOn != LampOn.Value) LampOn.Value = lamp.IsOn;
     }
 
     static readonly CrewMemberNet[] bySlot = new CrewMemberNet[Crew.MaxMembers];

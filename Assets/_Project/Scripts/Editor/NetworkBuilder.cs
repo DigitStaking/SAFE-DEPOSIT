@@ -58,6 +58,20 @@ public static class NetworkBuilder
         // finds a manager already running and removes itself.
         net.NetworkConfig.EnableSceneManagement = true;
 
+        // ---- 60 TICKS, NOT 30 ----
+        //
+        // NGO defaults to 30, and NetworkTransform sends on the tick - so a
+        // remote body's position updates 30 times a second and is interpolated
+        // between. That is the "lag in moving character for my friend": not
+        // latency, RESOLUTION. Their body is genuinely only being told where it
+        // is 30 times a second while yours moves every frame.
+        //
+        // 60 halves the gap between updates. It also doubles the position
+        // traffic, which for four players moving in a lift is a few KB a
+        // second - nothing next to the voice stream already running alongside
+        // it.
+        net.NetworkConfig.TickRate = 60;
+
         // PHASE 4 STEP 11. Both transports live on the object; which one is
         // active is the one NetworkConfig points at. Keeping UnityTransport
         // attached is what preserves local two-window testing on a machine

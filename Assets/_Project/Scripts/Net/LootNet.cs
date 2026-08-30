@@ -146,7 +146,32 @@ public class LootNet : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        LootSpawner.CaptureRemaining(null);
+        // ---- ONLY CAPTURE IF THERE IS SOMETHING TO CAPTURE ----
+        //
+        // CaptureRemaining rewrites Campaign.LootRoster from the items
+        // currently in the scene. On a fresh session that is right - it makes
+        // the published roster describe the building as it stands.
+        //
+        // On a ROUND CHANGE it was catastrophic. The networked scene load
+        // respawns this object, OnNetworkSpawn calls Publish, and that can
+        // happen BEFORE LootSpawner has rebuilt the floors - so it captured an
+        // empty scene, overwrote the roster with nothing, and published
+        // nothing. The building was not just empty for that round: THE
+        // CAMPAIGN RECORD OF EVERY REMAINING ITEM WAS GONE.
+        //
+        // "the game deleted the items, i can't find anything in room 2" - and
+        // it had, permanently.
+        //
+        // The roster is the authority; the scene is a rendering of it. So a
+        // capture only happens when the scene actually holds items, and an
+        // empty scene is read as "not built yet" rather than as "the building
+        // is empty".
+        int live = FindObjectsByType<LootItem>(FindObjectsSortMode.None).Length;
+
+        if (live > 0) LootSpawner.CaptureRemaining(null);
+        else if (Campaign.LootRoster.Count > 0)
+            Debug.Log($"[Loot] nothing built yet - publishing the " +
+                      $"{Campaign.LootRoster.Count} items the campaign remembers.");
 
         Roster.Clear();
         foreach (var r in Campaign.LootRoster)

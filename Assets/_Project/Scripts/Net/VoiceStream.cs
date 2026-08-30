@@ -64,6 +64,12 @@ public class VoiceStream : NetworkBehaviour
 
     bool recording;
 
+    /// <summary>Seconds left collecting what Steam already heard, after the
+    /// key came up. See the note in Update.</summary>
+    float drainLeft;
+
+    const float DrainSeconds = 0.25f;
+
     // ---- playback ----
     AudioSource speaker;
     readonly Queue<float> pending = new Queue<float>();
@@ -108,13 +114,31 @@ public class VoiceStream : NetworkBehaviour
             SteamUser.StartVoiceRecording();
             recording = true;
         }
-        else if (!talking && recording)
+        else if (!talking && recording && drainLeft <= 0f)
         {
-            // Stopped the moment the key comes up. Steam keeps capturing until
-            // told otherwise, and a game that leaves the recorder running is
-            // one people are right to be suspicious of.
-            SteamUser.StopVoiceRecording();
-            recording = false;
+            // ---- DRAIN BEFORE STOPPING ----
+            //
+            // Steam buffers what the microphone heard and hands it over in
+            // chunks a few times a second, so at the instant a key comes up
+            // there is always some speech captured and not yet collected.
+            // Stopping immediately threw it away - which is why the END of
+            // every sentence was missing.
+            //
+            // A fifth of a second of extra polling is enough to collect it,
+            // and the recorder still stops: the mic is not left open, it is
+            // just emptied first.
+            drainLeft = DrainSeconds;
+        }
+
+        if (drainLeft > 0f)
+        {
+            drainLeft -= Time.deltaTime;
+
+            if (drainLeft <= 0f && !talking)
+            {
+                SteamUser.StopVoiceRecording();
+                recording = false;
+            }
         }
 
         if (!recording) return;
@@ -194,10 +218,48 @@ public class VoiceStream : NetworkBehaviour
     {
         lock (pending)
         {
+            // ---- WAIT UNTIL THERE IS ENOUGH TO PLAY ----
+            //
+            // Frames arrive a few times a second and the audio thread asks for
+            // samples continuously, so playing the instant anything shows up
+            // means running dry between every frame - and a gap in the middle
+            // of a word is heard as a missing consonant. "Some characters not
+            // hearing", exactly.
+            //
+            // So playback holds until a short cushion exists, then plays
+            // through. The cushion costs a fraction of a second of delay ONCE,
+            // not per word, and it is the difference between speech and
+            // stuttering.
+            if (!flowing)
+            {
+                if (pending.Count < PrimeSamples)
+                {
+                    System.Array.Clear(data, 0, data.Length);
+                    return;
+                }
+                flowing = true;
+            }
+
             for (int i = 0; i < data.Length; i++)
-                data[i] = pending.Count > 0 ? pending.Dequeue() : 0f;
+            {
+                if (pending.Count > 0) { data[i] = pending.Dequeue(); continue; }
+
+                // Ran dry. Go quiet and re-prime rather than stuttering along
+                // on an empty queue.
+                data[i] = 0f;
+                flowing = false;
+            }
         }
     }
+
+    bool flowing;
+
+    /// <summary>
+    /// How much has to be buffered before playback starts. A tenth of a
+    /// second: enough to ride out normal jitter, short enough that nobody
+    /// notices it in conversation.
+    /// </summary>
+    int PrimeSamples => (int)SampleRate / 10;
 
     void OnAudioSetPosition(int newPosition) => clipPosition = newPosition;
 
@@ -207,6 +269,7 @@ public class VoiceStream : NetworkBehaviour
         {
             SteamUser.StopVoiceRecording();
             recording = false;
+            drainLeft = 0f;
         }
     }
 }

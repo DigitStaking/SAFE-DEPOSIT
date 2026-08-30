@@ -72,7 +72,28 @@ public static class SteamBoot
             // NOT an error. The likeliest cause by far is "Steam is not open",
             // and the second likeliest is "this is the editor and I have not
             // restarted it since steam_appid.txt appeared".
-            Debug.LogWarning("[Steam] not initialised - is Steam running? " +
+            // NAMING BOTH CAUSES, because the first version asked "is Steam
+            // running?" to somebody whose Steam was plainly running - and the
+            // real cause was that this BUILD had no steam_appid.txt beside the
+            // exe, so Steam had no idea which game was asking.
+            //
+            // A diagnostic that suggests the wrong cause is worse than one
+            // that suggests none: it sends somebody to check the thing that
+            // was never wrong.
+            bool haveAppId = System.IO.File.Exists(
+                System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(Application.dataPath) ?? "",
+                    "steam_appid.txt"));
+
+            Debug.LogWarning("[Steam] not initialised. Two things it needs, and " +
+                             "one of them is usually the answer:
+" +
+                             "  1. Steam open and logged in
+" +
+                             "  2. steam_appid.txt beside the executable - " +
+                             (haveAppId ? "FOUND" : "NOT FOUND, and that is " +
+                              "almost certainly it") + "
+" +
                              "Playing on Unity Transport instead, which is " +
                              "local-only. Everything else works normally.");
             return;

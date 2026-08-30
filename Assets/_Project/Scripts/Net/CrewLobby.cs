@@ -61,6 +61,7 @@ public class CrewLobby : MonoBehaviour
     SteamTransport steam;
     string crewName = "";
     string status = "";
+    string joinCode = "";
 
     CSteamID lobby;
     Callback<LobbyCreated_t> onCreated;
@@ -135,6 +136,18 @@ public class CrewLobby : MonoBehaviour
         SteamMatchmaking.SetLobbyData(lobby, HostKey, SteamBoot.MySteamId.ToString());
         SteamMatchmaking.SetLobbyData(lobby, NameKey, crewName);
 
+        // ---- WHAT MAKES "JOIN GAME" APPEAR ON YOUR NAME ----
+        //
+        // Steam shows a friend as joinable only when their game has published
+        // a "connect" string. Without it there is nothing for right-click to
+        // do, which is why a friend could see me In Game and had no way in.
+        //
+        // +connect_lobby is Valve's own convention and the client understands
+        // it: clicking Join launches or signals the game with that lobby, and
+        // GameLobbyJoinRequested_t arrives on their side, which is already
+        // handled below.
+        SteamFriends.SetRichPresence("connect", "+connect_lobby " + lobby.m_SteamID);
+
         if (!net.StartHost())
         {
             Say("lobby made but the host would not start");
@@ -203,9 +216,80 @@ public class CrewLobby : MonoBehaviour
     {
         if (!SteamBoot.Running || lobby.m_SteamID == 0) return;
 
-        // Steam's own overlay, because it already knows your friends list and
-        // has solved the problem of picking somebody out of it.
+        // Steam's own overlay. Only works when the game was LAUNCHED FROM
+        // STEAM, because that is when the overlay is injected - so it does
+        // nothing at all for a build somebody double-clicked, which is what
+        // everybody does with a build a friend sent them. Kept because it is
+        // the nicest route when it is available; not relied on.
         SteamFriends.ActivateGameOverlayInviteDialog(lobby);
+    }
+
+    /// <summary>
+    /// Invite one friend directly, with no overlay involved.
+    ///
+    /// THE ROUTE THAT ACTUALLY WORKS TODAY. Sending needs no overlay at all,
+    /// and the invite arrives in their Steam client as a notification with a
+    /// Join button - which fires GameLobbyJoinRequested_t in their game, the
+    /// callback already wired up above.
+    /// </summary>
+    public void InviteFriend(CSteamID friend)
+    {
+        if (!SteamBoot.Running || lobby.m_SteamID == 0) return;
+
+        bool sent = SteamMatchmaking.InviteUserToLobby(lobby, friend);
+        Say(sent
+            ? "invited " + SteamFriends.GetFriendPersonaName(friend)
+            : "Steam refused to send that invite");
+    }
+
+    /// <summary>
+    /// Friends who are running this same game right now.
+    ///
+    /// The list is short on purpose: somebody playing something else cannot
+    /// join, and offering to invite them is offering a button that fails.
+    /// </summary>
+    List<CSteamID> FriendsInGame()
+    {
+        var found = new List<CSteamID>();
+        if (!SteamBoot.Running) return found;
+
+        var me = SteamUtils.GetAppID();
+        int n = SteamFriends.GetFriendCount(EFriendFlags.k_EFriendFlagImmediate);
+
+        for (int i = 0; i < n; i++)
+        {
+            var id = SteamFriends.GetFriendByIndex(i, EFriendFlags.k_EFriendFlagImmediate);
+
+            FriendGameInfo_t game;
+            if (!SteamFriends.GetFriendGamePlayed(id, out game)) continue;
+            if (game.m_gameID.AppID() != me) continue;
+
+            found.Add(id);
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Join a lobby by its id, pasted in.
+    ///
+    /// The route with no moving parts: no overlay, no rich presence, no Steam
+    /// UI at all. If everything else fails, somebody reads a number out loud
+    /// and it works.
+    /// </summary>
+    public void JoinByCode(string code)
+    {
+        if (!SteamBoot.Running) { Say("Steam is not running"); return; }
+
+        ulong id;
+        if (!ulong.TryParse((code ?? "").Trim(), out id) || id == 0)
+        {
+            Say("that does not look like a lobby code");
+            return;
+        }
+
+        Say("joining lobby " + id + "...");
+        SteamMatchmaking.JoinLobby(new CSteamID(id));
     }
 
     public void Leave()
@@ -329,7 +413,7 @@ public class CrewLobby : MonoBehaviour
         GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        const float w = 460f, h = 360f;
+        const float w = 470f, h = 430f;
         var panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
 
         var title = new GUIStyle(GUI.skin.label)
@@ -371,6 +455,22 @@ public class CrewLobby : MonoBehaviour
                 JoinLocal();
             y += 44f;
 
+            // ---- JOIN BY CODE ----
+            //
+            // The route with no moving parts: no overlay, no rich presence, no
+            // Steam UI at all. Somebody reads a number out loud and it works,
+            // which is the only kind of instruction that survives being given
+            // over voice chat to a friend who has never run this before.
+            if (SteamBoot.Running)
+            {
+                GUI.Label(new Rect(x, y, 78f, 24f), "lobby code", body);
+                joinCode = GUI.TextField(new Rect(x + 82f, y, iw - 160f, 24f), joinCode, 24);
+
+                if (GUI.Button(new Rect(x + iw - 74f, y, 74f, 24f), "JOIN"))
+                    JoinByCode(joinCode);
+                y += 32f;
+            }
+
             // PLAY ALONE, because a main menu that cannot be skipped would
             // break the promise every step of this phase has kept: press Play
             // and the solo game works.
@@ -410,9 +510,63 @@ public class CrewLobby : MonoBehaviour
 
             if (net.IsServer)
             {
-                if (SteamBoot.Running && GUI.Button(new Rect(x, y, iw, 32f), "INVITE FRIENDS"))
+                // ---- THE CODE, WHICH NEEDS NO OVERLAY ----
+                //
+                // ActivateGameOverlayInviteDialog only works when the Steam
+                // OVERLAY is injected, and the overlay is only injected into a
+                // game LAUNCHED FROM STEAM. Running the exe directly - which is
+                // what anybody does with a build a friend sent them - means the
+                // invite button does nothing at all, silently.
+                //
+                // So the code is on screen, and it is the route that always
+                // works: read it out, paste it, done. Steam still carries the
+                // connection; it just is not asked to draw anything.
+                if (SteamBoot.Running && lobby.m_SteamID != 0)
+                {
+                    GUI.Label(new Rect(x, y, iw, 18f), "LOBBY CODE", body);
+                    y += 18f;
+
+                    var code = new GUIStyle(GUI.skin.textField)
+                    { fontSize = 15, alignment = TextAnchor.MiddleCenter };
+
+                    GUI.TextField(new Rect(x, y, iw - 70f, 26f),
+                                  lobby.m_SteamID.ToString(), code);
+
+                    if (GUI.Button(new Rect(x + iw - 65f, y, 65f, 26f), "copy"))
+                        GUIUtility.systemCopyBuffer = lobby.m_SteamID.ToString();
+                    y += 32f;
+
+                    GUI.Label(new Rect(x, y, iw, 18f),
+                              "send that to your friend - they paste it into JOIN", body);
+                    y += 24f;
+                }
+
+                // ---- FRIENDS ALREADY IN THE GAME ----
+                //
+                // One button each, by name, sending a real Steam invite with
+                // no overlay involved. This is the route that works for a
+                // build somebody double-clicked.
+                var playing = FriendsInGame();
+
+                if (playing.Count > 0)
+                {
+                    GUI.Label(new Rect(x, y, iw, 18f), "friends in game", body);
+                    y += 20f;
+
+                    foreach (var f in playing)
+                    {
+                        if (GUI.Button(new Rect(x, y, iw, 26f),
+                                       "invite " + SteamFriends.GetFriendPersonaName(f)))
+                            InviteFriend(f);
+                        y += 30f;
+                    }
+                    y += 4f;
+                }
+
+                if (SteamBoot.Running && GUI.Button(new Rect(x, y, iw, 26f),
+                        "Steam overlay invite (only if launched from Steam)"))
                     Invite();
-                y += 38f;
+                y += 32f;
 
                 if (GUI.Button(new Rect(x, y, iw, 36f), "START THE RUN"))
                     Start_();

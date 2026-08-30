@@ -110,6 +110,12 @@ public static class NetworkBuilder
         if (go.GetComponent<LootNet>() == null)
             go.AddComponent<LootNet>();
 
+        // PHASE 4 STEP 10. The radio holds one speaker at a time, and one
+        // machine has to decide who - "who pressed first" has no answer
+        // otherwise.
+        if (go.GetComponent<WalkieChannel>() == null)
+            go.AddComponent<WalkieChannel>();
+
         EditorSceneManager.MarkSceneDirty(go.scene);
     }
 

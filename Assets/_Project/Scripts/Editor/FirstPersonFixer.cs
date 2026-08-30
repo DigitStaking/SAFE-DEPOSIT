@@ -304,6 +304,14 @@ public static class FirstPersonFixer
             root.AddComponent<LostSpectator>();
             log.AppendLine("  added LostSpectator (TAB to change who you watch)");
         }
+
+        // PHASE 4 STEP 10. Every crewmate has a mouth; what fills it comes
+        // later. The AudioSource is required by VoiceMouth and added with it.
+        if (root.GetComponent<VoiceMouth>() == null)
+        {
+            root.AddComponent<VoiceMouth>();
+            log.AppendLine("  added VoiceMouth (positional voice + occlusion)");
+        }
         downed.enabled = true;
 
         // ---- headlamp (re-attached, Phase 3 Step 2) ------------------

@@ -337,6 +337,16 @@ partial payment carried over, three deaths ends the campaign.
 whole point, and needs a crew to happen at all.
 
 ### Step 10 · 🎙️ PROXIMITY VOICE — and it has to sound like concrete
+**PROVIDER CHOSEN 30 Aug 2026: Steam Voice.** Free, and the reason it can be
+free is the thing this spec already said — all four qualities are Unity audio
+on top of a human voice, not a feature of the voice library. So the audio
+pipeline is built FIRST and independently: `VoiceMouth` (distance, occlusion,
+reverb, radio filter) and `WalkieChannel` (half-duplex, host-arbitrated) are
+done and testable with any sample source. Steam Voice only has to fill an
+`AudioSource`.
+
+That reorders the phase: **Step 11's Steam transport comes before Step 10's
+capture**, because Steam Voice needs a Steam session to travel over.
 
 **Done when:** somebody two floors down cannot be heard at all, somebody one
 floor down is a muffled thump you can *just* tell is a person, and a voice in

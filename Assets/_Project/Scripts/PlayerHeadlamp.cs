@@ -388,6 +388,17 @@ public class PlayerHeadlamp : MonoBehaviour
     // BODY was still facing, not where the CAMERA was pointed.
     void LateUpdate()
     {
+        // ---- REBUILD IT IF THE SCENE TOOK IT ----
+        //
+        // The rig is deliberately UNPARENTED, which is what lets it sidestep
+        // the first-person head shrink - and it is therefore a root object in
+        // the scene, so a scene load destroys it. The player survives that
+        // load now (Step 8), so from round 2 onward this component was holding
+        // a destroyed reference and quietly lighting nothing.
+        //
+        // Reported as "lamp not working anymore after round 1", which is
+        // exactly the round the first scene load happens.
+        if (rig == null) BuildRig();
         if (rig == null) return;
 
         Vector3 pos;

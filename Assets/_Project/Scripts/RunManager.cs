@@ -586,7 +586,28 @@ public class RunManager : MonoBehaviour
             opts.Add(i);
         }
 
+        // HOST PICKS, EVERYONE IS TOLD.
+        //
+        // This rolls dice, and RunManager runs on every machine - so each one
+        // condemned a different room and then sealed it. Reported as "room 2
+        // must be sealed but in round 2 i saw room 3 sealed": both were true,
+        // on different machines.
+        //
+        // Same shape as SealRandomRooms in Campaign, which was host-guarded
+        // for the same reason a few commits ago. This is the other roll, and
+        // it was still loose.
+        if (!Campaign.MayWrite)
+        {
+            threatenedRoom = CampaignNet.Instance != null
+                ? CampaignNet.Instance.Threatened.Value
+                : 0;
+            return;
+        }
+
         threatenedRoom = opts.Count == 0 ? 0 : opts[Random.Range(0, opts.Count)];
+
+        if (CampaignNet.Instance != null && CampaignNet.Instance.IsServer)
+            CampaignNet.Instance.Threatened.Value = threatenedRoom;
     }
 
     bool IsRoomSealed(int room1Based)
@@ -1142,9 +1163,24 @@ public class RunManager : MonoBehaviour
             { fontSize = 13, alignment = TextAnchor.MiddleCenter };
             line.normal.textColor = new Color(1f, 0.85f, 0.7f);
 
+            // THE CLOCK, IN THE SAME BREATH AS THE PRICE.
+            //
+            // A deadline nobody can see is a trap, not a decision. The crew
+            // has to be able to read "last chance" and "240" in one glance and
+            // argue about it - which is the entire point of putting the
+            // contract on the shop screen rather than a menu of its own.
+            int left = Campaign.RoundsLeftToRescue(m);
+            line.normal.textColor = left <= 1
+                ? new Color(1f, 0.45f, 0.4f)
+                : new Color(1f, 0.85f, 0.7f);
+
+            string clock = left <= 1
+                ? "LAST CHANCE - after this round they are gone"
+                : $"{left} rounds left to pay";
+
             GUI.Label(new Rect(0f, y, Screen.width, 20f),
                       $"{m.name}  -  lost on room {m.floor:00} in round {m.runLost}" +
-                      $"   paid {m.paid} / {cost}   still owed {owed}", line);
+                      $"   paid {m.paid} / {cost}   still owed {owed}   -   {clock}", line);
             y += 22f;
 
             int pay = Mathf.Min(owed, Campaign.Money);

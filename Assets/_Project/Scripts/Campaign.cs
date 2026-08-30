@@ -304,6 +304,76 @@ public static class Campaign
     public static int RescueOwed(LostCrewMember m) =>
         m == null ? 0 : Mathf.Max(0, RescueCost(m) - m.paid);
 
+    // ================================================================
+    // THE OFFER EXPIRES. TWO ROUNDS.
+    //
+    // Requested 30 Aug 2026, and it is the piece the contract was missing.
+    //
+    // An open-ended debt is not a decision. A crew that can always pay later
+    // pays later, every time, and "later" costs nothing - so the money always
+    // goes on cable and the friend becomes a line item that never quite gets
+    // dealt with. The argument the step exists to create never happens.
+    //
+    // A deadline turns it into THIS round or next. That is exactly long
+    // enough for one bad round not to condemn somebody, and short enough that
+    // the crew has to look at the cable and choose.
+    //
+    // The round they were lost counts. Lost in round 4: rounds 4 and 5 are
+    // yours, and arriving at the shop in round 6 with the debt unpaid means
+    // they are gone for good.
+    // ================================================================
+
+    /// <summary>Rounds you get, counting the one they were lost in.</summary>
+    public const int RescueRounds = 2;
+
+    /// <summary>The last round in which they can still be bought back.</summary>
+    public static int RescueDeadline(LostCrewMember m) =>
+        m == null ? 0 : m.runLost + RescueRounds - 1;
+
+    public static int RoundsLeftToRescue(LostCrewMember m) =>
+        m == null ? 0 : Mathf.Max(0, RescueDeadline(m) - RunNumber + 1);
+
+    /// <summary>
+    /// Called by AdvanceRun, on the host. Anybody whose deadline has passed is
+    /// gone - removed from the list, so the shop stops offering them, and
+    /// counted toward the three that end a campaign.
+    /// </summary>
+    public static void ExpireRescues()
+    {
+        if (!MaySpend) return;
+
+        bool changed = false;
+
+        for (int i = LostCrew.Count - 1; i >= 0; i--)
+        {
+            var m = LostCrew[i];
+            if (RoundsLeftToRescue(m) > 0) continue;
+
+            Debug.Log($"[Crew] nobody paid for {m.name} in time. " +
+                      $"{m.paid} of {RescueCost(m)} was raised, and it is gone with them.");
+
+            LostCrew.RemoveAt(i);
+            Abandoned++;
+            changed = true;
+        }
+
+        if (!changed) return;
+
+        PublishLostCrew();
+
+        // Three people abandoned or held is the end, per ECONOMY Part 2. The
+        // partial payments go with them - which is the sharpest possible way
+        // of saying the crew should have chosen.
+        if (Abandoned + LostCrew.Count >= MaxLostBeforeOver && !CampaignOver)
+        {
+            CampaignOver = true;
+            EpitaphReason = "you left too many of them down there";
+        }
+    }
+
+    /// <summary>Crew who ran out of rounds. They are not coming back.</summary>
+    public static int Abandoned;
+
     /// <summary>
     /// Put money toward getting somebody back.
     ///
@@ -400,6 +470,17 @@ public static class Campaign
 
     public static void RecordLost(string who, int floor)
     {
+        // HOST ONLY. RunManager runs on every machine and every one of them
+        // called this, so the same person was recorded once per machine -
+        // under a DIFFERENT NAME each time, because a body is called
+        // "Player 0 (me)" on its own machine and "Player 0" everywhere else.
+        // The duplicate check compares names, so it never fired, and the shop
+        // listed the same hostage twice and asked to be paid twice.
+        //
+        // Clients learn who is being held from the replicated list, like
+        // everything else the host decides.
+        if (!MaySpend) return;
+
         if (string.IsNullOrEmpty(who)) who = "a crewmate";
 
         // Nobody is lost twice. Being down in the building is a state, not an
@@ -790,6 +871,7 @@ public static class Campaign
 
     public static void Reset()
     {
+        Abandoned = 0;
         // Host only online. Every client runs its own RunManager and would
         // otherwise each try to write the same pot. Step 8 makes the round
         // itself a host-driven event; this guard is what keeps the meantime
@@ -853,6 +935,10 @@ public static class Campaign
         if (!MaySpend) return;
 
         RunNumber++;
+
+        // AFTER the increment, so "rounds left" is measured against the round
+        // the crew is about to play rather than the one they just finished.
+        ExpireRescues();
 
         // The caps are PER ROUND, so this is where they refill. Deliberately
         // in AdvanceRun rather than at the shop's first draw: the shop is

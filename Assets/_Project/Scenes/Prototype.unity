@@ -11855,6 +11855,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CampaignNet
   ShowTopMostFoldoutHeaderGroup: 1
+  Lost:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
 --- !u!114 &891795807
 MonoBehaviour:
   m_ObjectHideFlags: 0

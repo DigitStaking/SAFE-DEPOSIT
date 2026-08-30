@@ -59,6 +59,7 @@ GameObject:
   - component: {fileID: 8717073065195352561}
   - component: {fileID: 5469903729989680692}
   - component: {fileID: 5004720126214111928}
+  - component: {fileID: 7537295202248656672}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -556,6 +557,20 @@ MonoBehaviour:
   radius: 0.7
   useTime: 2
   key: 114
+--- !u!114 &7537295202248656672
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed5248b57957c6842bff6b289509b625, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LostSpectator
+  distance: 3.4
+  height: 1.9
 --- !u!1001 &3659666608676451951
 PrefabInstance:
   m_ObjectHideFlags: 0

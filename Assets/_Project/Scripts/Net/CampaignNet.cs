@@ -103,6 +103,13 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<uint>  Sealed     = new NetworkVariable<uint>(0u, default, Host);
 
     /// <summary>
+    /// The room currently counting down to being sealed. Host picks it,
+    /// because it is a dice roll and four machines rolling separately condemn
+    /// four different rooms.
+    /// </summary>
+    public readonly NetworkVariable<int>   Threatened = new NetworkVariable<int>(0, default, Host);
+
+    /// <summary>
     /// PHASE 4 STEP 9. Who the mafia is holding, and how much has been paid
     /// toward each of them.
     ///

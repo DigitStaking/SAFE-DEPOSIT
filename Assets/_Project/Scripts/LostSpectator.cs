@@ -173,7 +173,7 @@ public class LostSpectator : MonoBehaviour
         style.normal.textColor = new Color(1f, 0.45f, 0.4f);
 
         GUI.Label(new Rect(0f, Screen.height * 0.5f - 40f, Screen.width, 30f),
-                  "THE MAFIA HAS YOU", style);
+                  "YOU ARE STUCK DOWN THERE", style);
 
         var sub = new GUIStyle(GUI.skin.label)
         { fontSize = 13, alignment = TextAnchor.MiddleCenter };
@@ -187,7 +187,7 @@ public class LostSpectator : MonoBehaviour
 
         GUI.Label(new Rect(0f, Screen.height * 0.5f - 12f, Screen.width, 24f),
                   owed > 0
-                      ? $"they want {owed} for you        TAB  watch somebody else"
+                      ? $"the crew owes {owed} to get you out        TAB  watch somebody else"
                       : "TAB  watch somebody else", sub);
     }
 }

@@ -40,7 +40,6 @@ public class PlayerCarry : MonoBehaviour
     Carryable held;
     Carryable lookingAt;
     Rigidbody rb;
-    Transform cam;
     PlayerBackpack backpack;
     PlayerHealth health;
     Animator remoteRig;
@@ -52,10 +51,17 @@ public class PlayerCarry : MonoBehaviour
         health = GetComponent<PlayerHealth>();
     }
 
-    void Start()
-    {
-        cam = PlayerRegistry.EyeOf(this);   // my eye, for the pickup ray
-    }
+    /// <summary>
+    /// My eye, asked LIVE.
+    ///
+    /// This was cached once in Start, and FindTarget returns null the moment
+    /// it is gone - so after a round change, when the old scene's camera was
+    /// destroyed with the old scene, nothing could be picked up ever again.
+    /// Reported as "i can't grab items after a time, in round 2".
+    ///
+    /// Eleventh time this phase.
+    /// </summary>
+    Transform Eye => PlayerRegistry.EyeOf(this);
 
     void Update()
     {
@@ -77,6 +83,7 @@ public class PlayerCarry : MonoBehaviour
         // In front of the chest, from the body's own facing. Not as precise as
         // a camera-relative hold, and it does not need to be: what matters
         // from across a dark floor is that the crate is with them.
+        var cam = Eye;
         if (cam == null)
         {
             // ---- BETWEEN THEIR ACTUAL HANDS ----
@@ -203,6 +210,7 @@ public class PlayerCarry : MonoBehaviour
 
     Carryable FindTarget()
     {
+        var cam = Eye;
         if (cam == null) return null;
 
         if (!Physics.SphereCast(cam.position, pickupRadius, cam.forward,

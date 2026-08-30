@@ -21597,6 +21597,8 @@ GameObject:
   - component: {fileID: 1674611554}
   - component: {fileID: 1674611553}
   - component: {fileID: 1674611552}
+  - component: {fileID: 1674611557}
+  - component: {fileID: 1674611556}
   m_Layer: 0
   m_Name: NETWORK
   m_TagString: Untagged
@@ -21707,6 +21709,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1674611556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674611551}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9e6098b2d6c12742865f7b01a7b057f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CrewLobby
+  maxCrew: 4
+--- !u!114 &1674611557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674611551}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ebbe3f4fc990f641b3e2128d84cfe0d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SteamTransport
+  HostSteamId: 0
 --- !u!1 &1678344887
 GameObject:
   m_ObjectHideFlags: 0

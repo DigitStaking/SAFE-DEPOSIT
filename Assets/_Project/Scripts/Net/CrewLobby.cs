@@ -184,6 +184,21 @@ public class CrewLobby : MonoBehaviour
         else Say("could not start the client");
     }
 
+    /// <summary>
+    /// Join a host on this machine, over Unity Transport.
+    ///
+    /// The local path, and it stays regardless of Steam: it is the only way
+    /// one person can test two players, and it has been how every step of this
+    /// phase was verified.
+    /// </summary>
+    public void JoinLocal()
+    {
+        if (net == null || net.IsListening) return;
+
+        if (net.StartClient()) { Where = Stage.Joining; Say("joining locally..."); }
+        else Say("nothing is hosting on this machine");
+    }
+
     public void Invite()
     {
         if (!SteamBoot.Running || lobby.m_SteamID == 0) return;
@@ -246,12 +261,22 @@ public class CrewLobby : MonoBehaviour
         if (net == null) return;
         if (net.IsListening && RunHasStarted) return;   // in a run; get out of the way
 
-        const float w = 460f, h = 320f;
-        var panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
-
-        GUI.color = new Color(0f, 0f, 0f, 0.85f);
-        GUI.Box(panel, GUIContent.none);
+        // A SOLID BACKDROP OVER THE WHOLE SCREEN.
+        //
+        // The first version was a translucent panel floating over a lit, moving
+        // elevator interior, and it was unreadable - the crew list sat on top
+        // of a player model and the buttons sat on top of the keypad.
+        //
+        // A menu has to own the screen. Blacking it out entirely also does
+        // something the panel could not: it stops a player who has not pressed
+        // START from wandering off and looking at the building, which is
+        // exactly the wrong first impression of a game about being underground.
+        GUI.color = Color.black;
+        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = Color.white;
+
+        const float w = 460f, h = 360f;
+        var panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
 
         var title = new GUIStyle(GUI.skin.label)
         { fontSize = 22, alignment = TextAnchor.MiddleCenter };
@@ -278,17 +303,28 @@ public class CrewLobby : MonoBehaviour
             crewName = GUI.TextField(new Rect(x + 95f, y, iw - 95f, 24f), crewName, 28);
             y += 34f;
 
-            if (GUI.Button(new Rect(x, y, iw, 40f), "HOST A RUN"))
+            if (GUI.Button(new Rect(x, y, iw, 38f), "HOST A RUN"))
                 Host();
-            y += 46f;
+            y += 44f;
 
-            GUI.Label(new Rect(x, y, iw, 40f),
+            // ---- JOIN, WHICH WAS MISSING ENTIRELY ----
+            //
+            // The first version had only HOST, on the reasoning that joining
+            // happens through Steam's overlay. True, and useless to somebody
+            // whose Steam is not running - which is everybody testing locally,
+            // including the person who reported this.
+            if (GUI.Button(new Rect(x, y, iw, 38f), "JOIN A RUN"))
+                JoinLocal();
+            y += 44f;
+
+            GUI.Label(new Rect(x, y, iw, 46f),
                       SteamBoot.Running
-                          ? "To join a friend: open Steam, right-click their name, " +
-                            "Join Game. Or accept their invite."
-                          : "Start Steam to play with friends. Without it, a second " +
-                            "window on this machine can still join.", body);
-            y += 46f;
+                          ? "JOIN connects to another window on this machine. To " +
+                            "join a FRIEND, right-click their name in Steam and " +
+                            "choose Join Game - or accept their invite."
+                          : "Steam is off, so JOIN connects to a second window on " +
+                            "this machine. Start Steam to play with friends.", body);
+            y += 52f;
         }
         else
         {
@@ -353,7 +389,24 @@ public class CrewLobby : MonoBehaviour
         var names = new List<string>();
 
         foreach (var p in PlayerRegistry.All)
-            if (p != null) names.Add(p.gameObject.name);
+        {
+            if (p == null) continue;
+
+            // ONLY REAL PLAYERS. The scene holds a placeholder body so the
+            // game runs offline, and a server auto-spawns in-scene
+            // NetworkObjects - so it appears in the registry alongside the
+            // host's real body and the roster read "2 of 4 aboard, Player 0,
+            // Player 0".
+            //
+            // IsPlayerObject for the fourth time in this phase. Every other
+            // field on those two objects is identical, which is why it keeps
+            // being the only test that works.
+            var no = p.GetComponent<NetworkObject>();
+            if (net != null && net.IsListening &&
+                (no == null || !no.IsSpawned || !no.IsPlayerObject)) continue;
+
+            names.Add(p.gameObject.name);
+        }
 
         return names;
     }

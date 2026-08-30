@@ -644,6 +644,32 @@ public class RunManager : MonoBehaviour
         ChooseThreatenedRoom();
     }
 
+    /// <summary>
+    /// Send the current room charge to everyone.
+    ///
+    /// PHASE 4. The room and its deadline are chosen when the run starts,
+    /// which is BEFORE anybody has pressed HOST - so the setter's network
+    /// write had nothing to write to, and the value stayed local. Clients then
+    /// read Threatened as 0 and printed "no live rooms in reach" while the
+    /// host counted down to room 03.
+    ///
+    /// Fourth system in this phase to need exactly this: the campaign, the
+    /// crew rows and the lift all carry their state in on spawn. Replication
+    /// without a handover just means everyone agrees on nothing.
+    ///
+    /// Called by CampaignNet the moment it spawns, on the host.
+    /// </summary>
+    public void PublishRoomStateToNetwork()
+    {
+        if (Net == null || !Net.IsServer) return;
+
+        Net.Threatened.Value = localThreatened;
+
+        if (Unity.Netcode.NetworkManager.Singleton != null)
+            Net.SealAt.Value = Unity.Netcode.NetworkManager.Singleton.ServerTime.Time
+                             + Mathf.Max(0f, localRoomDeadline - Time.time);
+    }
+
     void ChooseThreatenedRoom()
     {
         var opts = new List<int>();

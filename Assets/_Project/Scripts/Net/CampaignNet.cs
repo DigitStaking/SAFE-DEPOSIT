@@ -185,6 +185,12 @@ public class CampaignNet : NetworkBehaviour
         if (IsServer)
         {
             Campaign.PushLocalStateToNetwork();
+
+            // The run started before this object existed - the room charge was
+            // chosen with nothing to publish to. Hand it over now, or clients
+            // read Threatened as 0 and are told there are no rooms in reach.
+            var run = SceneRefs.Run;
+            if (run != null) run.PublishRoomStateToNetwork();
         }
         else
         {

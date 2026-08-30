@@ -59,6 +59,7 @@ public class WalkieChannel : NetworkBehaviour
 
     bool pressed;
     float lastRefusedAt = -99f;
+    float noRadioAt = -99f;
 
     public override void OnNetworkSpawn() => Instance = this;
 
@@ -84,6 +85,16 @@ public class WalkieChannel : NetworkBehaviour
         if (down == pressed) return;
         pressed = down;
 
+        // NO RADIO, NO PRESS. Checked here so a player without one gets told
+        // immediately rather than waiting a round trip to be refused - and
+        // checked AGAIN on the host below, because a client's own check is a
+        // courtesy and not a guarantee.
+        if (down && !Crew.Of(me.Slot).HasWalkie)
+        {
+            noRadioAt = Time.time;
+            return;
+        }
+
         if (down) RequestServerRpc(NetworkManager.Singleton.LocalClientId);
         else ReleaseServerRpc(NetworkManager.Singleton.LocalClientId);
     }
@@ -95,6 +106,9 @@ public class WalkieChannel : NetworkBehaviour
         // outright rather than queued - a queue would mean your voice arrives
         // seconds after the moment you needed it, which is worse than being
         // told no.
+        // The host checks too. Slot IS client id, so this needs no lookup.
+        if (!Crew.Of((int)who).HasWalkie) return;
+
         if (Holder.Value != Nobody)
         {
             RefusedClientRpc(new ClientRpcParams {
@@ -125,7 +139,16 @@ public class WalkieChannel : NetworkBehaviour
         string msg = null;
         Color colour = Color.white;
 
-        if (HeldByMe)
+        var me = PlayerRegistry.Local;
+        bool mineToUse = me != null && Crew.Of(me.Slot).HasWalkie;
+
+        if (Time.time - noRadioAt < 1.5f)
+        {
+            msg = "YOU HAVE NO WALKIE-TALKIE
+buy a pair at the surface - it arms two of you";
+            colour = new Color(1f, 0.55f, 0.4f);
+        }
+        else if (HeldByMe)
         {
             msg = "● ON AIR";
             colour = new Color(1f, 0.35f, 0.3f);
@@ -137,8 +160,11 @@ public class WalkieChannel : NetworkBehaviour
             msg = $"CHANNEL BUSY - player {Holder.Value} is talking";
             colour = new Color(1f, 0.75f, 0.3f);
         }
-        else if (Busy)
+        else if (Busy && mineToUse)
         {
+            // Only shown to people who can actually hear it. Telling somebody
+            // without a radio that the radio is in use is telling them about a
+            // conversation they are being deliberately left out of.
             msg = $"player {Holder.Value} on the radio";
             colour = new Color(1f, 1f, 1f, 0.55f);
         }

@@ -1157,9 +1157,32 @@ public class RunManager : MonoBehaviour
             Campaign.BuyMedSpray(buyerSlot);
         }
 
+        // ---- walkie-talkie ----
+        //
+        // A PAIR, per ECONOMY: 30 for two, and the leader picks who. A crew of
+        // four with one pair is a crew where two people can coordinate and two
+        // cannot, and everybody knows which is which. One each would just be a
+        // group call.
+        //
+        // Drawn on a second row because the first is full, and because this is
+        // the only item here that changes who can talk to whom.
+        float row2 = by + 46f;
+
+        GUI.enabled = Campaign.Money >= Campaign.WalkiePairCost;
+
+        int radios = 0;
+        for (int i = 0; i < Crew.MaxMembers; i++) if (Crew.Of(i).HasWalkie) radios++;
+
+        if (GUI.Button(new Rect(cx - bw * 0.5f, row2, bw, 34f),
+                       $"walkie-talkie PAIR  ({Campaign.WalkiePairCost})   " +
+                       $"{radios} carried"))
+        {
+            Campaign.BuyWalkiePair(buyerSlot);
+        }
+
         GUI.enabled = true;
 
-        float tail = by + 46f;
+        float tail = row2 + 40f;
 
         tail = DrawRescueContracts(tail, body);
 

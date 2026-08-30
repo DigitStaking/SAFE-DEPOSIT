@@ -108,6 +108,9 @@ public static class Campaign
     /// </summary>
     public const int MedSprayBaseCost = 35;
 
+    /// <summary>ECONOMY Part 8: 30 for a PAIR. One purchase, two radios.</summary>
+    public const int WalkiePairBaseCost = 30;
+
     // ---- OVERLOAD: TEN SECONDS, THEN IT PARTS ----
     //
     // Replaces the per-metre fray model on 21 Aug 2026, on request. That one
@@ -733,6 +736,57 @@ public static class Campaign
     /// carrying them has a reason to play safe, and it is not their own life,
     /// it is everybody else's.
     /// </summary>
+    /// <summary>
+    /// A PAIR of radios, per ECONOMY: 30, and the buyer picks who gets them.
+    ///
+    /// For now it arms the buyer and the first crewmate without one, which is
+    /// exactly right with two players and a placeholder with four - the leader
+    /// picking two specific names out of a crew is Phase 7's shop screen, and
+    /// ECONOMY already says so. The MECHANIC is the pair; the picker is UI.
+    ///
+    /// It has to be a pair rather than one each, and that is not just the
+    /// price: a crew of four with one pair is a crew where two people can
+    /// coordinate and two cannot, and everybody knows which is which. One each
+    /// would just be a group call.
+    /// </summary>
+    public static bool BuyWalkiePair(int buyerSlot)
+    {
+        if (Money < WalkiePairCost) return false;
+        if (MaySpend) return BuyWalkiePairAuthoritative(buyerSlot);
+
+        Net.BuyWalkieServerRpc(buyerSlot);
+        return true;
+    }
+
+    public static bool BuyWalkiePairAuthoritative(int buyerSlot)
+    {
+        if (Money < WalkiePairCost) return false;
+
+        var buyer = Crew.Of(buyerSlot);
+
+        int partner = -1;
+        for (int i = 0; i < Crew.MaxMembers; i++)
+        {
+            if (i == buyerSlot) continue;
+            if (Crew.Of(i).HasWalkie) continue;
+            partner = i;
+            break;
+        }
+
+        // Nobody to pair with, and the buyer already has one. Refuse rather
+        // than sell a second radio to the same person - it would do nothing
+        // and they would have paid for it.
+        if (partner < 0 && buyer.HasWalkie) return false;
+
+        Money -= WalkiePairCost;
+        buyer.HasWalkie = true;
+        if (partner >= 0) Crew.Of(partner).HasWalkie = true;
+
+        Debug.Log($"[Crew] radios to slot {buyerSlot}" +
+                  (partner >= 0 ? $" and slot {partner}" : " (no partner yet)"));
+        return true;
+    }
+
     public static bool BuyMedSpray(int slot)
     {
         var who = Crew.Of(slot);
@@ -822,6 +876,7 @@ public static class Campaign
     public static int CableChunkCost => ScaledPrice(CableChunkBaseCost);
     public static int BackpackSlotCost => ScaledPrice(BackpackSlotBaseCost);
     public static int MedSprayCost => ScaledPrice(MedSprayBaseCost);
+    public static int WalkiePairCost => ScaledPrice(WalkiePairBaseCost);
 
     /// <summary>What the cable lifts right now, upgrades included.</summary>
     public static float Capacity => BaseCapacity + CapacityStep * CapacityUpgrades;

@@ -345,8 +345,16 @@ reverb, radio filter) and `WalkieChannel` (half-duplex, host-arbitrated) are
 done and testable with any sample source. Steam Voice only has to fill an
 `AudioSource`.
 
-That reorders the phase: **Step 11's Steam transport comes before Step 10's
-capture**, because Steam Voice needs a Steam session to travel over.
+**Correction, same day:** it does *not* reorder the phase. Steam Voice needs
+Steam **running**, not Steam **networking** — the compressed bytes travel over
+whatever connection already exists. Step 11 stays where it is.
+
+**THE RADIO IS BOUGHT, AND IT IS A PAIR.** ECONOMY Part 8: 30 for two, leader
+picks the two who can talk. It gates **hearing** as well as talking — a pair is
+a private line, not a broadcast; if everybody heard it, buying two would just
+be a licence to shout building-wide. Somebody without one still hears that
+speaker *normally*, through the concrete, if they are close enough: you can
+hear half of a conversation you are not part of.
 
 **Done when:** somebody two floors down cannot be heard at all, somebody one
 floor down is a muffled thump you can *just* tell is a person, and a voice in

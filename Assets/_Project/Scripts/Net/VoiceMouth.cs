@@ -130,7 +130,18 @@ public class VoiceMouth : MonoBehaviour
         var netObj = owner != null
             ? owner.GetComponent<Unity.Netcode.NetworkObject>() : null;
 
-        onRadio = radio != null && radio.IsSpawned && netObj != null &&
+        // BOTH ENDS NEED A RADIO. A pair is a private line, not a broadcast:
+        // if everybody heard it, buying two would just be a licence to shout
+        // building-wide and the 30 would buy range for the whole crew.
+        //
+        // Somebody without one still hears this speaker NORMALLY, through the
+        // concrete, if they happen to be close enough - which is the right
+        // answer and a slightly eerie one. You can hear half of a conversation
+        // you are not part of.
+        var listener = PlayerRegistry.Local;
+        bool iHaveOne = listener != null && Crew.Of(listener.Slot).HasWalkie;
+
+        onRadio = iHaveOne && radio != null && radio.IsSpawned && netObj != null &&
                   netObj.IsSpawned && radio.Holder.Value == netObj.OwnerClientId;
 
         if (onRadio) { ApplyRadio(); return; }

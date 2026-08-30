@@ -65,6 +65,10 @@ public class CrewMemberNet : NetworkBehaviour
     /// </summary>
     public readonly NetworkVariable<int> Sprays = new NetworkVariable<int>(0, default, Host);
 
+    /// <summary>Carrying a walkie-talkie. Bought in PAIRS, so this is set on
+    /// two people at once. Server-write, like everything bought.</summary>
+    public readonly NetworkVariable<bool> Walkie = new NetworkVariable<bool>(false, default, Host);
+
     static readonly CrewMemberNet[] bySlot = new CrewMemberNet[Crew.MaxMembers];
 
     /// <summary>
@@ -160,6 +164,7 @@ public class CrewMemberNet : NetworkBehaviour
         {
             Pack.Value = Crew.LocalRow(slot).RawPack;
             Sprays.Value = Crew.LocalRow(slot).RawSprays;
+            Walkie.Value = Crew.LocalRow(slot).RawWalkie;
         }
     }
 

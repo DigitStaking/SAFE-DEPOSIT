@@ -100,6 +100,7 @@ public static class Crew
         bool localLost;
         int localPack = StartingBackpackSlots;
         int localSprays;
+        bool localWalkie;
 
         // Raw access for CrewMemberNet, which has to seed the network from
         // whatever this machine was holding when it connected.
@@ -108,6 +109,7 @@ public static class Crew
         internal bool RawLost => localLost;
         internal int RawPack => localPack;
         internal int RawSprays => localSprays;
+        internal bool RawWalkie => localWalkie;
 
         public int Health
         {
@@ -190,6 +192,29 @@ public static class Crew
         /// as long as they keep them.
         /// </summary>
         public int LootSlots => Mathf.Max(0, BackpackSlots - MedSprays);
+
+        /// <summary>
+        /// Carrying a walkie-talkie.
+        ///
+        /// BOUGHT AS A PAIR - ECONOMY Part 8, 30 for two, "leader picks the
+        /// two who can talk". That is a tactical decision and a social one at
+        /// the same time, and it is the reason the radio is interesting: a
+        /// crew of four with one pair is a crew where two people can coordinate
+        /// and two cannot, and everybody knows which is which.
+        ///
+        /// It gates HEARING as well as talking. A radio you cannot hear is not
+        /// a radio, and if everybody heard it the pair would just be a licence
+        /// to broadcast rather than a private line.
+        /// </summary>
+        public bool HasWalkie
+        {
+            get => Net != null ? Net.Walkie.Value : localWalkie;
+            set
+            {
+                if (Net == null) { localWalkie = value; return; }
+                if (Net.IsServer) Net.Walkie.Value = value;
+            }
+        }
 
         public bool IsDowned => Health <= 0;
     }

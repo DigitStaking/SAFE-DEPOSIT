@@ -102,7 +102,7 @@ because you were startled, it costs you the floor.
 
 ---
 
-# PART 3 — THE DEMO SEVEN
+# PART 3 — THE DEMO EIGHT
 
 ## In one line each
 
@@ -116,14 +116,15 @@ same register as "the thief takes your items and runs":
 | **the cannibal** | hits you if you have a light on or make noise |
 | **the thief** | takes your items and runs |
 | **the eyeless** | smashes your lamp, so you are dark for the rest of the round |
-| **the tenant** | plays your friend's voice from the wrong room |
-| **the weight** | sits on the lift so it will not move |
+| **the foreman** | wears hi-vis and carries a lamp, so at distance he looks like your crewmate |
+| **the passenger** | runs to your lift when he sees you and sits in it, +70 kg |
+| **the caretaker** | locks doors behind you |
 
 That is the whole of what they are. Everything below is detail about how each
 one behaves and how a crew beats it.
 
 
-*Decided 30 Aug 2026.* Seven inhabitants for the ten-floor demo. Chosen so
+*Decided 30 Aug 2026.* Eight inhabitants for the ten-floor demo. Chosen so
 that **no two tax the same resource** — a crew that meets seven things which
 all punish carelessness has met one thing seven times.
 
@@ -134,11 +135,12 @@ all punish carelessness has met one thing seven times.
 | 3 | the cannibal | **light + voice** | "lamps off. Nobody talk." |
 | 4 | the thief | **loot already earned** | "he's got my bag — push him!" |
 | 5 | the eyeless | **your lamp itself** | "I'll go lit. You three stay dark." |
-| 6 | the tenant | **the radio** | "…is that you on the radio?" |
-| 7 | the weight | **the way out** | "why won't it move?" |
+| 6 | the foreman | **trust in what you see** | "…is that you over there?" |
+| 7 | the passenger | **mass, and the way out** | "get him OFF the lift" |
+| 8 | the caretaker | **time, and your route back** | "the door was open when we came in" |
 
 Two of those are not threats — the fat man and the seller — and that is
-deliberate. Seven monsters is a bestiary; five monsters, a burden and a
+deliberate. Eight monsters is a bestiary; six monsters, a burden and a
 merchant is a **place**.
 
 **And no two take the same thing from you:**
@@ -148,8 +150,9 @@ merchant is a **place**.
 | cannibal | **your health**, and your ability to coordinate |
 | thief | **loot you already earned** |
 | eyeless | **your sight** — the lamp, not the life |
-| tenant | **your trust in your own crew** |
-| weight | **your way out** |
+| foreman | **your trust in what you see** |
+| passenger | **your way out, 70 kg at a time** |
+| caretaker | **your route back, and the clock** |
 
 Health is the *only* one of those a normal game would think of. That is the
 point: four of the five threats never touch your HP bar, and are worse for
@@ -226,64 +229,84 @@ to keep going blind or take the loss.
 
 ---
 
-## 6 · THE TENANT — it takes your trust
+## 6 · THE FOREMAN — he looks like one of you
 
-**Its power: it speaks in your crew's voices.**
+**What he does: he wears a hi-vis suit and carries a working lamp.**
 
-It listens. When somebody talks near it — proximity or radio — it keeps a few
-seconds of them. Later, somewhere else, it plays them back.
+That is all. He was a worker in this building before it was condemned, and he
+is still dressed for the job.
 
-Not gibberish. **Your friend's actual voice**, saying something your friend
-actually said, arriving from the wrong room at the wrong time. And because
-Phase 4 already carries real voice frames between machines, this is genuinely
-that person's voice rather than an impression of one.
+Across a dark floor, **the only way you tell a crewmate from anything else is
+a moving light in a coloured suit.** That is not a design decision, it is just
+true of the game as it already exists. The foreman is what happens when that
+stops being reliable.
 
-**What it does with it:**
+- He stands still, or walks slowly, lamp on
+- He does not speak, so there is **no language and no AI** — the thing that
+  made the tenant unbuildable does not apply to him at all
+- Get close and it is obvious. The suit is filthy and forty years out of
+  date. The problem is that *close* is already too close
 
-- Calls you toward a room nobody is in
-- Says *"I'm down here"* in the voice of somebody who is fine, or who is
-  standing next to you
-- Takes the walkie-talkie channel and holds it, so the one person who needs
-  the radio cannot get on it
+**What it costs you:** you walk toward him thinking somebody is looting that
+room, and you are now somewhere you did not plan to be, with your back to a
+corridor. He does not have to touch you to have cost you the floor.
 
-**How you survive it:** verify. Ask a question it cannot answer with a
-recording, or go and look. Both cost time, which is the point.
-
-**Why it is evil:** every other threat here is answered by a rule — go dark,
-go quiet, run. This one is answered by **not believing your friends**, and a
-crew that has been caught once hesitates the next time somebody genuinely
-shouts for help.
-
-It is the only inhabitant that makes the game worse *after* you have killed
-it, because the doubt stays.
+**How you survive him:** the radio. Ask who is in the north room. A crew that
+uses the walkie-talkie properly is never fooled twice — which quietly makes
+the 20 you spent on radios worth it.
 
 ---
 
-## 7 · THE WEIGHT — it takes your way out
+## 7 · THE PASSENGER — he wants to leave too
 
-**Its power: it rides the elevator, and the elevator cannot move.**
+**What he does: the moment he sees you, he runs for your elevator and sits in
+it. Seventy kilos, and he will not get out.**
 
-It does not chase anybody. It does not enter rooms. It climbs onto the car —
-the roof, the underside, the frame — and **it counts as mass**.
+He is not hostile. He is not a survivor either — he will not be led, he will
+not follow you, he will not be rescued. He just wants out of this building,
+and your lift is the only one working.
 
-The load gauge is already in this game and already refuses to move over
-550 kg. So the crew arrives at the lift, presses RETURN, and the dashboard
-says the car is too heavy. **Nothing is visibly wrong.** The deck looks the
-same as it did.
+**What it costs you:** seventy kilos, which ECONOMY already prices as two
+crates. The car is over 550 and will not move, and the crew is standing at the
+panel doing arithmetic they did not plan on.
 
-**What it costs:** the crew has to find it and get it off. That means
-somebody leaves the car, goes around, and **pushes** — which is loud, and slow,
-and happening while the room timer runs and everything else on the floor is
-coming toward the noise.
+**Three answers, all bad:**
 
-**How you survive it:** get it off, or drop enough loot to move anyway. That
-second option is the good one: **it turns your haul into the price of
-leaving.**
+- **Push him off** — he gets up and walks back on. Somebody has to hold him
+  off while the doors shut, and that person is now on the wrong side
+- **Drop loot to make weight** — clean, and it costs exactly what he weighs
+- **Take him** — he rides up with you, gets out at the surface, and is gone.
+  You paid two crates for nothing at all
 
-**Why it is evil:** it arrives at the exact moment a run is over and safe. The
-crew has already won, is already counting the money, and the doors will not
-close. It turns the load gauge — a number the crew has been reading all game —
-into the thing telling them something is on the roof.
+He is the fat man's opposite and that is the point. **The fat man is a person
+you choose to save. The passenger is a person you did not choose**, and the
+crew will argue about him far more bitterly than they ever argue about the
+fat man.
+
+---
+
+## 8 · THE CARETAKER — he locks up behind you
+
+**What he does: he closes and locks doors you have already come through.**
+
+He is not following you to hurt you. He is doing his job. The building is
+closing and he is going round shutting it, and he does not much care that you
+are still inside it.
+
+**What it costs you: the route back.** You came in through the north door and
+looted three rooms, and now the north door is locked and the way to the lift
+is the long way round — with the room timer running, which is the one clock in
+this game that never stops.
+
+**How you survive him:** keys, which Phase 6 is building anyway. Or get ahead
+of him: he works in one direction, so a crew that notices which way he is
+going can loot behind him instead of in front of him.
+
+**Why he is worth having:** he is the only inhabitant that makes a floor
+change shape while you are standing in it, and he does it without a single
+point of damage. He also gives the locked-door kit a reason to exist outside
+of puzzles — a door can be locked because somebody locked it, not because a
+designer put a lock there.
 
 ---
 
@@ -345,10 +368,11 @@ punishes greed with weight; it does not need to punish it with breakage too.
 | fat man + survivors | **5** | already costed in ECONOMY; the room kit places them |
 | survivors behind puzzles | **6** | ROADMAP already says *no exceptions* |
 | eyeless | **6** | hazard slot; it is a movement rule plus one interaction |
-| the weight | **6** | it is a number on the load gauge and a push |
+| the passenger | **6** | he is a walk toward the lift and 70 kg |
+| the caretaker | **6** | he needs doors and locks, which Phase 6 builds anyway |
 | cannibal | **6** | needs sound to be a system first |
 | thief, seller, gun | **7** | economy pieces before they are creatures |
-| the tenant | **7** | needs the radio to be something a crew relies on |
+| the foreman | **7** | he is beaten by the radio, so the radio has to matter first |
 
 **Push comes first, before any of them.** Four of the seven have an answer
 that is "push it", and building the creatures before the verb means building

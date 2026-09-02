@@ -139,19 +139,31 @@ public class ProceduralLegs : MonoBehaviour
     [Range(0.2f, 1f)] public float lateralScale = 0.55f;
 
     [Header("Step timing")]
-    [Tooltip("Seconds a step takes at a standstill. Lower is snappier.")]
-    public float stepTimeBase = 0.40f;
+    [Tooltip("How fast the foot travels through the air, in metres per second. " +
+             "THE MAIN SPEED KNOB - lower makes the whole gait more deliberate.")]
+    public float footSwingSpeed = 3.4f;
 
-    [Tooltip("Seconds shaved off the step time per metre-per-second of travel. " +
-             "Faster travel means quicker steps as well as longer ones.")]
-    public float stepTimePerSpeed = 0.028f;
+    [Tooltip("Shortest a step may take. Stops a tiny correction becoming a " +
+             "twitch.")]
+    public float stepTimeMin = 0.22f;
 
-    [Tooltip("Floor on step time. Below this, steps read as a twitch rather " +
-             "than a stride.")]
-    public float stepTimeMin = 0.19f;
+    [Tooltip("Longest a step may take. Stops a huge recovery stride turning " +
+             "into slow motion.")]
+    public float stepTimeMax = 0.45f;
 
-    [Tooltip("How high the foot lifts at the middle of a step.")]
-    public float stepArc = 0.11f;
+    [Tooltip("Smallest lift, in metres. A shuffling correction still clears " +
+             "the floor by this much.")]
+    public float stepArc = 0.07f;
+
+    [Tooltip("How high the foot lifts as a FRACTION OF HOW FAR THAT STEP " +
+             "TRAVELS. This is the fix for feet that skim the floor. " +
+             "A fixed lift is the bug: 0.11m looks like a step when the foot " +
+             "moves 0.3m and looks like a slide when it moves 1.5m, because " +
+             "what the eye reads is not the height, it is the ANGLE the foot " +
+             "leaves the ground at. A real step lifts 15-20% of its own " +
+             "length, so a long stride lifts high and a short shuffle stays " +
+             "low - both without being told which they are.")]
+    [Range(0.05f, 0.4f)] public float arcPerLength = 0.2f;
 
     [Header("Load and injury shape the gait")]
     [Tooltip("How much a heavy load widens the stance, in metres at maximum " +
@@ -503,8 +515,21 @@ public class ProceduralLegs : MonoBehaviour
             float cut = injuryStrideCut;
             if (limpsWhenHurt) cut += limpExtraCut;
 
-            return (strideBase + stridePerSpeed * Speed) *
-                   (1f - Mathf.Clamp01(cut) * Injury);
+            float budget = (strideBase + stridePerSpeed * Speed) *
+                           (1f - Mathf.Clamp01(cut) * Injury);
+
+            // ---- AND IT MAY NOT EXCEED WHAT THE LEG CAN REACH ----
+            //
+            // These were two independent numbers that contradicted each other.
+            // At full speed the foot was allowed to fall 0.98m behind before
+            // stepping, while the leg was only allowed to reach 0.55m - so
+            // past walking pace the foot was ALWAYS dragged beyond reach, the
+            // IK stretched the limb to hold onto it, and a stretched leg
+            // dragging along the floor is exactly what sliding looks like.
+            //
+            // The reach is the physical fact and the budget is the preference,
+            // so the budget yields.
+            return Mathf.Min(budget, maxReach * 0.95f);
         }
     }
 
@@ -512,12 +537,31 @@ public class ProceduralLegs : MonoBehaviour
     /// the other leg can tell whose need is greater.</summary>
     public float Drift => DriftFraction(restCache);
 
-    /// <summary>How long a step takes, in seconds.</summary>
+    /// <summary>
+    /// How long this step takes.
+    ///
+    /// DERIVED FROM THE DISTANCE, not from a speed guess. Subtracting a bit of
+    /// time per metre-per-second was the wrong model: it made every step at a
+    /// given speed take the same time regardless of how far it was going, so a
+    /// long stride and a small correction moved the foot at wildly different
+    /// speeds - and the long one was the fast one, which is backwards.
+    ///
+    /// A foot swings at roughly a constant rate, so time follows distance.
+    /// </summary>
     float StepTime =>
-        Mathf.Max(stepTimeMin, stepTimeBase - stepTimePerSpeed * Speed);
+        Mathf.Clamp(stepLength / Mathf.Max(0.1f, footSwingSpeed),
+                    stepTimeMin, stepTimeMax);
 
-    /// <summary>How high the foot lifts. A heavy load flattens it to a shuffle.</summary>
-    float Arc => stepArc * (1f - loadArcFlatten * Load);
+    /// <summary>How far the current step is travelling. Set when it starts,
+    /// so the arc and the duration are both sized to the real distance rather
+    /// than to a guess about speed.</summary>
+    float stepLength;
+
+    /// <summary>How high the foot lifts. Proportional to the distance it is
+    /// covering, so it reads as a step at every stride length. A heavy load
+    /// flattens it toward a shuffle.</summary>
+    float Arc => Mathf.Max(stepArc, stepLength * arcPerLength) *
+                 (1f - loadArcFlatten * Load);
 
     /// <summary>
     /// Where this foot would ideally be standing right now: beside the body,
@@ -641,9 +685,14 @@ public class ProceduralLegs : MonoBehaviour
 
             Vector3 place = Vector3.Lerp(stepFrom, stepTo, Smooth(t));
 
-            // A sine arch: zero at both ends, highest in the middle. Cheaper
-            // and steadier than a curve asset, and nothing to misconfigure.
-            place.y += Mathf.Sin(t * Mathf.PI) * Arc;
+            // ---- LIFTS FAST, LANDS SOFT ----
+            //
+            // A plain sine peaks exactly halfway, which means the foot rises
+            // and falls at the same rate - and that reads as a hop. A real
+            // step snaps off the floor at toe-off and comes down shallow, so
+            // the peak sits early. Skewing t before the sine does that in one
+            // multiply, with nothing to misconfigure.
+            place.y += Mathf.Sin(Mathf.Pow(t, 0.72f) * Mathf.PI) * Arc;
 
             footPosition = place;
 
@@ -716,9 +765,18 @@ public class ProceduralLegs : MonoBehaviour
 
         stepping = true;
         stepAge = 0f;
-        stepTime = StepTime;
         stepFrom = footPosition;
         stepTo = rest;
+
+        // ---- THE STEP SIZES ITSELF ----
+        //
+        // Both the lift and the duration come from how far THIS step is
+        // actually going, worked out once here rather than guessed from speed.
+        // A long stride lifts high and takes a while; a small correction
+        // barely leaves the floor and is over quickly. Neither needs a rule
+        // about which it is.
+        stepLength = Vector3.Distance(Flat(stepFrom), Flat(stepTo));
+        stepTime = StepTime;
     }
 
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

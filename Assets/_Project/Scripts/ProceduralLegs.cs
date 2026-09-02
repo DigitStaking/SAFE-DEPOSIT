@@ -837,6 +837,26 @@ public class ProceduralLegs : MonoBehaviour
     /// <summary>True while this foot is in the air.</summary>
     public bool IsStepping => stepping;
 
+    // ---- what the on-screen readout reports -----------------------------
+
+    /// <summary>How far the current or last step travelled, in metres.</summary>
+    public float StepLength => stepLength;
+
+    /// <summary>How high the current or last step lifts, in metres.</summary>
+    public float StepLift => Arc;
+
+    /// <summary>How long the current or last step takes, in seconds.</summary>
+    public float StepSeconds => stepTime;
+
+    /// <summary>The stride budget right now, in metres.</summary>
+    public float StrideBudget => Stride;
+
+    /// <summary>How loaded this body is, 0 to 1.</summary>
+    public float LoadAmount => Load;
+
+    /// <summary>How hurt this body is, 0 to 1.</summary>
+    public float InjuryAmount => Injury;
+
     // --------------------------------------------------------------------
     // THE ONLY OUTPUT STEP 1 HAS
     // --------------------------------------------------------------------

@@ -89,6 +89,15 @@ public class ProceduralLegsIK : MonoBehaviour
              "jump the instant you leave or touch the floor.")]
     public float blendTime = 0.15f;
 
+    [Header("Diagnosis")]
+    [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
+             "The first line is the one that matters: IK WEIGHT. If it reads " +
+             "0.00 the feet are still entirely clip-driven and NO parameter in " +
+             "ProceduralLegs can change anything you see - which is worth " +
+             "knowing before spending an evening tuning numbers that are not " +
+             "connected to the picture.")]
+    public bool showReadout = true;
+
     Animator anim;
     PlayerMotor motor;
     PlayerHealth health;
@@ -208,5 +217,95 @@ public class ProceduralLegsIK : MonoBehaviour
 
         anim.SetIKRotationWeight(goal, live);
         anim.SetIKRotation(goal, Quaternion.LookRotation(forward.normalized, normal));
+    }
+
+    // --------------------------------------------------------------------
+    // THE READOUT
+    //
+    // Built because "it still looks like sliding" and "it looks better" are
+    // impossible to tell apart by eye in a dark room, and because there is one
+    // failure that makes every tuning number in ProceduralLegs meaningless: if
+    // this component is not actually driving the feet, the picture cannot
+    // change no matter what is typed into the inspector.
+    //
+    // So the first line is whether it is connected at all, and everything
+    // under it is the gait as the code currently understands it.
+    // --------------------------------------------------------------------
+
+    GUIStyle style;
+
+    void OnGUI()
+    {
+        if (!showReadout) return;
+        if (motor != null && !motor.IsLocal) return;   // not somebody else's legs
+
+        if (style == null)
+            style = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 13,
+                richText = true,
+                alignment = TextAnchor.UpperLeft
+            };
+
+        var text = new System.Text.StringBuilder();
+
+        bool wired = anim != null && anim.runtimeAnimatorController != null &&
+                     (left != null || right != null);
+
+        string colour = live > 0.5f ? "#7CFF7C" : "#FF7C5A";
+        text.Append("<color=").Append(colour).Append("><b>IK WEIGHT  ")
+            .Append(live.ToString("0.00")).Append("</b></color>");
+
+        if (!wired)
+        {
+            if (anim == null || anim.runtimeAnimatorController == null)
+                text.Append("   <color=#FF7C5A>NO ANIMATOR CONTROLLER on this " +
+                            "object - this component is not next to the real " +
+                            "Animator</color>");
+            else
+                text.Append("   <color=#FF7C5A>NO LEGS FOUND on a parent</color>");
+        }
+        else if (live <= 0.01f)
+        {
+            text.Append("   <color=#FF7C5A>feet are still clip-driven</color>");
+        }
+
+        var leg = right != null ? right : left;
+
+        if (leg != null)
+        {
+            float length = leg.StepLength;
+            float lift = leg.StepLift;
+            float seconds = leg.StepSeconds;
+
+            text.Append("\n\nspeed        ").Append(leg.Speed.ToString("0.00")).Append(" m/s");
+            text.Append("\nstep length  ").Append(length.ToString("0.00")).Append(" m");
+            text.Append("\nstep lift    ").Append((lift * 100f).ToString("0")).Append(" cm");
+
+            if (length > 0.01f)
+                text.Append("   (").Append((lift / length * 100f).ToString("0"))
+                    .Append("% of length - aim for 15 to 20)");
+
+            text.Append("\nstep time    ").Append(seconds.ToString("0.00")).Append(" s");
+            text.Append("\nstride budget").Append(leg.StrideBudget.ToString("0.00")).Append(" m");
+
+            if (length > 0.01f && seconds > 0.01f)
+                text.Append("\nfootfalls    ")
+                    .Append((2f * leg.Speed / length).ToString("0.0")).Append(" per second");
+
+            if (leg.LoadAmount > 0.01f)
+                text.Append("\nload         ").Append((leg.LoadAmount * 100f).ToString("0")).Append("%");
+
+            if (leg.InjuryAmount > 0.01f)
+                text.Append("\ninjury       ").Append((leg.InjuryAmount * 100f).ToString("0")).Append("%");
+
+            text.Append("\n\n<color=#9999AA>left  ")
+                .Append(left == null ? "MISSING" : (left.IsStepping ? "stepping" : "planted"))
+                .Append("    right ")
+                .Append(right == null ? "MISSING" : (right.IsStepping ? "stepping" : "planted"))
+                .Append("</color>");
+        }
+
+        GUI.Label(new Rect(14f, 90f, 460f, 260f), text.ToString(), style);
     }
 }

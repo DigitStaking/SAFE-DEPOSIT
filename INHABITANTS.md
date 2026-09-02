@@ -114,13 +114,27 @@ all punish carelessness has met one thing seven times.
 | 2 | the seller | **cable + time** | "he's two floors past our rope" |
 | 3 | the cannibal | **light + voice** | "lamps off. Nobody talk." |
 | 4 | the thief | **loot already earned** | "he's got my bag — push him!" |
-| 5 | the eyeless | **light, the other way** | "I'll go lit. You three stay dark." |
+| 5 | the eyeless | **your lamp itself** | "I'll go lit. You three stay dark." |
 | 6 | the tenant | **the radio** | "…is that you on the radio?" |
-| 7 | the one in the shaft | **time, at extraction** | "get IN, get in, get in" |
+| 7 | the weight | **the way out** | "why won't it move?" |
 
 Two of those are not threats — the fat man and the seller — and that is
 deliberate. Seven monsters is a bestiary; five monsters, a burden and a
 merchant is a **place**.
+
+**And no two take the same thing from you:**
+
+| | it takes |
+|---|---|
+| cannibal | **your health**, and your ability to coordinate |
+| thief | **loot you already earned** |
+| eyeless | **your sight** — the lamp, not the life |
+| tenant | **your trust in your own crew** |
+| weight | **your way out** |
+
+Health is the *only* one of those a normal game would think of. That is the
+point: four of the five threats never touch your HP bar, and are worse for
+it.
 
 ---
 
@@ -164,39 +178,95 @@ reads as a bug; losing what is on your back reads as a theft. And he is
 visible for a beat before he takes anything — a thief nobody saw is
 indistinguishable from the game losing your items.
 
-## 5 · The eyeless — sees light, hears nothing
+## 5 · THE EYELESS — it takes your sight
 
-Blind and deaf. Walks toward any lamp it can see and ignores everything else.
+**Its power: it breaks lights.** Not you. Lights.
 
-The **opposite** of the cannibal, on purpose: one is beaten by darkness and
-silence, the other by darkness alone — and a crew that meets both has to work
-out *which one is out there* before choosing how to hide.
+It has no eyes. It finds a lamp by the heat and the hum of it, walks to it,
+and puts it out — the cage light in a room, a dropped torch, and if it reaches
+you, **your headlamp**.
 
-It also finally gives the headlamp switch teeth. Phase 4 replicated that
-switch so a crewmate going dark is visible to everyone; against the eyeless,
-one lit scout and three dark crewmates is a formation, and **turning your lamp
-off becomes a message the game already knows how to send**.
+A broken headlamp is not a scratch. It is dark for the rest of the round, it
+follows you into the next one, and **it costs money at the shop to replace**.
+So the eyeless does something no other threat does: it takes a *tool* rather
+than health, and the crew pays for it two rounds later.
 
-## 6 · The tenant — it uses your radio
+**How it hunts:** it goes toward the brightest thing it can sense and ignores
+everything else. Sound means nothing to it. You can stand beside it and talk.
 
-Occupies the walkie-talkie channel. Not words — breathing, a wet click, your
-own crew's voices half a second late.
+**How you survive it:** turn your lamp off and walk past. That is the whole
+answer, and it is the reason this creature exists — Phase 4 replicated the
+headlamp switch so a crewmate going dark is visible to everyone, and right now
+that switch means nothing. Against the eyeless it becomes a formation: **one
+lit scout drawing it down a corridor while three dark crewmates loot behind
+it.**
 
-Phase 4 built the channel to hold exactly one voice at a time. **Nothing else
-in this game can take away the ability to talk**, and it costs a
-`NetworkVariable` that already exists plus an audio clip.
+**Why it is evil:** it does not kill you. It makes the building unusable and
+sends you home poorer, and a crew whose lamps are gone has to decide whether
+to keep going blind or take the loss.
 
-## 7 · The one in the shaft — it wants whoever is last
+---
 
-Lives in the elevator shaft. Comes for the crewmate who is slowest to board.
+## 6 · THE TENANT — it takes your trust
 
-**Taxes time at the exact moment time is already expensive**, and it makes the
-extraction a scramble rather than a walk. It never enters a room, so it is not
-a threat you fight — it is a threat you *outrun to the lift*, which is the
-thing the whole game is about.
+**Its power: it speaks in your crew's voices.**
 
-It is also the only inhabitant that makes the crew shout at each other, and it
-does not need a single line of combat code.
+It listens. When somebody talks near it — proximity or radio — it keeps a few
+seconds of them. Later, somewhere else, it plays them back.
+
+Not gibberish. **Your friend's actual voice**, saying something your friend
+actually said, arriving from the wrong room at the wrong time. And because
+Phase 4 already carries real voice frames between machines, this is genuinely
+that person's voice rather than an impression of one.
+
+**What it does with it:**
+
+- Calls you toward a room nobody is in
+- Says *"I'm down here"* in the voice of somebody who is fine, or who is
+  standing next to you
+- Takes the walkie-talkie channel and holds it, so the one person who needs
+  the radio cannot get on it
+
+**How you survive it:** verify. Ask a question it cannot answer with a
+recording, or go and look. Both cost time, which is the point.
+
+**Why it is evil:** every other threat here is answered by a rule — go dark,
+go quiet, run. This one is answered by **not believing your friends**, and a
+crew that has been caught once hesitates the next time somebody genuinely
+shouts for help.
+
+It is the only inhabitant that makes the game worse *after* you have killed
+it, because the doubt stays.
+
+---
+
+## 7 · THE WEIGHT — it takes your way out
+
+**Its power: it rides the elevator, and the elevator cannot move.**
+
+It does not chase anybody. It does not enter rooms. It climbs onto the car —
+the roof, the underside, the frame — and **it counts as mass**.
+
+The load gauge is already in this game and already refuses to move over
+550 kg. So the crew arrives at the lift, presses RETURN, and the dashboard
+says the car is too heavy. **Nothing is visibly wrong.** The deck looks the
+same as it did.
+
+**What it costs:** the crew has to find it and get it off. That means
+somebody leaves the car, goes around, and **pushes** — which is loud, and slow,
+and happening while the room timer runs and everything else on the floor is
+coming toward the noise.
+
+**How you survive it:** get it off, or drop enough loot to move anyway. That
+second option is the good one: **it turns your haul into the price of
+leaving.**
+
+**Why it is evil:** it arrives at the exact moment a run is over and safe. The
+crew has already won, is already counting the money, and the doors will not
+close. It turns the load gauge — a number the crew has been reading all game —
+into the thing telling them something is on the roof.
+
+---
 
 ---
 
@@ -255,7 +325,8 @@ punishes greed with weight; it does not need to punish it with breakage too.
 | push, Q drop, Q throw | **5** | verbs first. Every inhabitant below assumes push exists |
 | fat man + survivors | **5** | already costed in ECONOMY; the room kit places them |
 | survivors behind puzzles | **6** | ROADMAP already says *no exceptions* |
-| eyeless, one-in-the-shaft | **6** | hazards slot, and both are movement rules |
+| eyeless | **6** | hazard slot; it is a movement rule plus one interaction |
+| the weight | **6** | it is a number on the load gauge and a push |
 | cannibal | **6** | needs sound to be a system first |
 | thief, seller, gun | **7** | economy pieces before they are creatures |
 | the tenant | **7** | needs the radio to be something a crew relies on |

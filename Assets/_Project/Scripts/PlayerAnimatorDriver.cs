@@ -132,7 +132,35 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
         Transform facing = animator.transform;
         Vector3 local = facing.InverseTransformDirection(flat);
-        float unit = Mathf.Max(0.1f, walkSpeed);
+
+        // ---- NORMALISED AGAINST WHAT THIS BODY CAN DO NOW ----
+        //
+        // This divided by moveSpeed - the body's TOP speed, 4.5 - which is a
+        // number no injured or loaded player has been able to reach since
+        // Phase 2 put SpeedMultiplier in front of it.
+        //
+        // Three things scale that top speed and they MULTIPLY:
+        //
+        //   injury      1.00 healthy, 0.78 hurt, 0.52 critical, 0 downed
+        //   carrying    1.00 small,   0.70 heavy, 0.45 massive
+        //   dashboard   0 while you are stood at the panel
+        //
+        // A critical player carrying a safe tops out at 0.52 x 0.45 = 23% of
+        // 4.5, so MoveZ never rose above 0.23 no matter how hard they walked.
+        // The blend tree read that as barely moving and played an idle with a
+        // hint of walk in it - so the one player who most needed to LOOK like
+        // they were struggling instead looked like they were drifting.
+        //
+        // Dividing by their OWN top speed means walking flat out reads as
+        // walking flat out at any health and any load. How fast they are
+        // actually going is still visible, because they are still slower.
+        //
+        // Floored, because SpeedMultiplier is legitimately 0 when downed and
+        // when the dashboard has hold of you - and neither of those is a
+        // divide-by-zero, they are just not walking.
+        float capable = motor != null ? motor.moveSpeed * motor.SpeedMultiplier
+                                      : walkSpeed;
+        float unit = Mathf.Max(0.75f, capable);
 
         animator.SetFloat(MoveXId, local.x / unit, moveDamp, dt);
         animator.SetFloat(MoveZId, local.z / unit, moveDamp, dt);

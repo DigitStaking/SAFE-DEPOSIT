@@ -579,9 +579,7 @@ public class PlayerMotor : MonoBehaviour
 
     [Tooltip("PEAK-style. The body turns to face where it is WALKING rather " +
              "than where the camera is looking, so moving left turns the " +
-             "character left instead of making them shuffle sideways.
-
-" +
+             "character left instead of making them shuffle sideways. " +
              "Off = classic FPS: body welded to the camera, movement shows as " +
              "strafing.")]
     public bool faceMovementDirection = true;

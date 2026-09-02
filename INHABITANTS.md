@@ -102,89 +102,164 @@ because you were startled, it costs you the floor.
 
 ---
 
-# PART 3 — WHAT I WOULD ADD
+# PART 3 — THE DEMO SEVEN
 
-Four, each picked because it presses on something already built and needs
-little new code.
+*Decided 30 Aug 2026.* Seven inhabitants for the ten-floor demo. Chosen so
+that **no two tax the same resource** — a crew that meets seven things which
+all punish carelessness has met one thing seven times.
 
-## 1 · The one that hunts light ★
+| # | who | taxes | the sentence it makes a crew say |
+|---|---|---|---|
+| 1 | the fat man | **mass** | "he's four crates. Do we want him?" |
+| 2 | the seller | **cable + time** | "he's two floors past our rope" |
+| 3 | the cannibal | **light + voice** | "lamps off. Nobody talk." |
+| 4 | the thief | **loot already earned** | "he's got my bag — push him!" |
+| 5 | the eyeless | **light, the other way** | "I'll go lit. You three stay dark." |
+| 6 | the tenant | **the radio** | "…is that you on the radio?" |
+| 7 | the one in the shaft | **time, at extraction** | "get IN, get in, get in" |
 
-Blind. Comes toward any lamp it can see, and ignores you completely in the
-dark.
-
-**Taxes: light.** This is the one I would build first, and the reason is that
-Phase 4 just spent a commit replicating the headlamp switch so a crewmate
-going dark is visible to everyone. That switch currently means nothing. This
-gives it teeth:
-
-- You *can* cross its room. You just have to do it blind
-- The crew's lamps become a formation problem — one lit scout, three dark
-- **Somebody turning their lamp off is now a message**, and the game already
-  transmits it
-
-It needs no pathfinding cleverness and no combat. It walks at lights.
-
-## 2 · The tenant — it uses your radio ★★
-
-Occupies the walkie-talkie channel. Not with words — breathing, a wet click,
-the sound of your own crew's voices half a second late.
-
-**Taxes: the radio, which is the crew's only long-range coordination.** Phase
-4 built the channel to hold exactly one voice at a time, and that mechanic is
-sitting there waiting to be turned against the crew. Nothing else in this game
-can take away *the ability to talk*.
-
-Cheap to build — it is a NetworkVariable already written and an audio clip —
-and it does something no monster in this genre usually does: it makes four
-people go quiet and look at each other.
-
-## 3 · The follower — only dangerous when you are alone
-
-Keeps its distance while two crew are in sight of each other. Closes the
-moment somebody is alone.
-
-**Taxes: the crew.** Splitting up is how a crew loots efficiently, so this
-prices the efficient play without forbidding it. It also makes the proximity
-voice matter: hearing somebody through a wall is proof they are still there.
-
-## 4 · The one that is not a survivor
-
-Looks exactly like a downed crewmate at a distance. Kneeling, still, in the
-dark.
-
-**Taxes: the med spray, and trust.** A crew that has been burned once will
-hesitate over a real crewmate — and hesitating over a real crewmate is the
-most expensive thing this game can make you do.
-
-Use sparingly. One per campaign is a story; one per floor is a tax on paying
-attention.
+Two of those are not threats — the fat man and the seller — and that is
+deliberate. Seven monsters is a bestiary; five monsters, a burden and a
+merchant is a **place**.
 
 ---
 
-# PART 4 — WHERE THESE LAND
+## 3 · The cannibal — revised 30 Aug
+
+**Fast.** Not shambling. When it commits, the decision is already made and
+you are choosing which door, not whether to run.
+
+**It hunts by SOUND, and that includes the walkie-talkie.** Proximity voice,
+the radio, footsteps, a dropped crate, a gunshot. The radio one is the cruel
+part and the reason it is the best threat in the list: the crew's only
+long-range coordination becomes the thing that kills them, so the correct play
+against a cannibal is to **go dark, go quiet, and lose contact with each
+other**.
+
+That is a monster that separates a crew without ever touching them.
+
+- **20 damage** — five hits from full, and Phase 2 gives no regeneration
+  ever, so two hits in round 1 is a wound carried for the campaign
+- **Loses you in the dark and in silence.** If it tracks perfectly the lamp
+  and the radio stop being decisions, and the whole design collapses to a
+  chase
+- A **push** staggers it. One second, not a solution — enough to get through a
+  door, not enough to win
+
+## 4 · The thief — revised 30 Aug
+
+Takes a **stowed** item and runs for an edge, then jumps. Chasing does not
+work; that is the point of him.
+
+Two answers, and both cost:
+
+- **Shoot him** — he drops everything, and every ear on the floor now knows
+  where you are
+- **Push him** — he drops one item. Keep pushing, keep collecting, and it
+  becomes a scramble that is loud and slow and exactly as undignified as it
+  sounds
+
+He steals from the **pack, never the hands**. Losing what you are holding
+reads as a bug; losing what is on your back reads as a theft. And he is
+visible for a beat before he takes anything — a thief nobody saw is
+indistinguishable from the game losing your items.
+
+## 5 · The eyeless — sees light, hears nothing
+
+Blind and deaf. Walks toward any lamp it can see and ignores everything else.
+
+The **opposite** of the cannibal, on purpose: one is beaten by darkness and
+silence, the other by darkness alone — and a crew that meets both has to work
+out *which one is out there* before choosing how to hide.
+
+It also finally gives the headlamp switch teeth. Phase 4 replicated that
+switch so a crewmate going dark is visible to everyone; against the eyeless,
+one lit scout and three dark crewmates is a formation, and **turning your lamp
+off becomes a message the game already knows how to send**.
+
+## 6 · The tenant — it uses your radio
+
+Occupies the walkie-talkie channel. Not words — breathing, a wet click, your
+own crew's voices half a second late.
+
+Phase 4 built the channel to hold exactly one voice at a time. **Nothing else
+in this game can take away the ability to talk**, and it costs a
+`NetworkVariable` that already exists plus an audio clip.
+
+## 7 · The one in the shaft — it wants whoever is last
+
+Lives in the elevator shaft. Comes for the crewmate who is slowest to board.
+
+**Taxes time at the exact moment time is already expensive**, and it makes the
+extraction a scramble rather than a walk. It never enters a room, so it is not
+a threat you fight — it is a threat you *outrun to the lift*, which is the
+thing the whole game is about.
+
+It is also the only inhabitant that makes the crew shout at each other, and it
+does not need a single line of combat code.
+
+---
+
+# PART 4 — TWO NEW VERBS
+
+## PUSH — the game has no way to affect somebody without killing them
+
+Requested 30 Aug, and it is the most useful thing in this document, because it
+is a verb that works on **everything**: friends, thieves, cannibals, the fat
+man, a crate on a ledge.
+
+**What it costs:** a short cooldown and your hands being empty-ish. Nothing
+else. It is not a weapon, and it must never become one.
+
+| pushed | what happens |
+|---|---|
+| a crewmate | shoved. Out of a doorway, off a bridge, into a lift. **Yes, you can push a friend into the shaft** — and that has to stay possible, because a game where you cannot betray somebody is a game where trusting them means nothing |
+| the thief | drops **one** item. The scramble above |
+| the cannibal | staggered one second. Enough for a door |
+| the fat man | barely moves. He is 140 kg and the shove tells you so |
+| loot | slides. A crate you cannot lift can still be moved toward the lift |
+
+**Mass decides the outcome**, using the weight classes Phase 2 already built.
+Nothing new to tune: a push is an impulse, and 140 kg absorbs one.
+
+## Q — put it down, or hold to throw
+
+**E is for taking.** Q is for giving up, and separating them fixes something
+that has always been slightly wrong: the same key doing both means a
+mis-timed press picks up what you just dropped.
+
+- **Tap Q** — place it down, gently, where you stand
+- **Hold Q** — wind up. Release to throw
+
+**The heavier it is, the longer the wind-up and the shorter the throw.** A can
+goes across a room; a crate goes two metres and lands hard; a vending machine
+cannot be thrown at all and the wind-up simply never completes.
+
+What throwing is *for*, in order of how much it matters:
+
+1. **Loot into the lift** from the doorway, without walking it in — which
+   saves seconds, and seconds are the resource
+2. **Noise, deliberately** — a can thrown down a corridor is a cannibal sent
+   somewhere else. The first real counterplay in the game that is not hiding
+3. **At the thief** — slow, unreliable, satisfying
+
+Throwing loot **damages nothing** and loses no value. This game already
+punishes greed with weight; it does not need to punish it with breakage too.
+
+---
+
+# PART 5 — WHERE THESE LAND
 
 | | phase | why |
 |---|---|---|
-| fat man + survivors | **5** | already costed; the room kit places them |
+| push, Q drop, Q throw | **5** | verbs first. Every inhabitant below assumes push exists |
+| fat man + survivors | **5** | already costed in ECONOMY; the room kit places them |
 | survivors behind puzzles | **6** | ROADMAP already says *no exceptions* |
-| light-hunter, follower | **6** | traps and hazards are the same slot |
-| thief, seller, gun | **7** | all three are economy pieces first |
+| eyeless, one-in-the-shaft | **6** | hazards slot, and both are movement rules |
+| cannibal | **6** | needs sound to be a system first |
+| thief, seller, gun | **7** | economy pieces before they are creatures |
 | the tenant | **7** | needs the radio to be something a crew relies on |
-| the false survivor | **9** | it only works once people are comfortable |
 
-**Not before Phase 5.** There is nowhere to put any of them: the room kit is
-what gives a floor a place for a thing to be, and a cannibal in a graybox
-corridor teaches nothing about whether a cannibal is fun.
-
----
-
-# PART 5 — THE ONE I WOULD CUT IF THE DEMO IS TIGHT
-
-All of them except **the fat man and one threat**.
-
-The demo is ten floors and its job is to prove the loop — descend, weigh the
-haul against the rope, decide who you leave behind. A crew that meets four
-different monsters in ten floors learns none of them, and the loop gets less
-airtime than the bestiary.
-
-**One threat, met three times, is scarier than three threats met once.**
+**Push comes first, before any of them.** Four of the seven have an answer
+that is "push it", and building the creatures before the verb means building
+them twice.

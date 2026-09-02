@@ -225,6 +225,10 @@ The graybox becomes a real generator.
 - The door on a different side per floor — **already working**, Phase 1 built it
 - Doors, keys, locked states
 - **Survivors**, reusing Phase 2's downed-player carrying
+- ★ **PUSH, and Q to put down / hold Q to throw** — see `INHABITANTS.md`
+  Part 4. These come FIRST: four of the demo seven have an answer that is
+  "push it", and building the creatures before the verb means building them
+  twice.
 
 **Done when:** ten generated floors a stranger can navigate without a map.
 

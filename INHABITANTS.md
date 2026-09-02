@@ -102,7 +102,7 @@ because you were startled, it costs you the floor.
 
 ---
 
-# PART 3 — THE DEMO EIGHT
+# PART 3 — THE DEMO SEVEN
 
 ## In one line each
 
@@ -118,13 +118,12 @@ same register as "the thief takes your items and runs":
 | **the eyeless** | smashes your lamp, so you are dark for the rest of the round |
 | **the foreman** | wears hi-vis and carries a lamp, so at distance he looks like your crewmate |
 | **the passenger** | runs to your lift when he sees you and sits in it, +70 kg |
-| **the caretaker** | locks doors behind you |
 
 That is the whole of what they are. Everything below is detail about how each
 one behaves and how a crew beats it.
 
 
-*Decided 30 Aug 2026.* Eight inhabitants for the ten-floor demo. Chosen so
+*Decided 30 Aug 2026.* Seven inhabitants for the ten-floor demo. Chosen so
 that **no two tax the same resource** — a crew that meets seven things which
 all punish carelessness has met one thing seven times.
 
@@ -137,10 +136,9 @@ all punish carelessness has met one thing seven times.
 | 5 | the eyeless | **your lamp itself** | "I'll go lit. You three stay dark." |
 | 6 | the foreman | **trust in what you see** | "…is that you over there?" |
 | 7 | the passenger | **mass, and the way out** | "get him OFF the lift" |
-| 8 | the caretaker | **time, and your route back** | "the door was open when we came in" |
 
 Two of those are not threats — the fat man and the seller — and that is
-deliberate. Eight monsters is a bestiary; six monsters, a burden and a
+deliberate. Seven monsters is a bestiary; five monsters, a burden and a
 merchant is a **place**.
 
 **And no two take the same thing from you:**
@@ -152,7 +150,6 @@ merchant is a **place**.
 | eyeless | **your sight** — the lamp, not the life |
 | foreman | **your trust in what you see** |
 | passenger | **your way out, 70 kg at a time** |
-| caretaker | **your route back, and the clock** |
 
 Health is the *only* one of those a normal game would think of. That is the
 point: four of the five threats never touch your HP bar, and are worse for
@@ -229,33 +226,66 @@ to keep going blind or take the loss.
 
 ---
 
-## 6 · THE FOREMAN — he looks like one of you
+## 6 · THE FOREMAN — the man you think is your friend
 
-**What he does: he wears a hi-vis suit and carries a working lamp.**
+### The problem he exists to create
 
-That is all. He was a worker in this building before it was condemned, and he
-is still dressed for the job.
+Right now, on a dark floor, **you identify a crewmate by exactly one thing: a
+moving light in a red suit.** Not their name, not their face — you cannot see
+either at fifteen metres. A light in a suit means friend, every time, without
+you ever deciding it.
 
-Across a dark floor, **the only way you tell a crewmate from anything else is
-a moving light in a coloured suit.** That is not a design decision, it is just
-true of the game as it already exists. The foreman is what happens when that
-stops being reliable.
+The foreman is a dead building worker in an orange hi-vis jacket with a
+working lamp on his helmet. At fifteen metres in the dark, **he is the same
+handful of pixels a crewmate is.**
 
-- He stands still, or walks slowly, lamp on
-- He does not speak, so there is **no language and no AI** — the thing that
-  made the tenant unbuildable does not apply to him at all
-- Get close and it is obvious. The suit is filthy and forty years out of
-  date. The problem is that *close* is already too close
+### What actually happens, moment by moment
 
-**What it costs you:** you walk toward him thinking somebody is looting that
-room, and you are now somewhere you did not plan to be, with your back to a
-corridor. He does not have to touch you to have cost you the floor.
+1. **You come into a room and there is a light at the far end.** Somebody is
+   already looting it. You relax slightly and carry on with what you were
+   doing
+2. **The light does not move the way a player moves.** No strafing, no
+   looking around, no bobbing. It stands there. But you are not watching it
+   closely, because it is your mate
+3. **You get within about six metres and it is obvious.** The jacket is
+   orange, not red. The suit is filthy. He is much too still
+4. **He turns and walks away from you** — slowly, staying at the edge of your
+   lamp, going deeper into the floor
+5. **If you follow, you end up somewhere you did not plan to be.** That is
+   the whole of what he costs you
 
-**How you survive him:** the radio. Ask who is in the north room. A crew that
-uses the walkie-talkie properly is never fooled twice — which quietly makes
-the 20 you spent on radios worth it.
+### He never touches you
 
----
+No damage, no grab, no chase. **He is a liar, not a killer.**
+
+That is deliberate, and it is why he is worth a slot. The cannibal already
+supplies violence. What the foreman supplies is the thing violence cannot:
+after the first time, **every distant light on every floor is a question**,
+and the crew has to spend something to answer it.
+
+### What it costs you
+
+- **Position.** You walked away from your route and away from the lift,
+  following something
+- **Time**, which is the clock that never stops
+- **Attention.** You spent ten seconds being sure, and ten seconds is a long
+  time to be looking the wrong way
+
+### How a crew beats him
+
+**The radio.** *"Who's in the north room?"* — silence answers it instantly.
+
+That is the quiet reason he belongs in this game specifically: the crew paid
+20 each for walkie-talkies, and this is the first threat that makes those an
+answer rather than a convenience. A crew with radios is never fooled twice. A
+crew without them walks toward every light, every time.
+
+### Why he is cheap to build
+
+He is a model, a light, an idle animation and one rule: *stand still; when a
+player gets close, walk away from them.* **No combat, no damage, no audio, no
+language** — which is exactly why he can do the tenant's job without any of
+the tenant's problems.
 
 ## 7 · THE PASSENGER — he wants to leave too
 
@@ -282,31 +312,6 @@ He is the fat man's opposite and that is the point. **The fat man is a person
 you choose to save. The passenger is a person you did not choose**, and the
 crew will argue about him far more bitterly than they ever argue about the
 fat man.
-
----
-
-## 8 · THE CARETAKER — he locks up behind you
-
-**What he does: he closes and locks doors you have already come through.**
-
-He is not following you to hurt you. He is doing his job. The building is
-closing and he is going round shutting it, and he does not much care that you
-are still inside it.
-
-**What it costs you: the route back.** You came in through the north door and
-looted three rooms, and now the north door is locked and the way to the lift
-is the long way round — with the room timer running, which is the one clock in
-this game that never stops.
-
-**How you survive him:** keys, which Phase 6 is building anyway. Or get ahead
-of him: he works in one direction, so a crew that notices which way he is
-going can loot behind him instead of in front of him.
-
-**Why he is worth having:** he is the only inhabitant that makes a floor
-change shape while you are standing in it, and he does it without a single
-point of damage. He also gives the locked-door kit a reason to exist outside
-of puzzles — a door can be locked because somebody locked it, not because a
-designer put a lock there.
 
 ---
 
@@ -369,7 +374,6 @@ punishes greed with weight; it does not need to punish it with breakage too.
 | survivors behind puzzles | **6** | ROADMAP already says *no exceptions* |
 | eyeless | **6** | hazard slot; it is a movement rule plus one interaction |
 | the passenger | **6** | he is a walk toward the lift and 70 kg |
-| the caretaker | **6** | he needs doors and locks, which Phase 6 builds anyway |
 | cannibal | **6** | needs sound to be a system first |
 | thief, seller, gun | **7** | economy pieces before they are creatures |
 | the foreman | **7** | he is beaten by the radio, so the radio has to matter first |

@@ -573,41 +573,65 @@ public class PlayerMotor : MonoBehaviour
     }
 
     [Header("Turning")]
-    [Tooltip("Degrees per second the BODY turns to catch up with where you are " +
-             "looking. Lower is loose and physical; very high is the old " +
-             "instant snap. 540 is about a third of a second for a half turn.")]
+    [Tooltip("Degrees per second the body turns. Lower is looser and more " +
+             "physical; very high is the old instant snap.")]
     public float bodyTurnSpeed = 540f;
 
+    [Tooltip("PEAK-style. The body turns to face where it is WALKING rather " +
+             "than where the camera is looking, so moving left turns the " +
+             "character left instead of making them shuffle sideways.
+
+" +
+             "Off = classic FPS: body welded to the camera, movement shows as " +
+             "strafing.")]
+    public bool faceMovementDirection = true;
+
+    [Tooltip("Below this speed the body has no travel direction to face, so " +
+             "it turns back toward the camera instead.")]
+    public float turnToCameraBelow = 0.6f;
+
     /// <summary>
-    /// Turn the body toward where the camera is looking, OVER TIME.
+    /// Point the body where it is GOING, not where the camera is looking.
     ///
-    /// This was a snap - MoveRotation straight to the camera's yaw, every
-    /// physics step - and that is what made the legs look wrong. The body
-    /// arrived at the new angle instantly, so the walk cycle was simply
-    /// rotated rather than stepped through: feet pointing one way while the
-    /// character travelled another, which is the exact thing that reads as
-    /// "sliding" rather than "walking".
+    /// The first attempt at this only smoothed the turn toward the camera, and
+    /// that fixed the wrong half. With the body welded to the camera, walking
+    /// left is a STRAFE - the character shuffles sideways with their chest
+    /// still pointing forward - and no amount of smoothing changes that,
+    /// because the blend tree is being told, correctly, that it is strafing.
     ///
-    /// The 2D blend tree underneath has had strafe-left, strafe-right and
-    /// walk-backward in it since Phase 1, and the clips are all in the
-    /// project. It was never the animation that was missing. It was the TIME
-    /// to play it - a turn that finishes in one frame gives a walk cycle
-    /// nothing to do.
+    /// PEAK's characters do not strafe. They TURN. Walk left and the whole
+    /// body swings left and walks forward, which is why their legs read as
+    /// going where the character is going.
     ///
-    /// Now the body lags and catches up, so a turn is a few frames of the legs
-    /// crossing over, and a strafe is the body angled away from travel with
-    /// the strafe clip actually visible on it.
+    /// So the target yaw is the direction of travel while moving, and the
+    /// camera while standing still. The blend tree then spends nearly all its
+    /// time in the forward walk with the body rotated - which is exactly the
+    /// look that was asked for, and it needs no new clips at all. The strafe
+    /// clips stay in the tree and still cover the moment mid-turn.
     ///
-    /// FIRST PERSON IS UNAFFECTED. Aim comes from the camera, the pickup ray
-    /// comes from the eye, and movement is camera-relative - none of them read
-    /// the body's yaw. This changes only what OTHER PEOPLE see of you, which
-    /// is precisely where the problem was.
+    /// FIRST PERSON IS UNAFFECTED, and this is what makes it safe. Aim comes
+    /// from the camera, the pickup ray from the eye, and movement is
+    /// camera-relative - none of them read the body's yaw. It changes what
+    /// other people see of you, and what you see of yourself in third person.
     /// </summary>
     void FaceCameraYaw()
     {
         if (Cam == null) return;
 
         float want = Cam.eulerAngles.y;
+
+        if (faceMovementDirection)
+        {
+            Vector3 travel = rb.linearVelocity;
+            travel.y = 0f;
+
+            // Below a walking pace there is no direction to face - standing
+            // still has no heading - so it falls back to the camera and the
+            // character ends up looking where the player is looking.
+            if (travel.sqrMagnitude > turnToCameraBelow * turnToCameraBelow)
+                want = Quaternion.LookRotation(travel.normalized).eulerAngles.y;
+        }
+
         float have = rb.rotation.eulerAngles.y;
 
         // MoveRotation, not transform.rotation. Writing the transform of a
@@ -618,6 +642,8 @@ public class PlayerMotor : MonoBehaviour
 
         rb.MoveRotation(Quaternion.Euler(0f, next, 0f));
     }
+
+
 
     // Green when grounded, red when airborne. Free in a build, saves hours.
     void OnDrawGizmosSelected()

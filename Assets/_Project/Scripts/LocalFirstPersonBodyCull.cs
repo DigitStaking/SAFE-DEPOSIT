@@ -271,7 +271,16 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
         if (!thirdPerson || cam == null) return;
 
         // Over-the-shoulder so you can check the walk cycle and the arm pose.
-        Vector3 back = -transform.forward;
+        // ---- BEHIND THE CAMERA, NOT BEHIND THE BODY ----
+        //
+        // This used the BODY's forward, which was the same as the camera's
+        // right up until the body started facing where it walks. After that,
+        // strafing would swing the third-person camera around the character
+        // like a boom arm - which is unusable, and worse, it would have hidden
+        // the very turn this view exists to look at.
+        float lookYaw = fpCam != null ? fpCam.Yaw : transform.eulerAngles.y;
+
+        Vector3 back = -(Quaternion.Euler(0f, lookYaw, 0f) * Vector3.forward);
         back.y = 0f;
         if (back.sqrMagnitude < 0.01f) back = Vector3.back;
         back.Normalize();

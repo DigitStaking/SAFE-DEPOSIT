@@ -86,6 +86,18 @@ public class CrewMemberNet : NetworkBehaviour
         new NetworkVariable<float>(0f, default, NetworkVariableWritePermission.Owner);
 
     /// <summary>
+    /// Where this player is LOOKING, in degrees of yaw.
+    ///
+    /// Body yaw used to be the same thing, so this was not needed. It stopped
+    /// being the same thing the moment the body began facing where it WALKS
+    /// rather than where the camera points - and without this, a teammate
+    /// walking sideways would have their headlamp pointing along their travel
+    /// instead of along their gaze.
+    /// </summary>
+    public readonly NetworkVariable<float> LookYaw =
+        new NetworkVariable<float>(0f, default, NetworkVariableWritePermission.Owner);
+
+    /// <summary>
     /// Is this player's headlamp on. Owner-written, like their look direction:
     /// they pressed the switch, so they report it.
     ///
@@ -113,6 +125,9 @@ public class CrewMemberNet : NetworkBehaviour
         // Only when it has actually moved. A float that resends every frame is
         // four players' worth of traffic for a number that is usually still.
         if (Mathf.Abs(pitch - LookPitch.Value) > 0.75f) LookPitch.Value = pitch;
+
+        float yaw = eye.eulerAngles.y;
+        if (Mathf.Abs(Mathf.DeltaAngle(yaw, LookYaw.Value)) > 0.75f) LookYaw.Value = yaw;
 
         var lamp = GetComponent<PlayerHeadlamp>();
         if (lamp != null && lamp.IsOn != LampOn.Value) LampOn.Value = lamp.IsOn;

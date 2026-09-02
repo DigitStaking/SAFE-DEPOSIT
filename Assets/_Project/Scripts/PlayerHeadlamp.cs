@@ -486,16 +486,30 @@ public class PlayerHeadlamp : MonoBehaviour
             // CrewMemberNet.LookPitch is one float, written by the only
             // machine that knows it.
             float pitch = 0f;
+            float yaw = transform.eulerAngles.y;
+
             var owner = PlayerRegistry.OwnerOf(this);
             var row = owner != null ? CrewMemberNet.ForSlot(owner.Slot) : null;
-            if (row != null) pitch = row.LookPitch.Value;
+
+            if (row != null)
+            {
+                pitch = row.LookPitch.Value;
+
+                // ---- YAW FROM THE GAZE, NOT FROM THE BODY ----
+                //
+                // Body yaw was the same as look yaw right up until the body
+                // started facing where it WALKS. Now a crewmate walking
+                // sideways has a body pointing along their travel and a head
+                // pointing somewhere else - and the lamp belongs to the head.
+                //
+                // Using the body here would have put every teammate's beam
+                // along their footsteps, which looks like the lamp is broken
+                // rather than like they are looking over their shoulder.
+                yaw = row.LookYaw.Value;
+            }
 
             pos = headBone.position + headBone.TransformDirection(headOffset);
-
-            // Body yaw for direction, replicated pitch for elevation - which
-            // between them is the whole of where a person is looking.
-            aim = Quaternion.Euler(pitch, transform.eulerAngles.y, 0f)
-                  * Quaternion.Euler(aimEuler);
+            aim = Quaternion.Euler(pitch, yaw, 0f) * Quaternion.Euler(aimEuler);
         }
         else if (cameraFallback != null)
         {

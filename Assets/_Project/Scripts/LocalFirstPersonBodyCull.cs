@@ -79,11 +79,11 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     public string[] hideNameParts = { "helmet", "visor", "hair", "hat" };
 
     [Header("Third person check")]
-    // F3, and staying there. V is push-to-talk for your actual voice and U is
-    // the radio - both are mechanics, and a debug camera toggle does not get
-    // to sit on either. This moved twice while the voice keys were being
-    // decided; it is settled now.
-    public KeyCode thirdPersonToggle = KeyCode.F3;   // shown for reference
+    // P, requested 30 Aug so the PEAK-style locomotion can actually be looked
+    // at. It moved twice while the voice keys were being decided - V went to
+    // push-to-talk, U to the radio - and it is not going back onto either of
+    // those. P is free, memorable, and next to nothing.
+    public KeyCode thirdPersonToggle = KeyCode.P;   // shown for reference
     public float thirdPersonDistance = 3.2f;
     public float thirdPersonHeight = 1.4f;
 
@@ -215,8 +215,13 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     void Update()
     {
+        // Not while a menu is up. P is a letter, and the crew-name field on
+        // the lobby is a text box - typing "Pete's crew" should not flip the
+        // camera behind you three times.
+        if (CrewLobby.PanelUp) return;
+
         var kb = PlayerRegistry.KeysOf(this);
-        if (kb != null && kb.f3Key.wasPressedThisFrame)
+        if (kb != null && kb.pKey.wasPressedThisFrame)
         {
             thirdPerson = !thirdPerson;
             HideSeparateProps(!thirdPerson);
@@ -235,7 +240,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
             Debug.Log(thirdPerson
                 ? "[Cull] third person ON - the camera is detached and will " +
-                  "not follow you. Press F3 again."
+                  "not follow you. Press P again."
                 : "[Cull] third person off - camera reattached.");
         }
     }
@@ -259,7 +264,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             {
                 reported = true;
                 Debug.Log($"[FP Cull] head bone shrunk, body kept. " +
-                          $"{hidden.Count} separate head props hidden. Press F3 for third person.");
+                          $"{hidden.Count} separate head props hidden. Press P for third person.");
             }
         }
 

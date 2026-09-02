@@ -182,8 +182,24 @@ public class ProceduralLegs : MonoBehaviour
     public float probeDown = 1.6f;
 
     [Header("Debug - step 1 has no IK, only this")]
-    [Tooltip("Draw the foot, its target and its probe in the Scene view.")]
+    [Tooltip("Draw the foot, its target and its probe in the SCENE view. " +
+             "Gizmos never render in the Game view, which is why the markers " +
+             "below exist as well.")]
     public bool drawGizmos = true;
+
+    [Tooltip("Spawn real spheres for the foot and its target, so they are " +
+             "visible in the GAME view while you play.\n\n" +
+             "Gizmos were the obvious choice and the wrong one here: they draw " +
+             "only in the Scene view, and this game is played in a pitch-dark " +
+             "building. A debug visual you have to stop and go looking for is a " +
+             "debug visual that does not get looked at.\n\n" +
+             "These are unlit, so the dark cannot hide them, and they cast no " +
+             "shadow and carry no collider - nothing can bump into them, pick " +
+             "them up or scan them for a price.")]
+    public bool showRuntimeMarkers = true;
+
+    [Tooltip("Diameter of the debug spheres, in metres.")]
+    public float markerSize = 0.085f;
 
     // ---- WHAT THIS BODY IS ACTUALLY DOING -------------------------------
 
@@ -263,7 +279,102 @@ public class ProceduralLegs : MonoBehaviour
 
         Measure(dt);
         Advance(dt);
+        ShowMarkers();
     }
+
+    // --------------------------------------------------------------------
+    // SOMETHING YOU CAN ACTUALLY SEE WHILE PLAYING
+    // --------------------------------------------------------------------
+
+    Transform footMarker;
+    Transform restMarker;
+    Material footMaterial;
+
+    void ShowMarkers()
+    {
+        if (!showRuntimeMarkers)
+        {
+            if (footMarker != null) ClearMarkers();
+            return;
+        }
+
+        if (footMarker == null)
+        {
+            footMarker = MakeMarker("~legFoot", Color.green, markerSize);
+            footMaterial = footMarker.GetComponent<Renderer>().material;
+        }
+
+        if (restMarker == null)
+            restMarker = MakeMarker("~legRest", new Color(0.25f, 0.7f, 1f),
+                                    markerSize * 0.6f);
+
+        footMarker.position = footPosition;
+        restMarker.position = restCache;
+
+        // Yellow in the air, green planted - the same code the gizmo uses, so
+        // the two views cannot disagree about what the foot is doing.
+        Tint(footMaterial, stepping ? Color.yellow : Color.green);
+    }
+
+    /// <summary>
+    /// A sphere that survives a dark room: unlit so no lamp is needed, no
+    /// shadow so it cannot be mistaken for geometry, and NO COLLIDER - which
+    /// matters more than it sounds. A collider here would be something the
+    /// player could walk into, the pickup ray could hit, and the price scanner
+    /// could try to value.
+    /// </summary>
+    Transform MakeMarker(string name, Color colour, float size)
+    {
+        var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        go.name = name;
+        go.hideFlags = HideFlags.DontSave;
+
+        var collider = go.GetComponent<Collider>();
+        if (collider != null) Destroy(collider);
+
+        go.transform.localScale = Vector3.one * size;
+
+        var renderer = go.GetComponent<Renderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        var shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
+
+        var material = new Material(shader);
+        renderer.material = material;
+        Tint(material, colour);
+
+        return go.transform;
+    }
+
+    /// <summary>
+    /// URP's Unlit uses _BaseColor and the old built-in shaders use _Color.
+    /// Setting only one leaves the sphere magenta or white depending on which
+    /// pipeline answered Shader.Find, so set whichever is actually there.
+    /// </summary>
+    static void Tint(Material material, Color colour)
+    {
+        if (material == null) return;
+
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", colour);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", colour);
+    }
+
+    void ClearMarkers()
+    {
+        if (footMarker != null) Destroy(footMarker.gameObject);
+        if (restMarker != null) Destroy(restMarker.gameObject);
+
+        if (footMaterial != null) Destroy(footMaterial);
+
+        footMarker = null;
+        restMarker = null;
+        footMaterial = null;
+    }
+
+    void OnDisable() => ClearMarkers();
 
     void Measure(float dt)
     {
@@ -424,9 +535,20 @@ public class ProceduralLegs : MonoBehaviour
     // STEPPING
     // --------------------------------------------------------------------
 
+    /// <summary>
+    /// The last target worked out this frame.
+    ///
+    /// Rest() casts a ray, and the gizmo, the marker and the step logic all
+    /// want the answer. Asking three times gave three raycasts per foot per
+    /// frame and, worse, three chances for the debug view to disagree with
+    /// what the foot was actually doing.
+    /// </summary>
+    Vector3 restCache;
+
     void Advance(float dt)
     {
         Vector3 rest = Rest();
+        restCache = rest;
 
         if (stepping)
         {
@@ -501,7 +623,7 @@ public class ProceduralLegs : MonoBehaviour
     {
         if (!drawGizmos || !Application.isPlaying) return;
 
-        Vector3 rest = Rest();
+        Vector3 rest = restCache;
 
         // Where the foot wants to be. Blue when the probe found floor, orange
         // when it did not - so a foot hunting for ground that is not there is

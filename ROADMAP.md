@@ -20,8 +20,8 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
   PHASE 3  ████████████  de-single-player .................. DONE  7/7
-  PHASE 4  ██░░░░░░░░░░  netcode + PROXIMITY VOICE ...... in progress  2/11
-  PHASE 5  ░░░░░░░░░░░░  the room kit
+  PHASE 4  ████████████  netcode + PROXIMITY VOICE ........ BUILT  11/11
+  PHASE 5  ░░░░░░░░░░░░  the room kit .................. next
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
   PHASE 7  ░░░░░░░░░░░░  economy and shop
   PHASE 8  ░░░░░░░░░░░░  polish + FULL AUDIO PASS
@@ -404,3 +404,33 @@ And the two things it cannot do: **drag things in the Unity editor** — so
 prefabs get built by editor scripts, which has worked every time — and **see
 your game**, so keep sending screenshots. Every layout bug in Phase 1 was found
 in one, and several were found *only* in one.
+
+---
+
+# PHASE 4 — WHAT IS BUILT vs WHAT IS PROVEN
+
+*30 Aug 2026.* All eleven steps are written and compile. That is not the same
+as verified, and the distinction matters before Phase 5 builds on top.
+
+**Proven with two machines:** connect, bodies, the lift and its riders, the
+loot, the round change, the lobby, Steam relay, voice reaching another person.
+
+**Written but never once seen working with two people:**
+
+| | |
+|---|---|
+| Step 3 | the host buys cable and the client's shop shows it |
+| Step 4 | two players on different HP, both HUDs right |
+| Step 7 | one player sprays another back onto their feet |
+| Step 9 | the crew argues about cable versus their friend |
+| Step 6 payoff | **one haul, one bank** on RETURN |
+
+Every one of those needs a crew and about ten minutes. They are the done-whens
+this phase was written against, and until they are ticked, Phase 4 is a phase
+that compiles.
+
+**The lesson worth carrying forward,** because it cost this phase more time
+than any single bug: *a symptom that is asymmetric — works on the host, fails
+on the client, or only slot 0 is wrong — is a replication or identity problem.
+A symptom that works once and then stops is a cached answer going stale.* Both
+rules are in project memory now.

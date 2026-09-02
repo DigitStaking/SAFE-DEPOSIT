@@ -572,73 +572,44 @@ public class PlayerMotor : MonoBehaviour
         rb.AddForce(Physics.gravity * (fallGravityMultiplier - 1f), ForceMode.Acceleration);
     }
 
-    [Header("Turning")]
-    [Tooltip("Degrees per second the body turns. Lower is looser and more " +
-             "physical; very high is the old instant snap.")]
-    public float bodyTurnSpeed = 540f;
-
-    [Tooltip("PEAK-style. The body turns to face where it is WALKING rather " +
-             "than where the camera is looking, so moving left turns the " +
-             "character left instead of making them shuffle sideways. " +
-             "Off = classic FPS: body welded to the camera, movement shows as " +
-             "strafing.")]
-    public bool faceMovementDirection = true;
-
-    [Tooltip("Below this speed the body has no travel direction to face, so " +
-             "it turns back toward the camera instead.")]
-    public float turnToCameraBelow = 0.6f;
-
     /// <summary>
-    /// Point the body where it is GOING, not where the camera is looking.
+    /// THE BODY FACES THE CAMERA. ALWAYS. THIS IS NOT A TUNING CHOICE.
     ///
-    /// The first attempt at this only smoothed the turn toward the camera, and
-    /// that fixed the wrong half. With the body welded to the camera, walking
-    /// left is a STRAFE - the character shuffles sideways with their chest
-    /// still pointing forward - and no amount of smoothing changes that,
-    /// because the blend tree is being told, correctly, that it is strafing.
+    /// An earlier attempt turned the body toward the direction of travel, so
+    /// that walking left swung the whole character left. That is how PEAK
+    /// looks, and it is NOT what this game wants:
     ///
-    /// PEAK's characters do not strafe. They TURN. Walk left and the whole
-    /// body swings left and walks forward, which is why their legs read as
-    /// going where the character is going.
+    ///     "The character orientation is controlled by the camera, not by the
+    ///      movement input. Do not rotate the character toward the movement
+    ///      direction. This is the most important requirement."
     ///
-    /// So the target yaw is the direction of travel while moving, and the
-    /// camera while standing still. The blend tree then spends nearly all its
-    /// time in the forward walk with the body rotated - which is exactly the
-    /// look that was asked for, and it needs no new clips at all. The strafe
-    /// clips stay in the tree and still cover the moment mid-turn.
+    /// Press S and you walk backwards while still facing forward. Press A and
+    /// you strafe left while still facing forward. Where you LOOK and where
+    /// you GO are two independent things, and the body only ever answers the
+    /// first one.
     ///
-    /// FIRST PERSON IS UNAFFECTED, and this is what makes it safe. Aim comes
-    /// from the camera, the pickup ray from the eye, and movement is
-    /// camera-relative - none of them read the body's yaw. It changes what
-    /// other people see of you, and what you see of yourself in third person.
+    /// That leaves a real problem - a character whose chest never turns has to
+    /// show direction some other way, or every sideways movement is a shuffle.
+    /// It is answered in ProceduralLegs, not here. The feet step in the true
+    /// world direction of travel while the body holds still above them, which
+    /// is what a person actually does when they side-step.
+    ///
+    /// So this file went back to exactly what it was, and the whole problem
+    /// moved to the legs where it belongs.
     /// </summary>
     void FaceCameraYaw()
     {
         if (Cam == null) return;
 
-        float want = Cam.eulerAngles.y;
-
-        if (faceMovementDirection)
-        {
-            Vector3 travel = rb.linearVelocity;
-            travel.y = 0f;
-
-            // Below a walking pace there is no direction to face - standing
-            // still has no heading - so it falls back to the camera and the
-            // character ends up looking where the player is looking.
-            if (travel.sqrMagnitude > turnToCameraBelow * turnToCameraBelow)
-                want = Quaternion.LookRotation(travel.normalized).eulerAngles.y;
-        }
-
-        float have = rb.rotation.eulerAngles.y;
-
+        // Instant, not smoothed. Smoothing puts the body a few degrees behind
+        // the camera during a fast mouse turn, and in first person that is
+        // your own shoulders and arms lagging behind your view - which reads
+        // as input lag on the one thing that must never have any.
+        //
         // MoveRotation, not transform.rotation. Writing the transform of a
         // Rigidbody teleports it as far as the solver is concerned, which
         // corrupts contacts and makes constraints explode.
-        float next = Mathf.MoveTowardsAngle(have, want,
-                                            bodyTurnSpeed * Time.fixedDeltaTime);
-
-        rb.MoveRotation(Quaternion.Euler(0f, next, 0f));
+        rb.MoveRotation(Quaternion.Euler(0f, Cam.eulerAngles.y, 0f));
     }
 
 

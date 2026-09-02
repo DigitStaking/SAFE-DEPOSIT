@@ -91,9 +91,18 @@ using UnityEngine;
 [DefaultExecutionOrder(25)]
 public class ProceduralLegs : MonoBehaviour
 {
+    public enum Side { Left = -1, Right = 1 }
+
+    [Header("Which leg")]
+    [Tooltip("Which side of the body this foot belongs to. Decides which way " +
+             "the stance offset points and, from step 2, which foot leads when " +
+             "you strafe - stepping right should start with the right foot.")]
+    public Side side = Side.Right;
+
     [Header("Stance")]
     [Tooltip("How far to the side of the body centre line this foot rests, in " +
-             "metres. Half the gap between the feet.")]
+             "metres. Half the gap between the feet. Always positive - the " +
+             "side field above decides the direction.")]
     public float stanceWidth = 0.13f;
 
     [Tooltip("Forward offset of the resting foot from the body centre. Zero is " +
@@ -146,6 +155,18 @@ public class ProceduralLegs : MonoBehaviour
              "This is ON TOP of being slower, which already shortens it, and it " +
              "is what separates hurt from strolling.")]
     [Range(0f, 1f)] public float injuryStrideCut = 0.3f;
+
+    [Header("Limits - what stops the legs tangling")]
+    [Tooltip("Closest this foot may come to the body centre line, in metres. " +
+             "The legs CANNOT cross. Strafing right pulls the left foot to the " +
+             "right, and without this it walks through the right leg.")]
+    public float minSeparation = 0.07f;
+
+    [Tooltip("Furthest this foot may be planted from directly below the hips, " +
+             "in metres. A leg has a length; without this a fast strafe throws " +
+             "the target out past where any knee could follow, and step 3 would " +
+             "have to stretch the limb to reach it.")]
+    public float maxReach = 0.62f;
 
     [Header("Ground")]
     [Tooltip("What counts as floor. Copied from PlayerMotor on Awake so the " +
@@ -326,20 +347,55 @@ public class ProceduralLegs : MonoBehaviour
     /// </summary>
     Vector3 Rest()
     {
-        float width = stanceWidth + loadStanceWiden * Load;
-
-        Vector3 beside = transform.right * width + transform.forward * stanceForward;
+        float width = (stanceWidth + loadStanceWiden * Load) * (int)side;
 
         // ---- THE LEAD IS WHY THERE ARE NO DIRECTIONAL CASES ----
         //
-        // The foot aims at where the body WILL be, and the body's velocity
-        // already points wherever the player is going - forward, backward,
-        // sideways, diagonal, or being shoved by somebody else. There is no
-        // "if walking left" anywhere in this file and there never needs to be,
-        // which is the whole reason this replaces five clips with none.
-        Vector3 lead = Travel * stepLead;
+        // The foot aims at where the body WILL be, and Travel is a WORLD
+        // vector that already points wherever the player is actually going -
+        // forward, backward, sideways, diagonal, or being shoved by somebody
+        // else. It is never rotated into the body's frame, and that is the
+        // point:
+        //
+        //   THE BODY DOES NOT TURN. THE FEET DO ALL OF IT.
+        //
+        // PlayerMotor welds the body to the camera, so pressing S walks you
+        // backwards while still facing forward and pressing A strafes you left
+        // while still facing forward. The chest cannot show which way you are
+        // going, so the feet have to - and because the lead follows a world
+        // velocity rather than an input axis, all 360 degrees are one case.
+        // There is no "if walking left" in this file and there never needs to
+        // be, which is the whole reason this replaces five clips with none.
+        Vector3 offset = transform.right * width
+                       + transform.forward * stanceForward
+                       + Travel * stepLead;
 
-        return Ground(transform.position + beside + lead);
+        // ---- CLAMPED IN THE BODY'S OWN FRAME ----
+        //
+        // With a body that never turns, the body IS the fixed reference, and
+        // two things have to be true in it no matter which way you travel.
+        Vector3 local = transform.InverseTransformDirection(offset);
+        local.y = 0f;
+
+        // A leg has a length. A fast strafe throws the raw target far past
+        // where any knee could follow, and step 3 would have to stretch the
+        // limb to reach it.
+        local = Vector3.ClampMagnitude(local, maxReach);
+
+        // ---- AND THE LEGS MUST NOT CROSS ----
+        //
+        // This is the case that only exists because the body is fixed. Strafe
+        // right and the lead pulls BOTH feet right - including the left one,
+        // which would walk straight through the right leg.
+        //
+        // Holding each foot on its own side turns that into what a person
+        // actually does side-stepping: the leading foot steps out, the
+        // trailing foot closes up behind it. The gait falls out of the
+        // constraint rather than being animated.
+        if (side == Side.Right) local.x = Mathf.Max(local.x, minSeparation);
+        else                    local.x = Mathf.Min(local.x, -minSeparation);
+
+        return Ground(transform.position + transform.TransformDirection(local));
     }
 
     /// <summary>

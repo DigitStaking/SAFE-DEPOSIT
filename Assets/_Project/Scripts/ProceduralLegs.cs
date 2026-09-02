@@ -125,19 +125,30 @@ public class ProceduralLegs : MonoBehaviour
              "a character ends up walking on its heels. This is also what lets " +
              "one piece of code walk backwards and sideways with no extra " +
              "cases: the lead follows the velocity, whatever way it points.")]
-    public float stepLead = 0.17f;
+    public float stepLead = 0.13f;
+
+    [Tooltip("How much of a forward stride this leg is willing to take " +
+             "SIDEWAYS.\n\n" +
+             "A person steps far less to the side than they do forward - the " +
+             "hip opens maybe half as far as it swings - so a stride budget " +
+             "that is the same in every direction throws the foot much too far " +
+             "out on a strafe. This is the fix for that, and it is anatomy " +
+             "rather than taste.\n\n" +
+             "Applied to the lead, to how far the foot may reach, and to how " +
+             "far it may drift before stepping, so all three stay consistent.")]
+    [Range(0.2f, 1f)] public float lateralScale = 0.55f;
 
     [Header("Step timing")]
     [Tooltip("Seconds a step takes at a standstill. Lower is snappier.")]
-    public float stepTimeBase = 0.32f;
+    public float stepTimeBase = 0.40f;
 
     [Tooltip("Seconds shaved off the step time per metre-per-second of travel. " +
              "Faster travel means quicker steps as well as longer ones.")]
-    public float stepTimePerSpeed = 0.035f;
+    public float stepTimePerSpeed = 0.028f;
 
     [Tooltip("Floor on step time. Below this, steps read as a twitch rather " +
              "than a stride.")]
-    public float stepTimeMin = 0.13f;
+    public float stepTimeMin = 0.19f;
 
     [Tooltip("How high the foot lifts at the middle of a step.")]
     public float stepArc = 0.11f;
@@ -177,11 +188,22 @@ public class ProceduralLegs : MonoBehaviour
              "right, and without this it walks through the right leg.")]
     public float minSeparation = 0.07f;
 
+    [Tooltip("How far past its stride budget a foot may be dragged before it " +
+             "steps REGARDLESS of the alternation rules. 1 is the normal " +
+             "threshold, so this is how much overrun is tolerated.\n\n" +
+             "Every alternation rule can refuse a step, and all of them are " +
+             "reasonable while a foot is merely late. None are reasonable once " +
+             "the leg can no longer reach - refusing then does not delay the " +
+             "step, it strands the foot and the IK stretches the limb to hold " +
+             "it. A body standing with its legs splayed is two feet that both " +
+             "politely waited for the other.")]
+    public float strandedAt = 1.7f;
+
     [Tooltip("Furthest this foot may be planted from directly below the hips, " +
              "in metres. A leg has a length; without this a fast strafe throws " +
              "the target out past where any knee could follow, and step 3 would " +
              "have to stretch the limb to reach it.")]
-    public float maxReach = 0.62f;
+    public float maxReach = 0.55f;
 
     [Header("Ground")]
     [Tooltip("What counts as floor. Copied from PlayerMotor on Awake so the " +
@@ -486,9 +508,9 @@ public class ProceduralLegs : MonoBehaviour
         }
     }
 
-    /// <summary>How far this foot currently is from where it wants to be.
-    /// Public so the other leg can tell whose need is greater.</summary>
-    public float Drift => Vector3.Distance(Flat(footPosition), Flat(restCache));
+    /// <summary>How far past its budget this foot is, as a fraction. Public so
+    /// the other leg can tell whose need is greater.</summary>
+    public float Drift => DriftFraction(restCache);
 
     /// <summary>How long a step takes, in seconds.</summary>
     float StepTime =>
@@ -523,21 +545,29 @@ public class ProceduralLegs : MonoBehaviour
         // velocity rather than an input axis, all 360 degrees are one case.
         // There is no "if walking left" in this file and there never needs to
         // be, which is the whole reason this replaces five clips with none.
-        Vector3 offset = transform.right * width
-                       + transform.forward * stanceForward
-                       + Travel * stepLead;
-
-        // ---- CLAMPED IN THE BODY'S OWN FRAME ----
+        // ---- WORKED OUT IN THE BODY'S OWN FRAME ----
         //
         // With a body that never turns, the body IS the fixed reference, and
-        // two things have to be true in it no matter which way you travel.
-        Vector3 local = transform.InverseTransformDirection(offset);
-        local.y = 0f;
+        // forward and sideways are genuinely different directions to it - which
+        // they have to be, because a leg does not reach equally in both.
+        Vector3 lead = transform.InverseTransformDirection(Travel * stepLead);
+        lead.y = 0f;
 
-        // A leg has a length. A fast strafe throws the raw target far past
-        // where any knee could follow, and step 3 would have to stretch the
-        // limb to reach it.
-        local = Vector3.ClampMagnitude(local, maxReach);
+        // ---- A PERSON STEPS SHORT SIDEWAYS ----
+        //
+        // The hip swings much further forward than it opens outward, so a lead
+        // that is the same length in every direction throws the foot far too
+        // wide on a strafe. That was the splayed stance: a target a full
+        // stride out to the side, which the IK then stretched the leg to reach.
+        lead.x *= lateralScale;
+
+        // A leg has a length, and that length is an ELLIPSE, not a circle. A
+        // clamp to one radius allowed the same reach sideways as forward,
+        // which for a hip roughly a metre up meant the leg had to span further
+        // than a leg goes - so it splayed instead of stepping.
+        lead = ClampToEllipse(lead, maxReach * lateralScale, maxReach);
+
+        Vector3 local = new Vector3(width, 0f, stanceForward) + lead;
 
         // ---- AND THE LEGS MUST NOT CROSS ----
         //
@@ -633,10 +663,28 @@ public class ProceduralLegs : MonoBehaviour
         // impossible with a clip: the foot holds a fixed WORLD position while
         // the character walks over it, so it cannot skate no matter how fast
         // the body is travelling.
-        float drift = Vector3.Distance(Flat(footPosition), Flat(rest));
+        float drift = DriftFraction(rest);
 
-        if (drift <= Stride) return;
+        if (drift <= 1f) return;
 
+        // ---- A STRANDED FOOT STEPS NO MATTER WHO ELSE IS STEPPING ----
+        //
+        // This is the bug in the splayed-stance screenshot, and it is separate
+        // from the sideways reach being too long.
+        //
+        // Every rule below can REFUSE a step - the partner is mid-stride, the
+        // foot landed a moment ago, the other foot needs it more. All of them
+        // are reasonable while the foot is merely late. None of them are
+        // reasonable once it has been left so far behind that the leg cannot
+        // reach it any more, because then refusing does not delay a step, it
+        // strands the foot and the IK stretches the limb to keep hold of it.
+        //
+        // A body standing with its legs splayed is that: two feet that both
+        // politely waited for the other.
+        bool stranded = drift > strandedAt;
+
+        if (!stranded)
+        {
         // ---- ONE FOOT ON THE FLOOR AT A TIME ----
         //
         // Both feet drift at the same rate and cross the same threshold on
@@ -664,6 +712,7 @@ public class ProceduralLegs : MonoBehaviour
         // yield and deadlock.
         if (partner != null && !partner.stepping && partner.Drift > drift + 0.001f)
             return;
+        }
 
         stepping = true;
         stepAge = 0f;
@@ -673,6 +722,47 @@ public class ProceduralLegs : MonoBehaviour
     }
 
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+    /// <summary>
+    /// Shrink a body-local offset until it fits inside an ellipse - sideways
+    /// radius first, forward radius second.
+    ///
+    /// A circle was the wrong shape for every limit in this file. It let the
+    /// foot reach as far to the side as it could forward, which no leg does,
+    /// and it is why a strafe splayed the stance instead of stepping.
+    /// </summary>
+    static Vector3 ClampToEllipse(Vector3 local, float sideways, float forward)
+    {
+        sideways = Mathf.Max(0.01f, sideways);
+        forward = Mathf.Max(0.01f, forward);
+
+        float x = local.x / sideways;
+        float z = local.z / forward;
+        float over = x * x + z * z;
+
+        if (over <= 1f) return local;
+
+        float shrink = 1f / Mathf.Sqrt(over);
+        return new Vector3(local.x * shrink, 0f, local.z * shrink);
+    }
+
+    /// <summary>
+    /// How far past its budget this foot has drifted, as a fraction: under 1
+    /// is fine, over 1 must step.
+    ///
+    /// Measured against the same ellipse for the same reason - a foot dragged
+    /// 30cm sideways is in far more trouble than one dragged 30cm forward, and
+    /// a single radius called them equally urgent.
+    /// </summary>
+    float DriftFraction(Vector3 rest)
+    {
+        Vector3 d = transform.InverseTransformDirection(footPosition - rest);
+
+        float x = d.x / Mathf.Max(0.01f, Stride * lateralScale);
+        float z = d.z / Mathf.Max(0.01f, Stride);
+
+        return Mathf.Sqrt(x * x + z * z);
+    }
 
     /// <summary>Ease in and out. A linear step starts and stops abruptly and
     /// looks mechanical; this is one line and fixes it.</summary>

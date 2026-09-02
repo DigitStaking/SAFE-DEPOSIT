@@ -104,6 +104,25 @@ because you were startled, it costs you the floor.
 
 # PART 3 — THE DEMO SEVEN
 
+## In one line each
+
+No powers, no magic. Each of these is **one thing it does to you**, in the
+same register as "the thief takes your items and runs":
+
+| | what it does |
+|---|---|
+| **the fat man** | needs carrying, and weighs four crates |
+| **the seller** | sells cheap, but he is deep and out of your way |
+| **the cannibal** | hits you if you have a light on or make noise |
+| **the thief** | takes your items and runs |
+| **the eyeless** | smashes your lamp, so you are dark for the rest of the round |
+| **the tenant** | plays your friend's voice from the wrong room |
+| **the weight** | sits on the lift so it will not move |
+
+That is the whole of what they are. Everything below is detail about how each
+one behaves and how a crew beats it.
+
+
 *Decided 30 Aug 2026.* Seven inhabitants for the ten-floor demo. Chosen so
 that **no two tax the same resource** — a crew that meets seven things which
 all punish carelessness has met one thing seven times.

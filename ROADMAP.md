@@ -240,6 +240,9 @@ The graybox becomes a real generator.
 - 4 traps — floor collapse, gas, lockdown, cable fray *(fray already exists
   from Phase 2)*
 - **Every survivor behind a puzzle. No exceptions.**
+- Inhabitants — see `INHABITANTS.md` (30 Aug 2026). The light-hunter and the
+  follower belong here; the thief, the seller and the gun are economy pieces
+  and wait for Phase 7.
 
 Build the twelve locks and eight keys **once**. A puzzle is then a
 ScriptableObject naming a lock, a key, a modifier and two room sockets.

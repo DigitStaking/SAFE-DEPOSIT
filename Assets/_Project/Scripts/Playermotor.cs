@@ -572,15 +572,51 @@ public class PlayerMotor : MonoBehaviour
         rb.AddForce(Physics.gravity * (fallGravityMultiplier - 1f), ForceMode.Acceleration);
     }
 
+    [Header("Turning")]
+    [Tooltip("Degrees per second the BODY turns to catch up with where you are " +
+             "looking. Lower is loose and physical; very high is the old " +
+             "instant snap. 540 is about a third of a second for a half turn.")]
+    public float bodyTurnSpeed = 540f;
+
+    /// <summary>
+    /// Turn the body toward where the camera is looking, OVER TIME.
+    ///
+    /// This was a snap - MoveRotation straight to the camera's yaw, every
+    /// physics step - and that is what made the legs look wrong. The body
+    /// arrived at the new angle instantly, so the walk cycle was simply
+    /// rotated rather than stepped through: feet pointing one way while the
+    /// character travelled another, which is the exact thing that reads as
+    /// "sliding" rather than "walking".
+    ///
+    /// The 2D blend tree underneath has had strafe-left, strafe-right and
+    /// walk-backward in it since Phase 1, and the clips are all in the
+    /// project. It was never the animation that was missing. It was the TIME
+    /// to play it - a turn that finishes in one frame gives a walk cycle
+    /// nothing to do.
+    ///
+    /// Now the body lags and catches up, so a turn is a few frames of the legs
+    /// crossing over, and a strafe is the body angled away from travel with
+    /// the strafe clip actually visible on it.
+    ///
+    /// FIRST PERSON IS UNAFFECTED. Aim comes from the camera, the pickup ray
+    /// comes from the eye, and movement is camera-relative - none of them read
+    /// the body's yaw. This changes only what OTHER PEOPLE see of you, which
+    /// is precisely where the problem was.
+    /// </summary>
     void FaceCameraYaw()
     {
         if (Cam == null) return;
 
-        // MoveRotation, not transform.rotation. Writing to the transform of a
+        float want = Cam.eulerAngles.y;
+        float have = rb.rotation.eulerAngles.y;
+
+        // MoveRotation, not transform.rotation. Writing the transform of a
         // Rigidbody teleports it as far as the solver is concerned, which
         // corrupts contacts and makes constraints explode.
-        if (Cam == null) return;
-        rb.MoveRotation(Quaternion.Euler(0f, Cam.eulerAngles.y, 0f));
+        float next = Mathf.MoveTowardsAngle(have, want,
+                                            bodyTurnSpeed * Time.fixedDeltaTime);
+
+        rb.MoveRotation(Quaternion.Euler(0f, next, 0f));
     }
 
     // Green when grounded, red when airborne. Free in a build, saves hours.

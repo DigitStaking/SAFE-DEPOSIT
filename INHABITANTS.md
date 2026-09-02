@@ -116,7 +116,7 @@ same register as "the thief takes your items and runs":
 | **the cannibal** | hits you if you have a light on or make noise |
 | **the thief** | takes your items and runs |
 | **the eyeless** | smashes your lamp, so you are dark for the rest of the round |
-| **the foreman** | wears hi-vis and carries a lamp, so at distance he looks like your crewmate |
+| **the foreman** | wears one of your crew's colours and dances like a friend, then attacks - and a trap on his floor paints one of YOU his colour |
 | **the passenger** | runs to your lift when he sees you and sits in it, +70 kg |
 
 That is the whole of what they are. Everything below is detail about how each
@@ -134,7 +134,7 @@ all punish carelessness has met one thing seven times.
 | 3 | the cannibal | **light + voice** | "lamps off. Nobody talk." |
 | 4 | the thief | **loot already earned** | "he's got my bag — push him!" |
 | 5 | the eyeless | **your lamp itself** | "I'll go lit. You three stay dark." |
-| 6 | the foreman | **trust in what you see** | "…is that you over there?" |
+| 6 | the foreman | **trust in what you see** | "which one of you is in room 6?" |
 | 7 | the passenger | **mass, and the way out** | "get him OFF the lift" |
 
 Two of those are not threats — the fat man and the seller — and that is
@@ -226,66 +226,119 @@ to keep going blind or take the loss.
 
 ---
 
-## 6 · THE FOREMAN — the man you think is your friend
+## 6 · THE FOREMAN — he is wearing your friend's colour
 
-### The problem he exists to create
+*Redesigned 30 Aug 2026, and this version is much better than mine.*
 
-Right now, on a dark floor, **you identify a crewmate by exactly one thing: a
-moving light in a red suit.** Not their name, not their face — you cannot see
-either at fifteen metres. A light in a suit means friend, every time, without
-you ever deciding it.
+### What he is
 
-The foreman is a dead building worker in an orange hi-vis jacket with a
-working lamp on his helmet. At fifteen metres in the dark, **he is the same
-handful of pixels a crewmate is.**
+**He spawns wearing the exact colour of one of your crew.** Not orange, not a
+generic worker — if your crew is red, blue, green and yellow, he is one of
+those four, picked when the floor is built.
 
-### What actually happens, moment by moment
+So he is never "a stranger in the dark". He is always, specifically, **one of
+you**.
 
-1. **You come into a room and there is a light at the far end.** Somebody is
-   already looting it. You relax slightly and carry on with what you were
-   doing
-2. **The light does not move the way a player moves.** No strafing, no
-   looking around, no bobbing. It stands there. But you are not watching it
-   closely, because it is your mate
-3. **You get within about six metres and it is obvious.** The jacket is
-   orange, not red. The suit is filthy. He is much too still
-4. **He turns and walks away from you** — slowly, staying at the edge of your
-   lamp, going deeper into the floor
-5. **If you follow, you end up somewhere you did not plan to be.** That is
-   the whole of what he costs you
+### What he does, in order
 
-### He never touches you
+1. **He walks.** Normally, like a person, going somewhere. At distance that is
+   indistinguishable from a crewmate crossing a room, because it is the same
+   silhouette in the same colour doing the same thing
+2. **When he sees you, he dances**
+3. **When you get close, he attacks**
 
-No damage, no grab, no chase. **He is a liar, not a killer.**
+### The dance is the whole design
 
-That is deliberate, and it is why he is worth a slot. The cannibal already
-supplies violence. What the foreman supplies is the thing violence cannot:
-after the first time, **every distant light on every floor is a question**,
-and the crew has to spend something to answer it.
+Dancing is what players do to say *it's me*. It is the crew's own
+identity-check — a wave across a dark room, the cheapest possible "friendly".
 
-### What it costs you
+The foreman uses it. And the first time a crew is caught by that, **the emote
+stops working for everyone, permanently.** A real crewmate dancing to say
+"it's me, don't shoot" is now doing exactly what the thing that kills you
+does.
 
-- **Position.** You walked away from your route and away from the lift,
-  following something
-- **Time**, which is the clock that never stops
-- **Attention.** You spent ten seconds being sure, and ten seconds is a long
-  time to be looking the wrong way
+That is a design that takes something away from the players and never gives it
+back — using a feature the game already has.
 
-### How a crew beats him
+### THE TRAP — and this is the part that turns it round
 
-**The radio.** *"Who's in the north room?"* — silence answers it instantly.
+**Where there is a foreman, there is a colour trap on that floor.** Always.
+One floor, one foreman, one trap.
 
-That is the quiet reason he belongs in this game specifically: the crew paid
-20 each for walkie-talkies, and this is the first threat that makes those an
-answer rather than a convenience. A crew with radios is never fooled twice. A
-crew without them walks toward every light, every time.
+A crewmate who walks into it is **repainted in the foreman's colour** for the
+rest of the round. Guaranteed — **100% activation**, not a chance. It is a
+rule, and a crew will learn it as one.
 
-### Why he is cheap to build
+So the floor now holds **two figures in the same colour**, and only one of
+them is your friend.
 
-He is a model, a light, an idle animation and one rule: *stand still; when a
-player gets close, walk away from them.* **No combat, no damage, no audio, no
-language** — which is exactly why he can do the tenant's job without any of
-the tenant's problems.
+**Worked example, round 3:**
+
+```
+room 1   emptied last round
+room 2   sealed
+room 3   sealed
+room 4   loot
+room 5   loot
+room 6   loot   <- the foreman, and the trap
+```
+
+Your crewmate is looting room 6 and steps in the trap. He is now the
+foreman's colour. You come to help, you open the door, and there are two of
+him.
+
+### Both failure modes are terrible, and that is why it works
+
+Every other threat in this game has one way to lose. This has two, and they
+pull in opposite directions:
+
+- **Trust the wrong one** — you walk up to it and it attacks
+- **Distrust the right one** — you back off, or you shoot, and it was your
+  friend. With the gun in the shop, that is a real thing a real crew will do
+  to each other
+
+### The marked player must know
+
+The moment the trap fires, **his own hands change colour on his own screen.**
+He knows. He can shout about it.
+
+Without that the whole thing is unfair rather than frightening — he would be
+mistrusted with no idea why, and the crew's confusion would read as a bug
+rather than as a trap.
+
+### How a crew survives it
+
+**Voice.** Not the dance — the dance is exactly what has been taken away.
+
+- Proximity voice at close range, which the foreman cannot produce
+- The **radio**, if they bought one, which is the only way to answer "which of
+  you is in room 6" from another floor
+
+So this quietly makes both voice systems load-bearing, and makes the 20 for a
+walkie-talkie the difference between a crew that can identify its own people
+and a crew that cannot.
+
+### It reverts at the end of the round
+
+The marked crewmate is their own colour again at the surface. It is a **round
+condition, not a wound** — and it should be, because it costs the crew a whole
+round of doubt, which is expensive enough.
+
+### What it needs building
+
+| | where it already is |
+|---|---|
+| per-crew colours | `PlayerSkin` is on the player root, stubbed for exactly this |
+| the dance | `PlayerAnimatorDriver` already has the emote trigger |
+| walking | any inhabitant needs this anyway |
+| attacking up close | shared with the cannibal |
+| the trap | Phase 6's trap slot, plus one line: recolour the player |
+
+The only genuinely new part is **the colour swap**, and it is a material
+change on a model — the cheapest kind of new thing this game could have asked
+for.
+
+---
 
 ## 7 · THE PASSENGER — he wants to leave too
 

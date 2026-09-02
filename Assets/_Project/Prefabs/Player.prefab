@@ -64,6 +64,7 @@ GameObject:
   - component: {fileID: 8495429309997284004}
   - component: {fileID: 333751317616968057}
   - component: {fileID: 8534563219245511134}
+  - component: {fileID: 4046998530399200963}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -723,6 +724,44 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoiceStream
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &4046998530399200963
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905128192338178620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf8973959352dcb47b4bdef1df942a99, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralLegs
+  side: 1
+  stanceWidth: 0.13
+  stanceForward: 0
+  strideBase: 0.22
+  stridePerSpeed: 0.17
+  stepLead: 0.17
+  stepTimeBase: 0.32
+  stepTimePerSpeed: 0.035
+  stepTimeMin: 0.13
+  stepArc: 0.11
+  loadStanceWiden: 0.07
+  loadArcFlatten: 0.55
+  injuryStrideCut: 0.3
+  minStepGap: 0.08
+  limpsWhenHurt: 0
+  limpExtraCut: 0.35
+  minSeparation: 0.07
+  maxReach: 0.62
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  probeUp: 0.8
+  probeDown: 1.6
+  drawGizmos: 1
+  showRuntimeMarkers: 1
+  markerSize: 0.085
 --- !u!1001 &3659666608676451951
 PrefabInstance:
   m_ObjectHideFlags: 0

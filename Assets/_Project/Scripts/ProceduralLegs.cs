@@ -156,6 +156,21 @@ public class ProceduralLegs : MonoBehaviour
              "is what separates hurt from strolling.")]
     [Range(0f, 1f)] public float injuryStrideCut = 0.3f;
 
+    [Header("Alternation - what stops both feet leaving the floor")]
+    [Tooltip("Seconds this foot must wait after landing before it may step " +
+             "again. Without it a foot that lands slightly short steps again " +
+             "immediately, which reads as a stutter rather than a stride.")]
+    public float minStepGap = 0.08f;
+
+    [Tooltip("This leg is the bad one. When hurt it takes a shorter, quicker " +
+             "step than its partner, which is what a limp actually is - an " +
+             "UNEVEN gait, not a slow one. Tick this on ONE leg only.")]
+    public bool limpsWhenHurt = false;
+
+    [Tooltip("Extra stride this leg loses at full injury, on top of the cut " +
+             "both legs already take. 0 to 1.")]
+    [Range(0f, 1f)] public float limpExtraCut = 0.35f;
+
     [Header("Limits - what stops the legs tangling")]
     [Tooltip("Closest this foot may come to the body centre line, in metres. " +
              "The legs CANNOT cross. Strafing right pulls the left foot to the " +
@@ -235,10 +250,20 @@ public class ProceduralLegs : MonoBehaviour
     PlayerCarry carry;
     PlayerHealth health;
 
+    /// <summary>The other leg on this body, found rather than wired.
+    /// Two components that have to agree are two chances to forget one.</summary>
+    ProceduralLegs partner;
+
+    /// <summary>When this foot last touched down. Guards minStepGap.</summary>
+    float lastLanded = -999f;
+
     void Awake()
     {
         carry = GetComponent<PlayerCarry>();
         health = GetComponent<PlayerHealth>();
+
+        foreach (var leg in GetComponents<ProceduralLegs>())
+            if (leg != this) { partner = leg; break; }
 
         var motor = GetComponent<PlayerMotor>();
         if (motor != null) groundMask = motor.groundMask;
@@ -440,9 +465,30 @@ public class ProceduralLegs : MonoBehaviour
         }
     }
 
-    /// <summary>How far the foot may drift before it must step.</summary>
-    float Stride =>
-        (strideBase + stridePerSpeed * Speed) * (1f - injuryStrideCut * Injury);
+    /// <summary>
+    /// How far the foot may drift before it must step.
+    ///
+    /// The limp lives here rather than in a clip. A limp is not slowness - a
+    /// slow walk is still even - it is one leg taking a SHORTER step than the
+    /// other, so the body lurches once per cycle. Cutting the stride on one
+    /// side and letting the other side stay full produces that for free,
+    /// because the good leg then has to cover the distance the bad one did not.
+    /// </summary>
+    float Stride
+    {
+        get
+        {
+            float cut = injuryStrideCut;
+            if (limpsWhenHurt) cut += limpExtraCut;
+
+            return (strideBase + stridePerSpeed * Speed) *
+                   (1f - Mathf.Clamp01(cut) * Injury);
+        }
+    }
+
+    /// <summary>How far this foot currently is from where it wants to be.
+    /// Public so the other leg can tell whose need is greater.</summary>
+    public float Drift => Vector3.Distance(Flat(footPosition), Flat(restCache));
 
     /// <summary>How long a step takes, in seconds.</summary>
     float StepTime =>
@@ -575,6 +621,7 @@ public class ProceduralLegs : MonoBehaviour
             {
                 stepping = false;
                 footPosition = stepTo;
+                lastLanded = Time.time;
             }
 
             return;
@@ -588,14 +635,41 @@ public class ProceduralLegs : MonoBehaviour
         // the body is travelling.
         float drift = Vector3.Distance(Flat(footPosition), Flat(rest));
 
-        if (drift > Stride)
-        {
-            stepping = true;
-            stepAge = 0f;
-            stepTime = StepTime;
-            stepFrom = footPosition;
-            stepTo = rest;
-        }
+        if (drift <= Stride) return;
+
+        // ---- ONE FOOT ON THE FLOOR AT A TIME ----
+        //
+        // Both feet drift at the same rate and cross the same threshold on
+        // the same frame, so without this they step together - and a body
+        // whose feet leave the ground simultaneously is not walking, it is
+        // hopping. This is the whole of step 2, and it is a single check.
+        if (partner != null && partner.stepping) return;
+
+        // Landed a moment ago. A foot that lands slightly short would step
+        // again immediately, which reads as a stutter rather than a stride.
+        if (Time.time - lastLanded < minStepGap) return;
+
+        // ---- AND WHOEVER NEEDS IT MORE GOES FIRST ----
+        //
+        // This is what makes the LEADING foot lead, and it needs no rule about
+        // which direction you are travelling.
+        //
+        // Strafe right and the crossover clamp holds the left foot near the
+        // centre line while the right foot's target runs away to the right. So
+        // the right foot is dragged further, so the right foot steps - which
+        // is exactly what a person does side-stepping right. Reverse it and
+        // the left leads instead. The gait falls out of the geometry.
+        //
+        // Strictly greater, so two feet at identical drift can never both
+        // yield and deadlock.
+        if (partner != null && !partner.stepping && partner.Drift > drift + 0.001f)
+            return;
+
+        stepping = true;
+        stepAge = 0f;
+        stepTime = StepTime;
+        stepFrom = footPosition;
+        stepTo = rest;
     }
 
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

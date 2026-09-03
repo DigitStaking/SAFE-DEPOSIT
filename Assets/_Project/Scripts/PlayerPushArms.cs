@@ -66,7 +66,7 @@ public class PlayerPushArms : MonoBehaviour
 
     [Tooltip("How much of the swing is wind-up, 0 to 1. The rest is thrust " +
              "and recovery.")]
-    [Range(0.05f, 0.5f)] public float windPart = 0.28f;
+    [Range(0.05f, 0.5f)] public float windPart = 0.3f;
 
     [Header("Blend")]
     [Tooltip("How strongly the hands are pulled to the shove. 1 takes them " +
@@ -80,7 +80,7 @@ public class PlayerPushArms : MonoBehaviour
     [Tooltip("How much of the swing after the wind-up is the thrust itself, " +
              "0 to 1. The rest is the recovery. Larger means a longer, more " +
              "deliberate push; smaller means a snap.")]
-    [Range(0.15f, 0.8f)] public float thrustPart = 0.45f;
+    [Range(0.15f, 0.8f)] public float thrustPart = 0.5f;
 
     [Header("Palm")]
     [Tooltip("Rotation of the RIGHT hand relative to the direction of the " +

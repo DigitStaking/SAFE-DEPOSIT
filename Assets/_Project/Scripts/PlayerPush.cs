@@ -84,9 +84,19 @@ public class PlayerPush : NetworkBehaviour
              "much turns a shove into a launch.")]
     [Range(0f, 0.5f)] public float upward = 0.14f;
 
-    [Tooltip("Seconds between shoves. The only real cost, and what stops push " +
-             "becoming a weapon by repetition.")]
-    public float cooldown = 1.15f;
+    [Tooltip("Seconds of rest AFTER the swing has finished, not from the last " +
+             "keypress. " +
+             "This used to be a separate number racing the animation, which " +
+             "meant setting it below armTime silently allowed a new shove to " +
+             "start on top of one still playing - the arms would snap back to " +
+             "the wind-up mid-thrust. Now the swing always completes first and " +
+             "this is only the pause on the end, so spamming is impossible by " +
+             "construction rather than by two numbers being kept in step.")]
+    public float restAfterSwing = 0.35f;
+
+    /// <summary>The full gap between one shove starting and the next being
+    /// allowed: the whole swing, then the rest.</summary>
+    public float TotalCooldown => armTime + restAfterSwing;
 
     [Header("What can be pushed")]
     [Tooltip("Layers a shove looks for. Include the player layer.")]
@@ -96,7 +106,7 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Seconds the arms take to wind up, thrust and return. The impulse " +
              "lands at the moment of the thrust, not on the keypress, so the " +
              "hit follows the hands.")]
-    public float armTime = 0.85f;
+    public float armTime = 1.25f;
 
     [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
              "when the arms reach out, not when they start moving.")]
@@ -126,7 +136,7 @@ public class PlayerPush : NetworkBehaviour
     PlayerCarry carry;
 
     /// <summary>Seconds until this player may shove again. For the HUD.</summary>
-    public float CooldownLeft => Mathf.Max(0f, cooldown - (Time.time - lastPush));
+    public float CooldownLeft => Mathf.Max(0f, TotalCooldown - (Time.time - lastPush));
 
     void Awake()
     {
@@ -169,7 +179,15 @@ public class PlayerPush : NetworkBehaviour
 
     void TryPush()
     {
-        if (Time.time - lastPush < cooldown) return;
+        // ---- THE SWING MUST FINISH BEFORE ANOTHER CAN START ----
+        //
+        // Two guards rather than one, and the first is the one that matters:
+        // whatever anybody types into the rest field, a shove already in the
+        // air cannot be interrupted. A second press mid-thrust used to snap the
+        // arms back to the wind-up, which is both ugly and a free extra push.
+        if (PushProgress >= 0f) return;
+
+        if (Time.time - lastPush < TotalCooldown) return;
 
         // Downed players are not shoving anybody. Being downed is the absence
         // of standing up, not a speed penalty.

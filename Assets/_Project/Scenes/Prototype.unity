@@ -7374,6 +7374,14 @@ PrefabInstance:
       propertyPath: ankleHeight
       value: 0.21
       objectReference: {fileID: 0}
+    - target: {fileID: 823516381370920081, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: height
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 823516381370920081, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: spread
+      value: 0.34
+      objectReference: {fileID: 0}
     - target: {fileID: 1346281710360446014, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

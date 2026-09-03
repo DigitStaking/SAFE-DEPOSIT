@@ -386,7 +386,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2023920637
+  GlobalObjectIdHash: 3159604750
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -831,6 +831,8 @@ MonoBehaviour:
   mask:
     serializedVersion: 2
     m_Bits: 4294967295
+  armTime: 0.42
+  contactAt: 0.34
 --- !u!1001 &3659666608676451951
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -941,6 +943,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
       insertIndex: -1
       addedObject: {fileID: 763617851780415658}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 823516381370920081}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
 --- !u!4 &3837918013776580996 stripped
 Transform:
@@ -1001,6 +1006,25 @@ MonoBehaviour:
   showReadout: 1
   airGrace: 0.25
   airborneHeight: 1.45
+--- !u!114 &823516381370920081
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4470058706977524542}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71c58b9a28380c74d90b38f108e73b52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPushArms
+  reach: 0.72
+  spread: 0.24
+  height: 1.28
+  windBack: 0.16
+  windPart: 0.28
+  weight: 1
+  fade: 0.09
 --- !u!95 &7179629295030242302 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

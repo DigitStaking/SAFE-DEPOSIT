@@ -86,7 +86,7 @@ public class PlayerPush : NetworkBehaviour
 
     [Tooltip("Seconds between shoves. The only real cost, and what stops push " +
              "becoming a weapon by repetition.")]
-    public float cooldown = 0.85f;
+    public float cooldown = 1.15f;
 
     [Header("What can be pushed")]
     [Tooltip("Layers a shove looks for. Include the player layer.")]
@@ -96,7 +96,7 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Seconds the arms take to wind up, thrust and return. The impulse " +
              "lands at the moment of the thrust, not on the keypress, so the " +
              "hit follows the hands.")]
-    public float armTime = 0.42f;
+    public float armTime = 0.85f;
 
     [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
              "when the arms reach out, not when they start moving.")]

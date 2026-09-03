@@ -77,6 +77,22 @@ public class PlayerPushArms : MonoBehaviour
              "are never snatched from or handed back to the clip abruptly.")]
     public float fade = 0.09f;
 
+    [Tooltip("How much of the swing after the wind-up is the thrust itself, " +
+             "0 to 1. The rest is the recovery. Larger means a longer, more " +
+             "deliberate push; smaller means a snap.")]
+    [Range(0.15f, 0.8f)] public float thrustPart = 0.45f;
+
+    [Header("Palm")]
+    [Tooltip("Rotation of the RIGHT hand relative to the direction of the " +
+             "shove. The left hand mirrors it on Z. " +
+             "This exists because a hand bone has no standard orientation - " +
+             "which axis runs along the fingers is a decision the rig made, " +
+             "not something that can be derived. FirstPersonHands solves the " +
+             "same problem the same way with its own Euler(0,0,+-75), and this " +
+             "is the number to change if the palms arrive edge-on like a " +
+             "karate chop instead of flat like a shove.")]
+    public Vector3 palmEuler = new Vector3(0f, 0f, 90f);
+
     Animator anim;
     PlayerPush push;
     Transform body;
@@ -115,14 +131,23 @@ public class PlayerPushArms : MonoBehaviour
         anim.SetIKPosition(AvatarIKGoal.LeftHand, left);
         anim.SetIKPosition(AvatarIKGoal.RightHand, right);
 
-        // Palms facing the way the shove is going. Without this the hands
-        // arrive edge-on, which looks like a karate chop rather than a shove.
-        Quaternion palm = Quaternion.LookRotation(body.forward, Vector3.up);
+        // ---- PALMS FLAT INTO THE SHOVE ----
+        //
+        // A hand bone has no standard orientation - which axis runs along the
+        // fingers is a decision the rig made - so this cannot be derived and
+        // has to be an offset from the direction of travel. Mirrored on Z
+        // between the two hands, exactly as FirstPersonHands does it, because
+        // a left hand is a right hand reflected.
+        Quaternion look = Quaternion.LookRotation(body.forward, Vector3.up);
+
+        Quaternion rightPalm = look * Quaternion.Euler(palmEuler);
+        Quaternion leftPalm = look * Quaternion.Euler(palmEuler.x, palmEuler.y,
+                                                      -palmEuler.z);
 
         anim.SetIKRotationWeight(AvatarIKGoal.LeftHand, w);
         anim.SetIKRotationWeight(AvatarIKGoal.RightHand, w);
-        anim.SetIKRotation(AvatarIKGoal.LeftHand, palm);
-        anim.SetIKRotation(AvatarIKGoal.RightHand, palm);
+        anim.SetIKRotation(AvatarIKGoal.LeftHand, leftPalm);
+        anim.SetIKRotation(AvatarIKGoal.RightHand, rightPalm);
     }
 
     /// <summary>
@@ -156,20 +181,21 @@ public class PlayerPushArms : MonoBehaviour
 
         float rest = (t - windPart) / Mathf.Max(0.001f, 1f - windPart);
 
-        // ---- OUT FAST, BACK SLOW ----
+        // ---- OUT FIRMLY, BACK SLOWLY ----
         //
         // A single symmetrical curve gives a shove that retracts as hard as it
         // extends, which reads as a puppet being pulled. Real arms are thrown
-        // out and then relax, so the return is deliberately the long half.
-        const float thrustPart = 0.32f;
-
+        // out and then relax, so the return is deliberately the longer half.
+        //
+        // The thrust used to be a hard square-out over a tenth of a second,
+        // which is the "really fast" that was reported: the arms crossed the
+        // whole distance in about three frames, so there was no travel to see
+        // at all - just hands appearing at the far end. Eased instead of
+        // squared, and over a much longer slice.
         if (rest < thrustPart)
         {
             float k = rest / thrustPart;
-
-            // Squared-out easing: nearly all the distance is covered early,
-            // which is what gives the thrust its snap.
-            return Mathf.Lerp(-windBack, reach, 1f - (1f - k) * (1f - k));
+            return Mathf.Lerp(-windBack, reach, Smooth(k));
         }
 
         float back = (rest - thrustPart) / (1f - thrustPart);

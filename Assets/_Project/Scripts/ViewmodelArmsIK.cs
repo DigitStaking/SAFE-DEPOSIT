@@ -3,40 +3,45 @@
 // Goes on: the cloned arms rig, added by FirstPersonViewmodel. Never by hand.
 //
 // ========================================================================
-// THE SHOVE, DONE THE WAY THE ONE THAT WORKS IS DONE.
+// REST -> FORWARD, FLAT PALMS -> REST. NOTHING ELSE.
 //
-// "you made a push animation for me before for normal body why now you can't
-//  now"
+// "when I trigger PUSH, the hands suddenly teleport/jump upward before the
+//  push animation starts... the push animation must start exactly from the
+//  current/default first-person hand position"
 //
-// Correct, and it was a fair hit. PlayerPushArms exists, it works, and I did
-// not reuse it here - I invented a simpler thing instead, reasoning that the
-// viewmodel has no target to reach so it did not need the complicated
-// version. That was wrong about WHY the original works.
+// TWO separate causes were producing that, and only one of them was in this
+// file.
 //
-// What makes PlayerPushArms read as a push is not the targeting. It is that
-// the HANDS TRAVEL, from where they rest to an extended pose, through IK - so
-// the shoulder and elbow follow and the whole arm does the gesture. My
-// viewmodel version slid the entire rig forward and rotated the wrists, which
-// is a camera move with a wrist flick on top, not an arm pushing.
+// The first was in FirstPersonViewmodel: pushing counted as "hands busy",
+// which raised the whole rig by hiddenOffset - 45cm straight up - the instant
+// G was pressed. That is fixed there; a shove no longer moves the rig at all.
 //
-// So this is the same gesture, in camera space:
+// The second was here, and it would have survived that fix. The gesture used
+// to lerp from a FROZEN SNAPSHOT of the rest pose, taken the frame before the
+// push began. Anything that moved the hands during the push - the rig
+// rising, the walk cycle swinging, the idle breathing - was then fighting a
+// stale target, and the hands were dragged back to where they used to be.
 //
-//   sample where the hands REST while nothing is happening
-//   lerp them out to an extended pose on the same curve
-//   turn the palms into it as they go
-//   IK the whole way, so the arms follow rather than the wrists tearing off
+// So the gesture is ADDITIVE now. It is an offset from wherever the animation
+// has the hand THIS frame, and that offset is zero at the start:
 //
-// The curve is the proven one: negative through the wind-up so the hands draw
-// back first, zero at BOTH ends so the gesture starts and finishes exactly
-// where the hands already are, and a longer return than throw because real
-// arms are flung out and then relax.
+//     world = live bone position + offset(elapsed)
 //
-// WHY IT LIVES ON THE CLONE
+// At elapsed 0 the offset is exactly zero, so the hand does not move at all on
+// the first frame. It cannot snap, because there is nothing to snap FROM - it
+// is already where it was. And because the baseline is read live rather than
+// frozen, a shove thrown mid-walk rides the walk cycle instead of cancelling
+// it.
 //
-// Unity only delivers OnAnimatorIK to components sharing a GameObject with
-// the Animator - the same rule FirstPersonHands, ProceduralLegsIK and
-// PlayerPushArms all live by. It is added in code because the clone it
-// belongs to does not exist until FirstPersonViewmodel builds it.
+// The shape is the plain one that was asked for, in real seconds rather than
+// fractions of a mystery duration:
+//
+//     pushDuration   reach out and turn the palms flat
+//     pushHold       stay there
+//     pushReturn     ease back, longer than the reach, because arms are
+//                    thrown out and then relax
+//
+// No wind-up, no draw-back. Those were my additions and they are gone.
 // ========================================================================
 
 using UnityEngine;
@@ -45,88 +50,45 @@ using UnityEngine;
 [RequireComponent(typeof(Animator))]
 public class ViewmodelArmsIK : MonoBehaviour
 {
-    // ---- set by FirstPersonViewmodel every frame ----
-
-    /// <summary>Camera-space nudge for the left hand, metres.</summary>
+    // ---- resting nudges, set by FirstPersonViewmodel every frame ----
     [HideInInspector] public Vector3 leftOffset;
-
-    /// <summary>Camera-space nudge for the right hand, metres.</summary>
     [HideInInspector] public Vector3 rightOffset;
-
-    /// <summary>Pushes both hands apart along the camera's right axis.</summary>
     [HideInInspector] public float spread;
-
-    /// <summary>Pushes both hands forward along the camera's forward axis.</summary>
     [HideInInspector] public float reach;
 
     /// <summary>The viewmodel camera - the space every offset is given in,
     /// because that is the space the person tuning them looks through.</summary>
     [HideInInspector] public Transform space;
 
-    /// <summary>How far through the shove, 0 to 1. Below zero means idle.</summary>
-    [HideInInspector] public float pushProgress = -1f;
+    // ---- the shove ----
 
-    /// <summary>Where the hands end up at full extension, in camera space.</summary>
-    [HideInInspector] public Vector3 pushMove = new Vector3(0f, -0.02f, 0.25f);
+    /// <summary>Seconds since the shove began. Negative means idle.</summary>
+    [HideInInspector] public float pushElapsed = -1f;
 
-    /// <summary>How far the palms rotate into the push, degrees, mirrored.</summary>
-    [HideInInspector] public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
-
-    /// <summary>How far the hands draw back before the throw, metres.</summary>
-    [HideInInspector] public float pushWindBack = 0.05f;
-
-    /// <summary>How far apart the hands travel during the shove, metres.</summary>
+    [HideInInspector] public float pushForward = 0.2f;
+    [HideInInspector] public float pushDuration = 0.18f;
+    [HideInInspector] public float pushHold = 0.08f;
+    [HideInInspector] public float pushReturn = 0.3f;
     [HideInInspector] public float pushSpread = 0.04f;
-
-    /// <summary>Share of the gesture spent winding back, and thrusting.</summary>
-    [HideInInspector] public float windPart = 0.3f;
-    [HideInInspector] public float thrustPart = 0.52f;
+    [HideInInspector] public Vector3 pushHandRotation = new Vector3(0f, 0f, 55f);
 
     Animator anim;
 
-    // ---- WHERE THE HANDS REST ----
-    //
-    // Sampled off the real bones every frame nothing is happening, in CAMERA
-    // space so it stays valid while the player walks and looks around.
-    //
-    // This is the same thing PlayerPushArms samples and for the same reason:
-    // the gesture has to start from where the hands genuinely are, or there is
-    // a step at the beginning of every push. Reading it live also means the
-    // walk swing and idle breathing are the baseline, so a shove during a walk
-    // starts from the walking pose rather than from a fixed idle one.
-    Vector3 restL, restR;
-    bool sampled;
-
     void Awake() => anim = GetComponent<Animator>();
-
-    void LateUpdate()
-    {
-        if (anim == null || !anim.isHuman || space == null) return;
-        if (pushProgress >= 0f) return;              // mid-shove, hold the sample
-
-        var l = anim.GetBoneTransform(HumanBodyBones.LeftHand);
-        var r = anim.GetBoneTransform(HumanBodyBones.RightHand);
-        if (l == null || r == null) return;
-
-        restL = space.InverseTransformPoint(l.position);
-        restR = space.InverseTransformPoint(r.position);
-        sampled = true;
-    }
 
     void OnAnimatorIK(int layerIndex)
     {
         if (layerIndex != 0 || anim == null || !anim.isHuman) return;
 
-        bool shoving = pushProgress >= 0f && sampled && space != null;
+        float push = PushAmount();
 
-        // Nothing asked for: write NOTHING, not even a zero weight. Nothing
-        // else writes these goals, so leaving them alone is correct - and it
-        // saves a pointless solve on a rig the animation is already posing
-        // properly.
-        if (!shoving && !Nudged()) return;
+        // Nothing to do: write NOTHING, not even a zero weight. Nothing else
+        // writes these goals, so leaving them alone is correct - and it saves
+        // a pointless solve on a rig the animation is already posing properly.
+        if (push <= 0.0001f && !Nudged()) return;
 
-        Apply(AvatarIKGoal.LeftHand, HumanBodyBones.LeftHand, leftOffset, restL, -1f, shoving);
-        Apply(AvatarIKGoal.RightHand, HumanBodyBones.RightHand, rightOffset, restR, +1f, shoving);
+        Apply(AvatarIKGoal.LeftHand, HumanBodyBones.LeftHand, leftOffset, -1f, push);
+        Apply(AvatarIKGoal.RightHand, HumanBodyBones.RightHand, rightOffset, +1f, push);
     }
 
     bool Nudged() =>
@@ -134,77 +96,75 @@ public class ViewmodelArmsIK : MonoBehaviour
         !Mathf.Approximately(spread, 0f) || !Mathf.Approximately(reach, 0f);
 
     void Apply(AvatarIKGoal goal, HumanBodyBones bone, Vector3 offset,
-               Vector3 rest, float side, bool shoving)
+               float side, float push)
     {
         var t = anim.GetBoneTransform(bone);
         if (t == null) return;
 
-        Vector3 world;
+        Vector3 right = space != null ? space.right : Vector3.right;
+        Vector3 up = space != null ? space.up : Vector3.up;
+        Vector3 fwd = space != null ? space.forward : Vector3.forward;
 
-        if (shoving)
-        {
-            // ---- THE HANDS TRAVEL. THIS IS THE WHOLE GESTURE. ----
-            //
-            // From the rest pose out to full extension and back, on the proven
-            // curve, in camera space. IK carries the arm along, which is the
-            // part the previous attempt was missing - it moved the rig instead
-            // and the arms never actually reached.
-            float k = Curve(pushProgress);
-
-            Vector3 outTo = rest + pushMove + Vector3.right * (pushSpread * side);
-            Vector3 local = Vector3.LerpUnclamped(rest, outTo, k);
-
-            world = space.TransformPoint(local);
-        }
-        else
-        {
-            // Not shoving: just the resting nudges, added to wherever the
-            // animation has the hand right now.
-            world = t.position
-                  + space.right * (offset.x + spread * side)
-                  + space.up * offset.y
-                  + space.forward * (offset.z + reach);
-        }
+        // ---- EVERYTHING IS AN OFFSET FROM THE LIVE POSE ----
+        //
+        // t.position is where the ANIMATION has this hand this frame. Adding to
+        // it means the hand starts exactly where it already was and the clip
+        // keeps driving underneath - walk swing, idle breathing - rather than
+        // being replaced by a pose of our own.
+        Vector3 world = t.position
+                      + right * (offset.x + spread * side + pushSpread * side * push)
+                      + up * offset.y
+                      + fwd * (offset.z + reach + pushForward * push);
 
         anim.SetIKPositionWeight(goal, 1f);
         anim.SetIKPosition(goal, world);
 
-        if (!shoving) return;
+        if (push <= 0.0001f) return;
 
-        // Palms turn into the push and unwind out of it - rotated FROM the
-        // pose the animation is holding, mirrored between the hands because a
-        // left hand is a right hand reflected.
-        float turn = Mathf.Clamp01(Curve(pushProgress));
+        // Palms go flat INTO the push and unwind out of it, rotated from the
+        // pose the animation is holding. Mirrored between the hands, because a
+        // left hand is a right hand reflected and one shared angle would put a
+        // palm inside out.
+        Quaternion flat = Quaternion.Euler(pushHandRotation.x,
+                                           pushHandRotation.y,
+                                           pushHandRotation.z * side);
 
-        Quaternion into = Quaternion.Euler(pushTurn.x, pushTurn.y, pushTurn.z * side);
-
-        anim.SetIKRotationWeight(goal, turn);
-        anim.SetIKRotation(goal, Quaternion.Slerp(t.rotation, t.rotation * into, turn));
+        anim.SetIKRotationWeight(goal, push);
+        anim.SetIKRotation(goal, Quaternion.Slerp(t.rotation, t.rotation * flat, push));
     }
 
     /// <summary>
-    /// How far out the shove is: 0 at rest, negative through the wind-up, 1
-    /// at full extension, back to 0 at the end.
+    /// How far into the push, 0 to 1, in REAL SECONDS.
     ///
-    /// The same curve PlayerPushArms uses, because it is the one that reads
-    /// correctly - out firmly, back slowly. A symmetrical curve retracts as
-    /// hard as it extends and looks like a puppet being pulled.
+    /// Zero at the start and zero at the end, which is the whole contract: the
+    /// hands begin and finish exactly where the animation already had them, so
+    /// there is nothing to snap to at either edge.
     /// </summary>
-    float Curve(float t)
+    float PushAmount()
     {
-        float span = Mathf.Max(0.01f, pushMove.magnitude);
-        float back = -Mathf.Abs(pushWindBack) / span;
+        if (pushElapsed < 0f) return 0f;
 
-        if (t < windPart)
-            return Mathf.Lerp(0f, back, Smooth(t / Mathf.Max(0.001f, windPart)));
+        float outT = Mathf.Max(0.01f, pushDuration);
+        float hold = Mathf.Max(0f, pushHold);
+        float back = Mathf.Max(0.01f, pushReturn);
 
-        float rest = (t - windPart) / Mathf.Max(0.001f, 1f - windPart);
+        if (pushElapsed < outT)
+            return Smooth(pushElapsed / outT);
 
-        if (rest < thrustPart)
-            return Mathf.Lerp(back, 1f, Smooth(rest / thrustPart));
+        if (pushElapsed < outT + hold)
+            return 1f;
 
-        return Mathf.Lerp(1f, 0f, Smooth((rest - thrustPart) / (1f - thrustPart)));
+        float r = (pushElapsed - outT - hold) / back;
+        return r >= 1f ? 0f : 1f - Smooth(r);
     }
 
-    static float Smooth(float t) => t * t * (3f - 2f * t);
+    /// <summary>Total length of the gesture, so the caller knows when it ends.</summary>
+    public float TotalLength =>
+        Mathf.Max(0.01f, pushDuration) + Mathf.Max(0f, pushHold) + Mathf.Max(0.01f, pushReturn);
+
+    static float Smooth(float t)
+    {
+        t = Mathf.Clamp01(t);
+        return t * t * (3f - 2f * t);
+    }
 }

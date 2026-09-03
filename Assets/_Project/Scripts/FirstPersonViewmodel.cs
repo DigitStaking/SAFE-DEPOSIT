@@ -205,9 +205,11 @@ public class FirstPersonViewmodel : MonoBehaviour
         rightHandOffset = settings.rightHandOffset;
         handSpread = settings.handSpread;
         handReach = settings.handReach;
-        pushMove = settings.pushMove;
-        pushTurn = settings.pushTurn;
-        pushWindBack = settings.pushWindBack;
+        pushForward = settings.pushForward;
+        pushDuration = settings.pushDuration;
+        pushHold = settings.pushHold;
+        pushReturn = settings.pushReturn;
+        pushHandRotation = settings.pushHandRotation;
         pushSpread = settings.pushSpread;
         showOnlyWhenBusy = settings.showOnlyWhenBusy;
         hiddenOffset = settings.hiddenOffset;
@@ -248,14 +250,16 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     float rigArmHeight = -1f;
 
-    /// <summary>How far through a shove, 0 to 1, or -1 when idle. Handed
-    /// straight to ViewmodelArmsIK, which owns the gesture now.</summary>
+    /// <summary>SECONDS since the shove began, or -1 when idle. Handed
+    /// straight to ViewmodelArmsIK, which owns the gesture.</summary>
     float pushNow = -1f;
 
     [Header("Push")]
-    public Vector3 pushMove = new Vector3(0f, -0.02f, 0.12f);
-    public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
-    public float pushWindBack = 0.05f;
+    public float pushForward = 0.2f;
+    public float pushDuration = 0.18f;
+    public float pushHold = 0.08f;
+    public float pushReturn = 0.3f;
+    public Vector3 pushHandRotation = new Vector3(0f, 0f, 55f);
     public float pushSpread = 0.04f;
 
     /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
@@ -463,7 +467,11 @@ public class FirstPersonViewmodel : MonoBehaviour
         // just carried. The HANDS travel now, through IK in ViewmodelArmsIK,
         // exactly the way PlayerPushArms does it on the real body. Same
         // gesture, same curve, same reason it works.
-        pushNow = t;
+        // SECONDS since the shove began, not a fraction of PlayerPush.armTime.
+        // The viewmodel gesture has its own length now - reach, hold, return -
+        // so tying it to the world-space shove's duration would stretch it to
+        // seven seconds along with that one.
+        pushNow = t >= 0f && realPush != null ? t * realPush.armTime : -1f;
 
         clone.localPosition = place + hiddenOffset * (1f - k);
 
@@ -477,19 +485,13 @@ public class FirstPersonViewmodel : MonoBehaviour
             armsIK.reach = handReach;
             armsIK.space = anchor;
 
-            armsIK.pushProgress = pushNow;
-            armsIK.pushMove = pushMove;
-            armsIK.pushTurn = pushTurn;
-            armsIK.pushWindBack = pushWindBack;
+            armsIK.pushElapsed = pushNow;
+            armsIK.pushForward = pushForward;
+            armsIK.pushDuration = pushDuration;
+            armsIK.pushHold = pushHold;
+            armsIK.pushReturn = pushReturn;
             armsIK.pushSpread = pushSpread;
-
-            // Timing read off the real component so the two halves of the
-            // shove cannot drift apart when one is tuned.
-            if (realPushArms != null)
-            {
-                armsIK.windPart = realPushArms.windPart;
-                armsIK.thrustPart = realPushArms.thrustPart;
-            }
+            armsIK.pushHandRotation = pushHandRotation;
         }
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
@@ -523,7 +525,16 @@ public class FirstPersonViewmodel : MonoBehaviour
     {
         if (realCarry != null && realCarry.IsCarrying) return true;
 
-        if (realPush != null && realPush.PushProgress >= 0f) return true;
+        // PUSH IS DELIBERATELY NOT HERE ANY MORE.
+        //
+        // It used to count as busy, which raised the rig by hiddenOffset - 45cm
+        // straight up - the instant G was pressed. That was the "hands teleport
+        // upward before the push starts": the hide feature firing, not the
+        // shove. The gesture itself was still at 0,0,0 and contributing
+        // nothing, so the jump was the ONLY thing happening.
+        //
+        // A shove now happens exactly where the hands already are. Nothing
+        // repositions the rig for it.
 
         if (realAnim == null || realAnim.runtimeAnimatorController == null) return false;
 

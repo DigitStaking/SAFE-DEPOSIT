@@ -109,30 +109,29 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "two things in a row does not lower and raise them twice.")]
     public float holdAfter = 0.6f;
 
-    [Header("Push - the shove, seen from your own eyes")]
-    [Tooltip("How far the hands MOVE during a shove, in metres, in CAMERA " +
-             "space: X right, Y up, Z forward. " +
-             "Was two separate numbers - forward reach and downward drop - " +
-             "which meant the shove could only ever go straight out and down. " +
-             "One vector gives the whole direction, so the hands can push up, " +
-             "across, or wherever the gesture actually wants to go. " +
-             "SMALL ON PURPOSE: a push is mostly the palms TURNING, see " +
-             "pushTurn. 0.38 forward on its own read as arms flying.")]
-    public Vector3 pushMove = new Vector3(0f, -0.02f, 0.12f);
+    [Header("Push - REST to FORWARD to REST, nothing else")]
+    [Tooltip("How far forward the hands travel, in metres, along the camera's " +
+             "view axis. Small: 0.15 to 0.25 reads as a shove.")]
+    public float pushForward = 0.2f;
 
-    [Tooltip("How far the palms rotate to face forward at full push, in " +
-             "degrees. THIS is the gesture - the hands turning into the shove. " +
-             "Mirrored between the two hands, so Z is the one that usually " +
-             "matters and the sign flips itself for the left hand.")]
-    public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
+    [Tooltip("Seconds for the hands to reach the pushing pose.")]
+    public float pushDuration = 0.18f;
 
-    [Tooltip("How far the hands draw BACK before the thrust, in metres.")]
-    public float pushWindBack = 0.05f;
+    [Tooltip("Seconds to HOLD at full extension before coming back.")]
+    public float pushHold = 0.08f;
 
-    [Tooltip("How much the hands separate during the shove, in metres. Two " +
+    [Tooltip("Seconds to return to the resting pose. Longer than the reach - " +
+             "arms are thrown out and then relax.")]
+    public float pushReturn = 0.3f;
+
+    [Tooltip("How far the palms rotate to go flat, in degrees, at full push. " +
+             "Mirrored between the hands, so Z is usually the one that matters " +
+             "and the sign flips itself for the left hand.")]
+    public Vector3 pushHandRotation = new Vector3(0f, 0f, 55f);
+
+    [Tooltip("How far apart the hands travel during the shove, in metres. Two " +
              "palms going out, not one fist.")]
     public float pushSpread = 0.04f;
-
 
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]

@@ -67,6 +67,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
     Rigidbody rb;
 
     bool wasGrounded = true;
+    bool wasWindingUp;
     bool wasCarrying;
     int  lastPackCount;
     float armsWeight = 1f;
@@ -183,7 +184,29 @@ public class PlayerAnimatorDriver : MonoBehaviour
         bool grounded = motor == null || motor.IsGrounded;
         bool strict   = motor == null || motor.IsGroundedStrict;
 
-        if (wasGrounded && !strict && vel.y > jumpDetectSpeed)
+        // ---- THE JUMP FIRES ON THE PRESS, NOT ON THE LAUNCH ----
+        //
+        // This used to wait for "off the ground AND already rising", which is
+        // strictly too late: the body had launched, and only then did the clip
+        // start playing - from frame 0, which is the crouch. So the character
+        // was a foot in the air while the animation was still bending its
+        // knees to jump.
+        //
+        // PlayerMotor now holds the launch for jumpWindUp seconds and exposes
+        // JumpWindingUp for the whole of it. Triggering on the rising edge of
+        // that puts the crouch BEFORE the take-off, where the clip authored it.
+        //
+        // Still a read, never a write - the motor decides when it jumps and
+        // this only reports on it, which is the rule at the top of this file.
+        bool windingUp = motor != null && motor.JumpWindingUp;
+
+        if (windingUp && !wasWindingUp) animator.SetTrigger(JumpId);
+        wasWindingUp = windingUp;
+
+        // Kept as a fallback for anything that leaves the ground WITHOUT the
+        // motor's own jump - a launcher, a shove, a collapsing floor. Those
+        // still deserve the clip and never go through OnJump.
+        if (!windingUp && wasGrounded && !strict && vel.y > jumpDetectSpeed)
             animator.SetTrigger(JumpId);
 
         wasGrounded = strict;

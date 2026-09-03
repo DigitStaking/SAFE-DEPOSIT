@@ -67,6 +67,29 @@ public class PlayerMotor : MonoBehaviour
              "Only affects the fall, never the rise.")]
     public float fallGravityMultiplier = 1.8f;
 
+    [Tooltip("Seconds between pressing jump and actually leaving the ground, " +
+             "so the crouch at the start of the Jumping Up clip can play " +
+             "BEFORE the launch instead of after it. " +
+             "0.11 is where that clip's take-off actually is - 17 frames at " +
+             "30fps, with the push-off about a third of the way in. " +
+             "This IS input latency and it is deliberate: without it the body " +
+             "is already rising while the animation is still crouching, which " +
+             "is what made the jump look detached from the character. Set it " +
+             "to 0 to go back to launching on the keypress.")]
+    public float jumpWindUp = 0.11f;
+
+    /// <summary>
+    /// True from the moment jump is pressed until the body actually leaves
+    /// the ground.
+    ///
+    /// EXISTS TO BE READ BY THE ANIMATION, NEVER TO DRIVE IT. PlayerAnimatorDriver
+    /// watches this and fires the jump trigger at the START of the wind-up, so
+    /// the crouch plays into the launch rather than chasing it. That keeps the
+    /// dependency one-directional exactly as that file's header demands -
+    /// animation is a listener, and this is one more thing to listen to.
+    /// </summary>
+    public bool JumpWindingUp => jumpQueued;
+
     [Header("Ground check")]
     [Tooltip("Which layers count as ground. Set this to Environment.")]
     public LayerMask groundMask = ~0;
@@ -431,6 +454,8 @@ public class PlayerMotor : MonoBehaviour
         UsingGamepad = playerInput != null && playerInput.currentControlScheme == "Gamepad";
     }
 
+    float jumpPressedAt = -999f;
+
     void OnJump(InputValue value)
     {
         if (!IsLocal) return;
@@ -452,7 +477,14 @@ public class PlayerMotor : MonoBehaviour
         // Queued, not acted on immediately. Input arrives on the render frame
         // but physics runs on its own clock; acting here would sometimes miss
         // a physics step and drop the input entirely.
+        //
+        // Now also the start of the WIND-UP: the animation begins here and the
+        // launch happens jumpWindUp later, so the crouch leads into the jump
+        // instead of playing after the body has already gone.
+        if (jumpQueued) return;   // already winding up; do not restart it
+
         jumpQueued = true;
+        jumpPressedAt = Time.time;
     }
 
     // --------------------------------------------------------------------
@@ -555,6 +587,21 @@ public class PlayerMotor : MonoBehaviour
     void ApplyJump()
     {
         if (!jumpQueued) return;
+
+        // ---- THE WIND-UP ----
+        //
+        // Hold the launch until the crouch has had time to play. The clip is
+        // 17 frames at 30fps and its push-off is about a third of the way in,
+        // so the body used to be airborne and rising before the animation had
+        // even reached the part where it jumps.
+        if (Time.time - jumpPressedAt < jumpWindUp)
+        {
+            // Walked off a ledge mid-crouch: cancel rather than launching from
+            // thin air a moment later.
+            if (!IsGrounded) jumpQueued = false;
+            return;
+        }
+
         jumpQueued = false;
 
         // Uses the coyote window, so stepping off a ledge and pressing jump a

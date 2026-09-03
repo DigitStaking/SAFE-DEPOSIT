@@ -248,9 +248,9 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     float rigArmHeight = -1f;
 
-    /// <summary>How far through a shove, 0 to 1. Shared between the rig's
-    /// forward travel and the palm turn so the two cannot disagree.</summary>
-    float pushNow;
+    /// <summary>How far through a shove, 0 to 1, or -1 when idle. Handed
+    /// straight to ViewmodelArmsIK, which owns the gesture now.</summary>
+    float pushNow = -1f;
 
     [Header("Push")]
     public Vector3 pushMove = new Vector3(0f, -0.02f, 0.12f);
@@ -456,24 +456,14 @@ public class FirstPersonViewmodel : MonoBehaviour
         // keeps its relationship to every other bone.
         float t = realPush != null ? realPush.PushProgress : -1f;
 
-        if (t >= 0f)
-        {
-            float windPart = realPushArms != null ? realPushArms.windPart : 0.3f;
-            float thrustPart = realPushArms != null ? realPushArms.thrustPart : 0.52f;
-
-            float p = PushCurve(t, windPart, thrustPart);
-
-            // Along the camera's own view axis, which for a rig parented to
-            // that camera is simply local forward - "the axe where you are
-            // watching with camera".
-            // The whole direction, in camera space, rather than "forward and
-            // a bit down" - X right, Y up, Z forward. The rig is parented to
-            // the viewmodel camera, so its local axes ARE the camera's.
-            place += pushMove * p;
-
-            pushNow = Mathf.Max(0f, p);
-        }
-        else pushNow = 0f;
+        // ---- THE RIG NO LONGER MOVES FOR THE PUSH ----
+        //
+        // It used to slide the whole viewmodel forward, which is a camera move
+        // rather than a person pushing - the arms never reached, they were
+        // just carried. The HANDS travel now, through IK in ViewmodelArmsIK,
+        // exactly the way PlayerPushArms does it on the real body. Same
+        // gesture, same curve, same reason it works.
+        pushNow = t;
 
         clone.localPosition = place + hiddenOffset * (1f - k);
 
@@ -483,11 +473,23 @@ public class FirstPersonViewmodel : MonoBehaviour
         {
             armsIK.leftOffset = leftHandOffset;
             armsIK.rightOffset = rightHandOffset;
-            armsIK.spread = handSpread + pushSpread * pushNow;
+            armsIK.spread = handSpread;
             armsIK.reach = handReach;
             armsIK.space = anchor;
-            armsIK.push = pushNow;
-            armsIK.pushTurnEuler = pushTurn;
+
+            armsIK.pushProgress = pushNow;
+            armsIK.pushMove = pushMove;
+            armsIK.pushTurn = pushTurn;
+            armsIK.pushWindBack = pushWindBack;
+            armsIK.pushSpread = pushSpread;
+
+            // Timing read off the real component so the two halves of the
+            // shove cannot drift apart when one is tuned.
+            if (realPushArms != null)
+            {
+                armsIK.windPart = realPushArms.windPart;
+                armsIK.thrustPart = realPushArms.thrustPart;
+            }
         }
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
@@ -593,31 +595,6 @@ public class FirstPersonViewmodel : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// How far out the shove is, 0 to 1, dipping negative during the wind-up.
-    ///
-    /// Zero at both ends, which is the contract that keeps the hands starting
-    /// and finishing exactly where they rest - the same shape PlayerPushArms
-    /// uses, and the same reason: anything else leaves a step at one end.
-    /// </summary>
-    float PushCurve(float t, float windPart, float thrustPart)
-    {
-        // The wind-back is expressed in metres but the curve is a fraction,
-        // so it is divided by the length of the move it is a fraction OF.
-        float back = -Mathf.Abs(pushWindBack) / Mathf.Max(0.01f, pushMove.magnitude);
-
-        if (t < windPart)
-            return Mathf.Lerp(0f, back, Smooth(t / Mathf.Max(0.001f, windPart)));
-
-        float rest = (t - windPart) / Mathf.Max(0.001f, 1f - windPart);
-
-        if (rest < thrustPart)
-            return Mathf.Lerp(back, 1f, Smooth(rest / thrustPart));
-
-        return Mathf.Lerp(1f, 0f, Smooth((rest - thrustPart) / (1f - thrustPart)));
-    }
-
-    static float Smooth(float t) => t * t * (3f - 2f * t);
 
     // --------------------------------------------------------------------
     // THE SECOND CAMERA

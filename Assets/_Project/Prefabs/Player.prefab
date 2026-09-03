@@ -188,6 +188,7 @@ MonoBehaviour:
   airAcceleration: 8
   jumpHeight: 1.1
   fallGravityMultiplier: 1.8
+  jumpWindUp: 0.11
   groundMask:
     serializedVersion: 2
     m_Bits: 512
@@ -386,7 +387,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3159604750
+  GlobalObjectIdHash: 2023920637
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -938,7 +939,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralLegsIK
   weight: 0.552
   tiltToSlope: 1
-  ankleHeight: 0.09
+  ankleHeight: 0.22
   releaseInAir: 1
   blendTime: 0.15
   releaseDuringEmotes: 1
@@ -947,6 +948,7 @@ MonoBehaviour:
   hipSway: 0.028
   maxLegExtension: 0.93
   hipDropSpeed: 1.6
+  maxHipDrop: 0.35
   showReadout: 1
   airGrace: 0.25
   airborneHeight: 1.45

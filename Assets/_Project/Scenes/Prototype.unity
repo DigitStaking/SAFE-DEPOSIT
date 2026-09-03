@@ -7442,6 +7442,10 @@ PrefabInstance:
       propertyPath: shrinkNeck
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3059792614481757242, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: ankleHeight
+      value: 0.22
+      objectReference: {fileID: 0}
     - target: {fileID: 4046998530399200963, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: footSwingSpeed
       value: 2

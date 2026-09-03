@@ -93,6 +93,26 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "two things in a row does not lower and raise them twice.")]
     public float holdAfter = 0.6f;
 
+    [Header("Push - the shove, seen from your own eyes")]
+    [Tooltip("How far the hands thrust FORWARD during a shove, in metres, " +
+             "measured from wherever they normally rest. This is the whole " +
+             "gesture as you see it - the world-space version that a teammate " +
+             "sees is PlayerPushArms on the real body and is tuned separately, " +
+             "because the two are looking at completely different things.")]
+    public float pushReach = 0.38f;
+
+    [Tooltip("How far the hands draw BACK before the thrust, in metres.")]
+    public float pushWindBack = 0.12f;
+
+    [Tooltip("How much the hands separate during the shove, in metres. Two " +
+             "palms going out, not one fist.")]
+    public float pushSpread = 0.09f;
+
+    [Tooltip("How far the hands drop as they thrust, in metres. A shove comes " +
+             "from the chest and pushes slightly down and out; hands that " +
+             "travel dead level read as a zombie reaching.")]
+    public float pushDrop = 0.05f;
+
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]
     public float fieldOfView = 60f;

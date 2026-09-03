@@ -203,6 +203,10 @@ public class FirstPersonViewmodel : MonoBehaviour
         rightHandOffset = settings.rightHandOffset;
         handSpread = settings.handSpread;
         handReach = settings.handReach;
+        pushReach = settings.pushReach;
+        pushWindBack = settings.pushWindBack;
+        pushSpread = settings.pushSpread;
+        pushDrop = settings.pushDrop;
         showOnlyWhenBusy = settings.showOnlyWhenBusy;
         hiddenOffset = settings.hiddenOffset;
         raiseTime = settings.raiseTime;
@@ -225,6 +229,13 @@ public class FirstPersonViewmodel : MonoBehaviour
     FirstPersonHands realHands;      // on the REAL body, turned off once we work
     PlayerCarry realCarry;           // holding something
     PlayerPush realPush;             // mid-shove
+    PlayerPushArms realPushArms;     // the world-space shove, read for its TIMING only
+
+    [Header("Push")]
+    public float pushReach = 0.38f;
+    public float pushWindBack = 0.12f;
+    public float pushSpread = 0.09f;
+    public float pushDrop = 0.05f;
 
     /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
     float raised;
@@ -349,6 +360,7 @@ public class FirstPersonViewmodel : MonoBehaviour
             realHands = target.GetComponentInChildren<FirstPersonHands>(true);
             realCarry = target.GetComponent<PlayerCarry>();
             realPush = target.GetComponent<PlayerPush>();
+            realPushArms = target.GetComponentInChildren<PlayerPushArms>(true);
             Rebuild();
         }
 
@@ -478,9 +490,69 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         Vector3 common = right * handSpread + fwd * handReach;
 
+        // ---- AND THE SHOVE, ON TOP ----
+        //
+        // Push is IK on the real body, not a clip and not an animator
+        // parameter, so mirroring parameters can never carry it across. The
+        // viewmodel needs its own gesture.
+        //
+        // Deliberately NOT the same code as PlayerPushArms. That one solves a
+        // hard problem - reach a person who might be a step away or at arm's
+        // length, on a ramp, at a different height - because a teammate is
+        // watching it connect. This one is seen from inside the player's own
+        // head, where there is no target to reach and nothing to connect
+        // with: it is two hands going forward. Sharing the world-space
+        // solution here would import all of that difficulty for none of the
+        // benefit.
+        //
+        // The TIMING is shared though, read live off the real component, so
+        // the two halves cannot drift apart when one is tuned.
+        float t = realPush != null ? realPush.PushProgress : -1f;
+
+        if (t >= 0f)
+        {
+            float windPart = realPushArms != null ? realPushArms.windPart : 0.3f;
+            float thrustPart = realPushArms != null ? realPushArms.thrustPart : 0.52f;
+
+            float k = PushCurve(t, windPart, thrustPart);
+
+            // Out, apart and slightly down - a shove comes off the chest.
+            Vector3 shove = fwd * (pushReach * k)
+                          + Vector3.down * (pushDrop * Mathf.Max(0f, k));
+
+            Vector3 apart = right * (pushSpread * Mathf.Max(0f, k));
+
+            if (l != null) l.position += shove - apart;
+            if (r != null) r.position += shove + apart;
+        }
+
         if (l != null) l.position += Offset(leftHandOffset) - right * handSpread + common;
         if (r != null) r.position += Offset(rightHandOffset) + common;
     }
+
+    /// <summary>
+    /// How far out the shove is, 0 to 1, dipping negative during the wind-up.
+    ///
+    /// Zero at both ends, which is the contract that keeps the hands starting
+    /// and finishing exactly where they rest - the same shape PlayerPushArms
+    /// uses, and the same reason: anything else leaves a step at one end.
+    /// </summary>
+    float PushCurve(float t, float windPart, float thrustPart)
+    {
+        float back = -Mathf.Abs(pushWindBack) / Mathf.Max(0.01f, pushReach);
+
+        if (t < windPart)
+            return Mathf.Lerp(0f, back, Smooth(t / Mathf.Max(0.001f, windPart)));
+
+        float rest = (t - windPart) / Mathf.Max(0.001f, 1f - windPart);
+
+        if (rest < thrustPart)
+            return Mathf.Lerp(back, 1f, Smooth(rest / thrustPart));
+
+        return Mathf.Lerp(1f, 0f, Smooth((rest - thrustPart) / (1f - thrustPart)));
+    }
+
+    static float Smooth(float t) => t * t * (3f - 2f * t);
 
     /// <summary>A per-hand offset, rotated out of camera space into the world.</summary>
     Vector3 Offset(Vector3 local)

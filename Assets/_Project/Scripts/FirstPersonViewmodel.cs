@@ -158,6 +158,61 @@ public class FirstPersonViewmodel : MonoBehaviour
              "level geometry to clip against.")]
     public float nearClip = 0.01f;
 
+    [Header("Settings asset")]
+    [Tooltip("The values above are only a FALLBACK. When a " +
+             "FirstPersonViewmodelSettings asset exists in a Resources folder " +
+             "it wins, and that is the one to edit - it survives leaving Play " +
+             "mode, which this runtime object cannot.")]
+    public FirstPersonViewmodelSettings settings;
+
+    bool settingsChecked;
+
+    /// <summary>
+    /// Pull the asset's values in, every frame.
+    ///
+    /// EVERY FRAME so that dragging a slider on the asset during play still
+    /// updates the game instantly - the live tuning that made Step 4 worth
+    /// doing - while the value itself lives in a file that Unity saves.
+    /// Reading once at startup would give persistence and lose the immediacy.
+    /// </summary>
+    void PullSettings()
+    {
+        if (settings == null && !settingsChecked)
+        {
+            settingsChecked = true;
+            settings = Resources.Load<FirstPersonViewmodelSettings>(
+                FirstPersonViewmodelSettings.ResourceName);
+
+            Report(settings != null
+                ? "using settings asset - edit it in the Project window, it persists."
+                : "no FirstPersonViewmodelSettings asset found. Run SAFE DEPOSIT > " +
+                  "Player > Create Viewmodel Settings Asset, or values will be lost " +
+                  "every time you leave Play mode.", settings == null);
+        }
+
+        if (settings == null) return;
+
+        visible = settings.visible;
+        localPosition = settings.localPosition;
+        localEulerAngles = settings.localEulerAngles;
+        localScale = settings.localScale;
+        leftHandOffset = settings.leftHandOffset;
+        rightHandOffset = settings.rightHandOffset;
+        handSpread = settings.handSpread;
+        handReach = settings.handReach;
+        showOnlyWhenBusy = settings.showOnlyWhenBusy;
+        hiddenOffset = settings.hiddenOffset;
+        raiseTime = settings.raiseTime;
+        holdAfter = settings.holdAfter;
+        followBodyAnimation = settings.followBodyAnimation;
+
+        if (vmCam != null)
+        {
+            vmCam.fieldOfView = settings.fieldOfView;
+            vmCam.nearClipPlane = settings.nearClip;
+        }
+    }
+
     FirstPersonCamera fpCam;
     Camera mainCam;
     Camera vmCam;
@@ -237,6 +292,8 @@ public class FirstPersonViewmodel : MonoBehaviour
 
     void Update()
     {
+        PullSettings();
+
         // ---- FIND THE CAMERA, THEN FIND ITS TARGET. NEITHER IS CACHED PAST
         //      A FAILED ATTEMPT. ----
         if (fpCam == null)
@@ -449,6 +506,23 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (realAnim == null || cloneAnim == null || cloneParams == null) return;
         if (realAnim.runtimeAnimatorController == null) return;
         if (cloneAnim.runtimeAnimatorController == null) return;
+
+        // ---- LAYER WEIGHTS TOO, NOT JUST PARAMETERS ----
+        //
+        // This is why the viewmodel arms had no animation. The clone carries
+        // the same controller as the real body but NOT PlayerAnimatorDriver -
+        // that lives on the Player root, and the clone is parented to a
+        // camera. So nothing was setting the clone's LAYER WEIGHTS, and the
+        // masked Arms layer sat at its authored default of 1 over an empty
+        // state: the exact bind-pose override that was just fixed on the real
+        // body, reproduced perfectly on the copy.
+        //
+        // Copying the weights carries that fix across for free, and keeps the
+        // carry pose, pickup and use one-shots weighted the same on both.
+        int layers = Mathf.Min(cloneAnim.layerCount, realAnim.layerCount);
+
+        for (int i = 0; i < layers; i++)
+            cloneAnim.SetLayerWeight(i, realAnim.GetLayerWeight(i));
 
         for (int i = 0; i < cloneParams.Length; i++)
         {

@@ -54,6 +54,22 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "the camera puts the hands well over your head.")]
     public Vector3 localPosition = new Vector3(0f, -1.05f, 0.35f);
 
+    [Header("Height - measured, not guessed")]
+    [Tooltip("Work out the arms' HEIGHT automatically instead of using " +
+             "localPosition.y. " +
+             "Strongly recommended. The rig's origin is between the feet, so " +
+             "the correct Y depends on the eye height, the scale AND how far " +
+             "up the arms sit inside the model - three numbers that were each " +
+             "being guessed at separately. This measures the rig and solves " +
+             "for it, so changing scale or eyeOffset corrects itself instead " +
+             "of needing the offset re-tuned by hand.")]
+    public bool deriveHeightFromEye = true;
+
+    [Tooltip("How far BELOW eye level the hands sit, in metres. The one " +
+             "number worth tuning by feel once deriveHeightFromEye is on - " +
+             "bigger drops them further down the screen.")]
+    public float handsBelowEye = 0.42f;
+
     [Tooltip("Rotation of the arms relative to the camera, in degrees.")]
     public Vector3 localEulerAngles = Vector3.zero;
 

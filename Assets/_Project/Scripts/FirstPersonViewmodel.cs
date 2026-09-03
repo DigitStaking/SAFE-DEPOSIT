@@ -197,6 +197,8 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         visible = settings.visible;
         localPosition = settings.localPosition;
+        deriveHeightFromEye = settings.deriveHeightFromEye;
+        handsBelowEye = settings.handsBelowEye;
         localEulerAngles = settings.localEulerAngles;
         localScale = settings.localScale;
         leftHandOffset = settings.leftHandOffset;
@@ -230,6 +232,20 @@ public class FirstPersonViewmodel : MonoBehaviour
     PlayerCarry realCarry;           // holding something
     PlayerPush realPush;             // mid-shove
     PlayerPushArms realPushArms;     // the world-space shove, read for its TIMING only
+
+    [Header("Height")]
+    public bool deriveHeightFromEye = true;
+    public float handsBelowEye = 0.42f;
+
+    /// <summary>
+    /// How far the hands sit above the rig's own origin, at scale 1, measured
+    /// off the actual skeleton once when the clone is built.
+    ///
+    /// Measured rather than assumed, because "the arms are about 1.4m up" was
+    /// a guess about THIS model that would silently become wrong the day it is
+    /// replaced - and it is already being multiplied by a scale that changes.
+    /// </summary>
+    float rigArmHeight = -1f;
 
     [Header("Push")]
     public float pushReach = 0.38f;
@@ -411,7 +427,14 @@ public class FirstPersonViewmodel : MonoBehaviour
         // Eased so they arrive and leave softly rather than sliding linearly.
         float k = raised * raised * (3f - 2f * raised);
 
-        clone.localPosition = localPosition + hiddenOffset * (1f - k);
+        // Y solved from the measurement rather than taken from the slider,
+        // so changing scale or the camera's eye height corrects itself.
+        Vector3 place = localPosition;
+
+        if (deriveHeightFromEye && rigArmHeight > 0f)
+            place.y = -handsBelowEye - rigArmHeight * localScale;
+
+        clone.localPosition = place + hiddenOffset * (1f - k);
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
 
@@ -805,6 +828,29 @@ public class FirstPersonViewmodel : MonoBehaviour
         SetLayerRecursively(go, LayerMask.NameToLayer(ViewmodelLayerName));
 
         clone = t;
+
+        // ---- MEASURE WHERE THE ARMS ACTUALLY ARE IN THIS RIG ----
+        //
+        // Solves the problem that has produced three wrong Y offsets in a row.
+        // Where the hands land on screen is eyeOffset.y + localPosition.y +
+        // (arm height in the rig x scale), and every one of those was being
+        // guessed independently - so the scene quietly having eyeOffset.y at
+        // 1.25 instead of the script's 1.60 put the hands 35cm higher than any
+        // of the guesses expected, which is why they kept coming out at the
+        // top of the frame.
+        //
+        // Measured off the real skeleton, at scale 1, so the arithmetic below
+        // can solve for the offset instead of anybody dialling for it.
+        var handBone = cloneAnim != null && cloneAnim.isHuman
+            ? cloneAnim.GetBoneTransform(HumanBodyBones.LeftHand)
+            : null;
+
+        if (handBone != null && localScale > 0.001f)
+        {
+            rigArmHeight = (handBone.position.y - t.position.y) / localScale;
+            Report("rig measured: hands sit " + rigArmHeight.ToString("0.00") +
+                   "m above the arms rig origin at scale 1.");
+        }
 
         // ---- THE ARMS LISTEN TO THE SAME ANIMATION AS THE BODY ----
         //

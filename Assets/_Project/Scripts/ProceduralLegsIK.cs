@@ -115,6 +115,11 @@ public class ProceduralLegsIK : MonoBehaviour
              "and the targets pull opposite ways.")]
     public float airGrace = 0.25f;
 
+    [Tooltip("Metres the hips may be above the floor under the foot before the " +
+             "body counts as airborne. Higher than a stride so that walking " +
+             "over a step never reads as a jump, lower than a real jump.")]
+    public float airborneHeight = 1.45f;
+
     float lastGrounded = -999f;
 
     Animator anim;
@@ -227,7 +232,34 @@ public class ProceduralLegsIK : MonoBehaviour
         // A jump lasts a good fraction of a second. A missed cast lasts a
         // frame. Requiring the airborne state to PERSIST tells them apart, and
         // costs a real jump nothing anybody can see.
-        if (releaseInAir && motor != null && !motor.IsGrounded)
+        // ---- MEASURED FROM THE FLOOR, NOT ASKED OF THE MOTOR ----
+        //
+        // This used PlayerMotor.IsGrounded, and that answer is only true for
+        // the body you own. PlayerMotor.FixedUpdate returns early for anybody
+        // else, so GroundCheck never runs on a teammate, lastGroundedTime stays
+        // at its -999 sentinel, and IsGrounded is FALSE for that body's entire
+        // life.
+        //
+        // Which would have meant every teammate's legs sat at zero weight and
+        // played the clip - the exact thing this system was built to replace,
+        // failing only for other people, on the first two-player test.
+        //
+        // The legs already probe the floor themselves, on every machine, so
+        // the question is answered from geometry both machines can see rather
+        // than from a simulation only one of them is running. It is also
+        // simply a better signal: it is the floor under THE FOOT, not under
+        // the body's centre.
+        bool airborne = false;
+
+        if (releaseInAir)
+        {
+            var leg = right != null ? right : left;
+
+            if (leg != null)
+                airborne = !leg.HasGround || leg.HeightAboveGround > airborneHeight;
+        }
+
+        if (airborne)
         {
             if (Time.time - lastGrounded > airGrace)
             {

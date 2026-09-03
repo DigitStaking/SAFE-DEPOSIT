@@ -951,6 +951,25 @@ public class ProceduralLegs : MonoBehaviour
     /// </summary>
     public float FootYaw => footYaw;
 
+    /// <summary>
+    /// Did the probe find any floor under this foot?
+    ///
+    /// Runs on EVERY machine, which is the point. PlayerMotor's ground check
+    /// only runs for the body you own - FixedUpdate returns early for anybody
+    /// else - so a teammate's IsGrounded is false for their entire life, and
+    /// anything that asks it about somebody else gets a confident wrong answer.
+    /// </summary>
+    public bool HasGround => probeHit;
+
+    /// <summary>
+    /// How far the hips are above the floor under this foot.
+    ///
+    /// The machine-independent way to ask whether a body is airborne: it is
+    /// measured from geometry both machines can see, rather than from a
+    /// simulation only one of them is running.
+    /// </summary>
+    public float HeightAboveGround => transform.position.y - restCache.y;
+
     /// <summary>How far the body has turned since this foot was planted.</summary>
     public float TurnedSincePlanted =>
         Mathf.Abs(Mathf.DeltaAngle(plantedYaw, transform.eulerAngles.y));

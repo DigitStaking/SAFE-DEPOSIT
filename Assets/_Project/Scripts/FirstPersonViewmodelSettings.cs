@@ -75,8 +75,11 @@ public class FirstPersonViewmodelSettings : ScriptableObject
 
     [Header("Only show the hands when they are doing something")]
     [Tooltip("Keep the arms out of sight until you actually use them. " +
-             "Off = always visible, the usual shooter viewmodel.")]
-    public bool showOnlyWhenBusy = true;
+             "OFF WHILE YOU ARE PLACING THEM - you cannot position something " +
+             "that is only on screen for half a second at a time. Turn it back " +
+             "on once the position, rotation and scale are where you want " +
+             "them, and the hide behaviour is waiting exactly as it was.")]
+    public bool showOnlyWhenBusy = false;
 
     [Tooltip("Where the arms rest while idle, as an offset from their normal " +
              "position. Straight down by default so they lower out of frame " +

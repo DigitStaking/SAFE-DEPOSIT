@@ -133,8 +133,11 @@ public class FirstPersonViewmodel : MonoBehaviour
     [Tooltip("Keep the arms out of sight until you actually use them, the way " +
              "We Were Here Together does it - hands are an interaction, not " +
              "scenery you stare at for the whole game. " +
-             "Off = always visible, the usual shooter viewmodel.")]
-    public bool showOnlyWhenBusy = true;
+             "OFF BY DEFAULT while the placement is being dialled in, because " +
+             "you cannot position something that is only on screen for half a " +
+             "second. The hide behaviour is built and waiting; switch it on " +
+             "once the arms sit where you want them.")]
+    public bool showOnlyWhenBusy = false;
 
     [Tooltip("Where the arms rest while idle, as an offset from their normal " +
              "position. Straight down by default, so they lower out of frame " +

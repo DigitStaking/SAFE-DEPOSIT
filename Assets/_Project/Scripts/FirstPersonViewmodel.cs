@@ -3,18 +3,41 @@
 // Goes on: nothing. Starts itself, like VoiceMic.
 //
 // ========================================================================
-// STEP 1 - A SEPARATE PAIR OF ARMS, VISIBLE ONLY TO YOU.
+// STAGE 2 - THE REAL ARMS, ON THE REAL VIEWMODEL CAMERA.
 //
-// "I want TWO different representations of the player." This is the first
-// of the two. FirstPersonHands bends your REAL skeleton toward the camera -
-// one skeleton doing two jobs, which is why a teammate can catch you
-// clutching your own face. This is a second, throwaway copy of that
-// skeleton that only you ever render.
+// "I don't want a duplicated player model, body, character, or world object
+// in front of my camera... The only thing we duplicate is: ARM + HAND MESH."
 //
-// Nothing here is wired to interactions yet. It clones, shrinks, positions,
-// and idles. Grab, loot and use poses are the next step, once this one is
-// confirmed working - so today it will look like a small idle figure near
-// the bottom of your view, not reaching hands. That is expected.
+// Stage 1 (FirstPersonArmsMeshBuilder, Editor-only) already answered whether
+// that mesh could exist: geometry_001 is one SkinnedMeshRenderer with no
+// separate arms piece, so it built one - filtering every vertex by its
+// DOMINANT bone weight, keeping only the ones bound to the arm/hand/finger
+// chain, and saving the result as Assets/_Project/Resources/
+// PlayerArmsViewmodel.asset. That file is not optional scenery; if it is
+// missing, this whole script backs off and leaves your real hands alone
+// rather than showing nothing or something wrong. See TryLoadArmsMesh.
+//
+// This file is what WEARS that mesh. It still clones the skeleton - see
+// below for why that is not the "duplicated body" that was rejected - but it
+// no longer clones or renders the body geometry at all. What is instantiated
+// and immediately stripped down to a skeleton with the arms mesh reattached.
+//
+// ------------------------------------------------------------------------
+// WHY A SKELETON IS STILL CLONED WHEN THE BODY IS NOT
+//
+// This is not a shortcut kept out of laziness - a version with NO clone at
+// all was considered and rejected. Skinning the trimmed mesh straight onto
+// the REAL body's live bones would work today, would be simpler, and would
+// break the entire point of this system the moment it was used for
+// anything: FirstPersonHands already bends those same real bones toward the
+// camera, and a teammate watching your THIRD-PERSON body would see that same
+// bend, because it is the same skeleton. That is the exact "clutching my own
+// face" bug this project has been trying to get away from.
+//
+// A clone is what lets the viewmodel arms hold a pose the real skeleton does
+// not have to share. It costs one lightweight, mesh-less GameObject
+// hierarchy - Transforms only, once the trimmed mesh replaces the original -
+// not a second character.
 //
 // ------------------------------------------------------------------------
 // WHY A SECOND CAMERA, NOT JUST A CHILD OF THE MAIN ONE
@@ -39,32 +62,23 @@
 // ignores the legacy Camera.clearFlags/depth fields entirely. The viewmodel
 // camera is registered as a URP OVERLAY camera in the main camera's own
 // stack - see the long comment at BuildViewmodelCamera() for what went wrong
-// the first time and why. Overlay cameras never clear anything; they draw
-// only their own culling mask on top of whatever the Base camera already
-// produced, which is what makes clipping through nearby geometry structurally
-// impossible rather than just unlikely - there is no world geometry in this
-// camera's frustum to clip against in the first place.
+// the first time and why.
 //
 // ------------------------------------------------------------------------
-// WHY THE CLONE'S HEAD AND LEGS CAN BE HIDDEN AND THE TORSO CANNOT
+// WHY FirstPersonHands GETS TURNED OFF, AND ONLY WHEN THIS ACTUALLY WORKS
 //
-// LocalFirstPersonBodyCull's trick - shrink a bone to hide what is skinned
-// to it - works for the head and the legs because they hang off the SIDE of
-// the skeleton: Head and Neck are one branch under the chest, UpperLeg is a
-// separate branch under the hips. Shrinking one does not touch the others.
+// FirstPersonHands' whole job was faking first-person hands by bending the
+// REAL skeleton toward the camera - the very trick this file replaces. Once
+// a real viewmodel exists, leaving that running underneath it does nothing
+// useful and keeps the old "teammate sees you clutching your own face" bug
+// alive for no reason.
 //
-// The arms are not a side branch. In this rig, Shoulder -> UpperArm ->
-// ForeArm -> Hand all hang OFF THE CHEST BONE, exactly like the head does.
-// Shrinking the chest to hide the torso would carry the entire arm down
-// with it, because a child's world position is its parent's transform times
-// its own - a near-zero parent collapses everything beneath it to one point.
-//
-// So this hides the head and legs (both real wins - no chin in your own
-// view, no legs sprouting out of your own chest) and leaves a small torso
-// with arms attached, rather than promising isolated hands this system
-// cannot deliver. Real isolated arms need their own geometry, cut free of
-// the body in a modelling tool - which is exactly the Block 8 art pass
-// FirstPersonHands has been pointing at all along.
+// So it is disabled, but only AFTER the trimmed mesh has actually loaded and
+// a clone has actually been built - never unconditionally. If the mesh asset
+// is missing (Stage 1 was never run, or its output was deleted),
+// FirstPersonHands is left exactly as it was. A missing viewmodel and a
+// disabled fallback at the same time would mean no hands at all, which is a
+// worse failure than the one being fixed.
 // ========================================================================
 
 using UnityEngine;
@@ -73,38 +87,23 @@ using UnityEngine.Rendering.Universal;
 public class FirstPersonViewmodel : MonoBehaviour
 {
     [Header("Placement")]
-    [Tooltip("Local position of the cloned body, relative to the viewmodel " +
+    [Tooltip("Local position of the cloned arms, relative to the viewmodel " +
              "camera. " +
-             "SIZE ON SCREEN IS DISTANCE, NOT SCALE. The first numbers here " +
-             "put the clone 0.35m out at half size and it filled the entire " +
-             "screen with a chest, because a person-sized object that close " +
-             "is enormous regardless of what the scale slider says - the two " +
-             "fight each other. Z is now the one to move first if it is still " +
-             "too big: push it further away before shrinking it further, or " +
-             "shrinking eventually produces a doll rather than a small figure.")]
-    public Vector3 localPosition = new Vector3(0f, -0.65f, 0.95f);
+             "STARTING NUMBERS ONLY - this could not be previewed while " +
+             "writing it, the same way the whole-body attempt could not. " +
+             "Select ~FirstPersonViewmodel in the Hierarchy while playing and " +
+             "drag these until they read like a normal FPS view of your own " +
+             "arms, low and to the sides.")]
+    public Vector3 localPosition = new Vector3(0f, -0.35f, 0.45f);
 
-    [Tooltip("Local rotation of the cloned body, in degrees.")]
+    [Tooltip("Local rotation of the cloned arms, in degrees.")]
     public Vector3 localEulerAngles = Vector3.zero;
 
-    [Tooltip("Uniform scale. Small enough that a whole idle figure reads as " +
-             "a viewmodel rather than a shrunken person standing in front of " +
-             "you.")]
-    public float localScale = 0.3f;
-
-    [Header("What to hide on the clone")]
-    [Tooltip("Shrink the head bone so it cannot be seen. Same technique as " +
-             "LocalFirstPersonBodyCull, applied to the clone instead of your " +
-             "real body.")]
-    public bool hideHead = true;
-
-    [Tooltip("Also shrink the neck.")]
-    public bool hideNeck = true;
-
-    [Tooltip("Shrink both legs. Fine to hide - unlike the arms, legs are a " +
-             "separate branch off the hips, so this cannot affect anything " +
-             "else.")]
-    public bool hideLegs = true;
+    [Tooltip("Uniform scale. Arms-only geometry does not balloon the frame " +
+             "the way a whole body did, so this can sit much closer to real " +
+             "scale than the old attempt's 0.3 - start near 1 and adjust from " +
+             "here rather than assuming it needs shrinking.")]
+    public float localScale = 0.7f;
 
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]
@@ -122,8 +121,11 @@ public class FirstPersonViewmodel : MonoBehaviour
     Camera vmCam;
     Transform anchor;
     Transform clone;
-    Animator cloneAnim;
     LocalFirstPersonBodyCull cull;   // on the REAL body, to ask about third person
+    FirstPersonHands realHands;      // on the REAL body, turned off once we work
+
+    Mesh armsMesh;
+    bool armsMeshChecked;
 
     Transform target;   // the body we last cloned, so a respawn re-clones
 
@@ -135,22 +137,12 @@ public class FirstPersonViewmodel : MonoBehaviour
         // loading a different one. Re-running each time is correct: the old
         // camera and the old clone died with the scene, and a fresh one is
         // needed for whatever body spawns next.
-        //
-        // Not guarded with a "once ever" flag for that reason - booted below
-        // only stops TWO of these existing at once within the same load.
         var go = new GameObject("~FirstPersonViewmodel");
 
-        // DontSave, not HideAndDontSave. VoiceMic hides itself completely
-        // because nobody ever needs its inspector. This is the opposite case:
-        // every number on it is something to drag a slider on and watch,
-        // exactly like ProceduralLegs and PlayerPush all session - hiding it
-        // from the Hierarchy would have meant reporting a screenshot, reading
-        // a guess back, and repeating that for every number below, instead of
-        // moving one slider and seeing the answer immediately.
-        //
-        // DontSave alone still keeps it out of the saved scene, which is the
-        // part that actually matters - a debug object baked into Prototype.unity
-        // would be a real bug.
+        // DontSave, not HideAndDontSave - visible and selectable in the
+        // Hierarchy while playing, because every number on it is meant to be
+        // dragged and watched, not guessed blind. Still never saved into the
+        // scene file.
         go.hideFlags = HideFlags.DontSave;
         go.AddComponent<FirstPersonViewmodel>();
     }
@@ -167,11 +159,6 @@ public class FirstPersonViewmodel : MonoBehaviour
     {
         // ---- FIND THE CAMERA, THEN FIND ITS TARGET. NEITHER IS CACHED PAST
         //      A FAILED ATTEMPT. ----
-        //
-        // FirstPersonCamera itself does not bind to a body until one spawns
-        // and claims local, so this has to be willing to keep asking rather
-        // than giving up after one null result - the same reason
-        // FirstPersonCamera polls for AdoptLocalPlayer instead of trying once.
         if (fpCam == null)
         {
             fpCam = Object.FindFirstObjectByType<FirstPersonCamera>();
@@ -187,6 +174,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         {
             target = fpCam.target;
             cull = target.GetComponent<LocalFirstPersonBodyCull>();
+            realHands = target.GetComponentInChildren<FirstPersonHands>(true);
             Rebuild();
         }
 
@@ -194,8 +182,8 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         // Hidden in third person - the viewmodel camera sits at the MAIN
         // camera's position, and in third person that is three metres behind
-        // the character, which would show the tiny arms floating in mid-air
-        // for no reason.
+        // the character, which would show the arms floating in mid-air for
+        // no reason.
         bool show = cull == null || !cull.ThirdPerson;
         if (vmCam != null) vmCam.enabled = show;
     }
@@ -228,26 +216,17 @@ public class FirstPersonViewmodel : MonoBehaviour
         // ---- THIS PROJECT RENDERS THROUGH URP, WHICH IGNORES ALL OF THAT
         //      UNLESS THE CAMERA IS REGISTERED INTO A STACK ----
         //
-        // clearFlags and depth are the LEGACY pipeline's answer to layering
-        // two cameras, and they do nothing under URP - which is why the
-        // result was not "the clone drawn over the world" but "the whole
-        // world replaced by flat blue". A Camera added at runtime with
-        // AddComponent has no UniversalAdditionalCameraData, and URP's
-        // fallback for a camera in that state is to render it as its own
-        // independent BASE camera - clearing to its own background (Unity's
-        // default camera blue) rather than drawing on top of anything.
+        // A camera in the Editor gets a UniversalAdditionalCameraData
+        // attached automatically the moment URP is the active pipeline. One
+        // created purely in code does not, and URP's fallback for a camera in
+        // that state is to render it as its own independent BASE camera -
+        // clearing to Unity's default camera blue rather than drawing on top
+        // of anything. That was the flat blue screen from the previous round.
         //
-        // A camera in the Editor gets that component attached automatically
-        // the moment URP is the active pipeline. One created purely in code
-        // does not, and there is no warning when it is missing - it just
-        // quietly renders wrong.
-        //
-        // The actual URP mechanism: a camera is either Base (clears the
-        // screen, the normal kind - your Main Camera already is one) or
-        // Overlay (draws on top of a Base camera's result, never clears
-        // anything itself). Overlay cameras do not free-float - they have to
-        // be added to a Base camera's OWN camera stack, in the order they
-        // should draw.
+        // The real mechanism: a camera is either Base (clears the screen -
+        // your Main Camera already is one) or Overlay (draws on top of a Base
+        // camera's result, never clears anything itself). Overlay cameras do
+        // not free-float - they are added to a Base camera's OWN stack.
         var vmData = camGo.AddComponent<UniversalAdditionalCameraData>();
         vmData.renderType = CameraRenderType.Overlay;
 
@@ -259,7 +238,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         // The main camera must NOT also draw this layer - an Overlay camera
         // still only draws what its OWN culling mask names, but the Base
         // camera underneath it would otherwise draw the same clone a second
-        // time, at whatever tiny size it happens to be relative to the WORLD
+        // time, at whatever size it happens to be relative to the WORLD
         // camera rather than the viewmodel one.
         mainCam.cullingMask &= ~(1 << layer);
 
@@ -268,12 +247,34 @@ public class FirstPersonViewmodel : MonoBehaviour
 
     // MUST MATCH ViewmodelLayerSetup.LayerName exactly. They cannot share one
     // constant - that editor tool lives in an Editor-only assembly, which is
-    // stripped from the actual game and cannot be referenced from here. Two
-    // literals kept in sync by comment rather than by the compiler; this
-    // project has already been bitten by exactly that shape of bug once
-    // (PlayerPush's cooldown racing armTime), so it is written out plainly
-    // in both files rather than trusted to memory.
+    // stripped from the actual game and cannot be referenced from here.
     public const string ViewmodelLayerName = "Viewmodel";
+
+    // --------------------------------------------------------------------
+    // THE TRIMMED MESH
+    // --------------------------------------------------------------------
+
+    /// <summary>
+    /// Loads Stage 1's output once, remembers whether it worked, and never
+    /// spams the console retrying a load that already failed this session.
+    /// </summary>
+    bool TryLoadArmsMesh()
+    {
+        if (armsMeshChecked) return armsMesh != null;
+        armsMeshChecked = true;
+
+        armsMesh = Resources.Load<Mesh>("PlayerArmsViewmodel");
+
+        if (armsMesh == null)
+        {
+            Debug.LogWarning("[Viewmodel] Assets/_Project/Resources/PlayerArmsViewmodel.asset " +
+                             "not found. Run SAFE DEPOSIT > Player > Build First-Person Arms " +
+                             "Mesh once. Your real hands (FirstPersonHands) are left running " +
+                             "until this exists.");
+        }
+
+        return armsMesh != null;
+    }
 
     // --------------------------------------------------------------------
     // THE CLONE
@@ -283,9 +284,14 @@ public class FirstPersonViewmodel : MonoBehaviour
     {
         if (clone != null) Destroy(clone.gameObject);
         clone = null;
-        cloneAnim = null;
 
-        if (anchor == null) return;   // layer setup failed; nothing to show
+        // Real hands are the fallback until proven otherwise on THIS body.
+        // A respawn re-runs Rebuild with a fresh target, so this has to be
+        // re-decided every time rather than trusted from the last body.
+        if (realHands != null) realHands.enabled = true;
+
+        if (anchor == null) return;         // layer setup failed; nothing to show
+        if (!TryLoadArmsMesh()) return;      // Stage 1 not run; leave real hands alone
 
         var visual = target.Find("PlayerModel_FBX_VISUAL");
         if (visual == null)
@@ -295,21 +301,46 @@ public class FirstPersonViewmodel : MonoBehaviour
             return;
         }
 
+        // ---- CLONE THE SKELETON, NOT THE CHARACTER ----
+        //
+        // Instantiate still copies the whole hierarchy - bones, Animator,
+        // the original SkinnedMeshRenderer - because that is the only way to
+        // get a skeleton whose bone indices line up with the trimmed mesh's
+        // bindposes (see FirstPersonArmsMeshBuilder's header for why that
+        // alignment is what makes the swap below safe). What makes this NOT
+        // a duplicated body is the very next line: the renderer's mesh is
+        // replaced before this is ever shown.
         var go = Instantiate(visual.gameObject, anchor);
-        go.name = "ClonedArms";
+        go.name = "ArmsViewmodel";
 
         var t = go.transform;
         t.localPosition = localPosition;
         t.localRotation = Quaternion.Euler(localEulerAngles);
         t.localScale = Vector3.one * localScale;
 
+        var smr = go.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (smr == null)
+        {
+            Debug.LogError("[Viewmodel] Clone has no SkinnedMeshRenderer to swap the arms " +
+                           "mesh onto - aborting rather than showing the full body.");
+            Destroy(go);
+            return;
+        }
+
+        // THE SWAP. Same bindposes, same bone-index-per-vertex layout as the
+        // source mesh (FirstPersonArmsMeshBuilder copied both unchanged), and
+        // Instantiate has already remapped smr.bones to THIS clone's own
+        // Transforms - so this is the entire fix, one assignment.
+        smr.sharedMesh = armsMesh;
+
         StripForViewmodel(go);
         SetLayerRecursively(go, LayerMask.NameToLayer(ViewmodelLayerName));
 
         clone = t;
-        cloneAnim = go.GetComponent<Animator>();
 
-        if (hideHead || hideNeck || hideLegs) ShrinkBones();
+        // Confirmed working on this body - the real skeleton no longer needs
+        // to be bent toward the camera to fake hands.
+        if (realHands != null) realHands.enabled = false;
     }
 
     /// <summary>
@@ -354,38 +385,5 @@ public class FirstPersonViewmodel : MonoBehaviour
         go.layer = layer;
         foreach (Transform child in go.transform)
             SetLayerRecursively(child.gameObject, layer);
-    }
-
-    void ShrinkBones()
-    {
-        if (cloneAnim == null || !cloneAnim.isHuman) return;
-
-        const float shrink = 0.0001f;   // not exactly zero - see the note in
-                                        // LocalFirstPersonBodyCull about
-                                        // degenerate matrices
-
-        if (hideHead) Shrink(HumanBodyBones.Head, shrink);
-        if (hideNeck) Shrink(HumanBodyBones.Neck, shrink);
-
-        if (hideLegs)
-        {
-            Shrink(HumanBodyBones.LeftUpperLeg, shrink);
-            Shrink(HumanBodyBones.RightUpperLeg, shrink);
-        }
-    }
-
-    void Shrink(HumanBodyBones bone, float amount)
-    {
-        var t = cloneAnim.GetBoneTransform(bone);
-        if (t != null) t.localScale = Vector3.one * amount;
-    }
-
-    void LateUpdate()
-    {
-        // The Animator writes its pose in the animation update, which runs
-        // BEFORE LateUpdate - so shrinking here, after it, is what stops the
-        // idle clip putting the head back to full size every frame. Same
-        // ordering reason LocalFirstPersonBodyCull's own shrink runs late.
-        if (clone != null) ShrinkBones();
     }
 }

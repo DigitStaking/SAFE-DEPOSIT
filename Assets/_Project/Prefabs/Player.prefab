@@ -88,7 +88,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3905965451144822264}
-  - {fileID: 3837918013776580996}
+  - {fileID: 4007666841464958271}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &7047771218777837378
@@ -269,7 +269,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08eece632d8b20e4e88724d282f4606e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimatorDriver
-  animator: {fileID: 7179629295030242302}
+  animator: {fileID: 7025117437554898757}
   walkSpeed: 4.5
   moveDamp: 0.1
   jumpDetectSpeed: 1
@@ -474,66 +474,10 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   NetworkAnimatorExpanded: 0
   AuthorityMode: 0
-  m_Animator: {fileID: 7179629295030242302}
+  m_Animator: {fileID: 0}
   TransitionStateInfoList: []
   AnimatorParameterEntries:
-    ParameterEntries:
-    - name: MoveX
-      NameHash: 675470966
-      Synchronize: 1
-      ParameterType: 1
-    - name: MoveZ
-      NameHash: -968048806
-      Synchronize: 1
-      ParameterType: 1
-    - name: Speed
-      NameHash: -823668238
-      Synchronize: 1
-      ParameterType: 1
-    - name: VelY
-      NameHash: 1522617170
-      Synchronize: 1
-      ParameterType: 1
-    - name: Grounded
-      NameHash: 862969536
-      Synchronize: 1
-      ParameterType: 4
-    - name: Jump
-      NameHash: 125937960
-      Synchronize: 1
-      ParameterType: 9
-    - name: Carry
-      NameHash: 961424176
-      Synchronize: 1
-      ParameterType: 3
-    - name: DoPickUp
-      NameHash: -679504200
-      Synchronize: 1
-      ParameterType: 9
-    - name: DoStow
-      NameHash: -1741817230
-      Synchronize: 1
-      ParameterType: 9
-    - name: DoUse
-      NameHash: 1537850744
-      Synchronize: 1
-      ParameterType: 9
-    - name: Emote
-      NameHash: -1434604862
-      Synchronize: 1
-      ParameterType: 3
-    - name: DoEmote
-      NameHash: -1193972156
-      Synchronize: 1
-      ParameterType: 9
-    - name: Downed
-      NameHash: -660779543
-      Synchronize: 1
-      ParameterType: 4
-    - name: DoStun
-      NameHash: 1282123881
-      Synchronize: 1
-      ParameterType: 9
+    ParameterEntries: []
   AnimatorParametersExpanded: 0
 --- !u!114 &5469903729989680692
 MonoBehaviour:
@@ -833,7 +777,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   armTime: 1
   contactAt: 0.341
---- !u!1001 &3659666608676451951
+--- !u!1001 &3464586149809097428
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -939,31 +883,25 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 7366050459848051492}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 763617851780415658}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 823516381370920081}
+      addedObject: {fileID: 247231972758600341}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
---- !u!4 &3837918013776580996 stripped
+--- !u!4 &4007666841464958271 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
-  m_PrefabInstance: {fileID: 3659666608676451951}
+  m_PrefabInstance: {fileID: 3464586149809097428}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &4470058706977524542 stripped
+--- !u!1 &4383629090344744837 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
-  m_PrefabInstance: {fileID: 3659666608676451951}
+  m_PrefabInstance: {fileID: 3464586149809097428}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &7366050459848051492
+--- !u!114 &247231972758600341
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4470058706977524542}
+  m_GameObject: {fileID: 4383629090344744837}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2c62472d5f3ef014ca24a2cec72e3081, type: 3}
@@ -980,56 +918,8 @@ MonoBehaviour:
   followSpeed: 16
   weightSpeed: 6
   drawTargets: 0
---- !u!114 &763617851780415658
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4470058706977524542}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00bc8483f48aa3c4cb21a53dfa287a1f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProceduralLegsIK
-  weight: 0.552
-  tiltToSlope: 1
-  ankleHeight: 0.21
-  releaseInAir: 1
-  blendTime: 0.15
-  releaseDuringEmotes: 1
-  moveHips: 1
-  hipBob: 0.035
-  hipSway: 0.028
-  maxLegExtension: 0.93
-  hipDropSpeed: 1.6
-  showReadout: 1
-  airGrace: 0.25
-  airborneHeight: 1.45
---- !u!114 &823516381370920081
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4470058706977524542}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 71c58b9a28380c74d90b38f108e73b52, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerPushArms
-  reach: 0.72
-  spread: 0.34
-  height: 1
-  windBack: 0.16
-  windPart: 0.28
-  weight: 1
-  thrustPart: 0.45
-  followCamera: 1
-  pitchLimit: 38
-  palmEuler: {x: -90, y: 0, z: 0}
---- !u!95 &7179629295030242302 stripped
+--- !u!95 &7025117437554898757 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
-  m_PrefabInstance: {fileID: 3659666608676451951}
+  m_PrefabInstance: {fileID: 3464586149809097428}
   m_PrefabAsset: {fileID: 0}

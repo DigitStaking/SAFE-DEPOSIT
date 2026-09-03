@@ -55,8 +55,20 @@ using UnityEngine;
 public static class FirstPersonArmsMeshBuilder
 {
     const string PlayerPrefabPath = "Assets/_Project/Prefabs/Player.prefab";
-    const string OutputFolder = "Assets/_Project/Models/Generated";
-    const string OutputPath = OutputFolder + "/PlayerArmsViewmodel.asset";
+
+    // Under a folder literally named "Resources" so Stage 2's runtime code
+    // can load it by name with Resources.Load<Mesh>("PlayerArmsViewmodel") -
+    // no scene wiring, no serialized reference, because the viewmodel script
+    // self-boots the same way VoiceMic does and has nothing to wire it to.
+    // That is a Unity-special folder name, not a style choice - it has to be
+    // exactly "Resources" or the runtime load finds nothing.
+    const string ResourcesFolder = "Assets/_Project/Resources";
+    const string OutputPath = ResourcesFolder + "/PlayerArmsViewmodel.asset";
+
+    // Where the very first run of this tool saved the asset, before Stage 2
+    // needed it loadable at runtime. Cleaned up below so there are never two
+    // copies drifting apart.
+    const string OldOutputPath = "Assets/_Project/Models/Generated/PlayerArmsViewmodel.asset";
 
     // Every humanoid bone that is arm, hand, or finger. Built explicitly
     // rather than by name-matching, so there is no ambiguity about what
@@ -310,7 +322,8 @@ public static class FirstPersonArmsMeshBuilder
             newMesh.RecalculateBounds();
 
             // ---- SAVE THE ASSET ----
-            EnsureFolder(OutputFolder);
+            EnsureFolder(ResourcesFolder);
+            AssetDatabase.DeleteAsset(OldOutputPath);   // stale copy from the first run, if present
             AssetDatabase.DeleteAsset(OutputPath);
             AssetDatabase.CreateAsset(newMesh, OutputPath);
             AssetDatabase.SaveAssets();

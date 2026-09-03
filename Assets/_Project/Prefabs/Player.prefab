@@ -182,7 +182,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7bb1a1fd3893da4c97f14630e562fd9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMotor
-  moveSpeed: 4.5
+  moveSpeed: 2
   groundAcceleration: 60
   airAcceleration: 8
   jumpHeight: 1.1
@@ -743,17 +743,21 @@ MonoBehaviour:
   strideBase: 0.22
   stridePerSpeed: 0.17
   stepLead: 0.17
-  stepTimeBase: 0.32
-  stepTimePerSpeed: 0.035
+  lateralScale: 0.55
+  footSwingSpeed: 2
   stepTimeMin: 0.13
+  stepTimeMax: 0.45
   stepArc: 0.11
+  arcPerLength: 0.2
   loadStanceWiden: 0.07
   loadArcFlatten: 0.55
   injuryStrideCut: 0.3
   minStepGap: 0.08
   limpsWhenHurt: 0
   limpExtraCut: 0.35
+  turnStepDegrees: 32
   minSeparation: 0.07
+  strandedAt: 1.7
   maxReach: 0.62
   groundMask:
     serializedVersion: 2
@@ -781,17 +785,21 @@ MonoBehaviour:
   strideBase: 0.22
   stridePerSpeed: 0.17
   stepLead: 0.17
-  stepTimeBase: 0.32
-  stepTimePerSpeed: 0.035
+  lateralScale: 0.55
+  footSwingSpeed: 2
   stepTimeMin: 0.13
+  stepTimeMax: 0.45
   stepArc: 0.11
+  arcPerLength: 0.2
   loadStanceWiden: 0.07
   loadArcFlatten: 0.55
   injuryStrideCut: 0.3
   minStepGap: 0.08
   limpsWhenHurt: 0
   limpExtraCut: 0.35
+  turnStepDegrees: 32
   minSeparation: 0.07
+  strandedAt: 1.7
   maxReach: 0.62
   groundMask:
     serializedVersion: 2
@@ -957,11 +965,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 00bc8483f48aa3c4cb21a53dfa287a1f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralLegsIK
-  weight: 1
+  weight: 0.552
   tiltToSlope: 1
-  ankleHeight: 0.09
+  ankleHeight: 0.21
   releaseInAir: 1
   blendTime: 0.15
+  releaseDuringEmotes: 1
+  showReadout: 1
+  airGrace: 0.25
+  airborneHeight: 1.45
 --- !u!95 &7179629295030242302 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

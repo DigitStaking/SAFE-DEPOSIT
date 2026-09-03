@@ -977,6 +977,18 @@ public class ProceduralLegs : MonoBehaviour
     /// <summary>True while this foot is in the air.</summary>
     public bool IsStepping => stepping;
 
+    /// <summary>
+    /// How far through its swing this foot is, 0 to 1. Zero when planted.
+    ///
+    /// The hips read this. A walking body is HIGHEST when the swinging leg
+    /// passes the standing one - the stance leg is vertical and at full length
+    /// then - and LOWEST at the moment both feet are down and both legs are
+    /// splayed. That rise and fall is most of what separates walking from
+    /// gliding, and this is the phase it is built from.
+    /// </summary>
+    public float StepPhase =>
+        stepping && stepTime > 0f ? Mathf.Clamp01(stepAge / stepTime) : 0f;
+
     // ---- what the on-screen readout reports -----------------------------
 
     /// <summary>

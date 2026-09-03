@@ -98,6 +98,35 @@ public class ProceduralLegsIK : MonoBehaviour
              "released by both halves off one signal and they cannot disagree.")]
     public bool releaseDuringEmotes = true;
 
+    [Header("Hips - step 4")]
+    [Tooltip("Move the pelvis. Everything else in this component places the " +
+             "FEET; this is the half that makes the body above them look like " +
+             "it is walking rather than being carried. " +
+             "Turn it off to see what the feet alone were doing.")]
+    public bool moveHips = true;
+
+    [Tooltip("Metres the hips rise as the swinging leg passes the standing " +
+             "one. A walking body is highest at that moment - the stance leg " +
+             "is vertical and at full length - and lowest when both feet are " +
+             "down and both legs are splayed. Without this the pelvis glides " +
+             "along a rail, which is most of what reads as floating.")]
+    public float hipBob = 0.035f;
+
+    [Tooltip("How far the hips shift toward whichever foot is carrying the " +
+             "weight, in metres. People walk over their standing foot, not " +
+             "between their feet - it is a small number and its absence is " +
+             "very visible.")]
+    public float hipSway = 0.028f;
+
+    [Tooltip("How much of a leg's length may be used before the hips drop to " +
+             "help it reach. Below 1 because a straight leg looks locked - " +
+             "real knees keep a bend even at full stride.")]
+    [Range(0.7f, 1f)] public float maxLegExtension = 0.93f;
+
+    [Tooltip("Metres per second the reach-drop may move. Instant would make " +
+             "the whole body jolt the moment a foot lands on something lower.")]
+    public float hipDropSpeed = 1.6f;
+
     [Header("Diagnosis")]
     [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
              "The first line is the one that matters: IK WEIGHT. If it reads " +
@@ -160,6 +189,30 @@ public class ProceduralLegsIK : MonoBehaviour
     }
 
     /// <summary>
+    /// How long this character's leg actually is, hip to ankle, measured from
+    /// the skeleton rather than typed in. A model swap or a rescale cannot
+    /// silently invalidate it.
+    /// </summary>
+    float legLength;
+
+    float hipDrop;      // current reach-drop, eased
+    float hipOffsetY;   // what the readout reports
+
+    void Start()
+    {
+        if (anim == null || !anim.isHuman) return;
+
+        var hip = anim.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+        var knee = anim.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
+        var foot = anim.GetBoneTransform(HumanBodyBones.LeftFoot);
+
+        if (hip == null || knee == null || foot == null) return;
+
+        legLength = Vector3.Distance(hip.position, knee.position) +
+                    Vector3.Distance(knee.position, foot.position);
+    }
+
+    /// <summary>
     /// Called by Unity during the animation update, after the clip has been
     /// evaluated and before the pose is committed - which is the only moment
     /// the foot position can be overruled.
@@ -175,8 +228,111 @@ public class ProceduralLegsIK : MonoBehaviour
         live = Mathf.MoveTowards(live, Target(),
                                  blendTime <= 0f ? 1f : Time.deltaTime / blendTime);
 
+        // BEFORE the feet, and that order is not optional. Moving the hips
+        // moves everything hanging off them, so a foot goal written first
+        // would be dragged along by the hip adjustment that came after it. The
+        // feet are placed in WORLD space last, so wherever the hips end up,
+        // the feet still land exactly where the ground says.
+        ApplyHips();
+
         Apply(AvatarIKGoal.LeftFoot, left);
         Apply(AvatarIKGoal.RightFoot, right);
+    }
+
+    // --------------------------------------------------------------------
+    // THE HIPS
+    //
+    // Three separate jobs, and only the first is about reach.
+    // --------------------------------------------------------------------
+
+    void ApplyHips()
+    {
+        if (!moveHips || live <= 0.001f || legLength <= 0.001f) return;
+
+        Vector3 body = anim.bodyPosition;
+
+        // ---- 1. DROP SO THE LOWEST FOOT CAN REACH ----
+        //
+        // This is what the readout was reporting as THE LEG IS NOT FOLLOWING.
+        // With the pelvis held at a constant height, a foot on a step below
+        // simply cannot be reached, and the solver leaves the leg stretched
+        // and short of its target.
+        //
+        // A person solves it by sinking onto the standing leg. So do we: find
+        // the foot that needs the most help and lower the hips by exactly that
+        // much. The whole-body dip going downstairs comes out of this for
+        // free - nobody has to detect a staircase.
+        float need = 0f;
+
+        need = Mathf.Min(need, DropNeededFor(left, body));
+        need = Mathf.Min(need, DropNeededFor(right, body));
+
+        // Eased, because landing on something lower should sink the body, not
+        // jolt it.
+        hipDrop = Mathf.MoveTowards(hipDrop, need, hipDropSpeed * Time.deltaTime);
+
+        // ---- 2. RISE AS THE SWING PASSES THE STANCE LEG ----
+        //
+        // Highest at mid-swing, lowest at double support. Taken from whichever
+        // foot is actually in the air, so it stays in step with the gait
+        // without a clock of its own - which also means it slows down when the
+        // player does, and stops dead when they stand still.
+        float phase = Mathf.Max(Phase(left), Phase(right));
+        float bob = Mathf.Sin(phase * Mathf.PI) * hipBob;
+
+        // ---- 3. LEAN OVER THE FOOT CARRYING THE WEIGHT ----
+        //
+        // People walk over their standing foot, not between their feet. Small
+        // number, very visible by its absence.
+        Vector3 sway = Vector3.zero;
+        var carrying = Weighted();
+
+        if (carrying != null)
+        {
+            Vector3 over = carrying.FootPosition - body;
+            over.y = 0f;
+            sway = Vector3.ClampMagnitude(over, 1f) * hipSway;
+        }
+
+        hipOffsetY = hipDrop + bob;
+
+        body += (sway + Vector3.up * hipOffsetY) * live;
+        anim.bodyPosition = body;
+    }
+
+    static float Phase(ProceduralLegs leg) => leg != null ? leg.StepPhase : 0f;
+
+    /// <summary>Whichever foot is on the floor. When both are, neither is
+    /// carrying more than the other, so nothing leans.</summary>
+    ProceduralLegs Weighted()
+    {
+        bool l = left != null && !left.IsStepping;
+        bool r = right != null && !right.IsStepping;
+
+        if (l && !r) return left;
+        if (r && !l) return right;
+        return null;
+    }
+
+    /// <summary>
+    /// How far the hips must come down for this foot to be reachable, as a
+    /// negative number, or zero if it already is.
+    /// </summary>
+    float DropNeededFor(ProceduralLegs leg, Vector3 body)
+    {
+        if (leg == null) return 0f;
+
+        var goal = leg == left ? HumanBodyBones.LeftUpperLeg
+                               : HumanBodyBones.RightUpperLeg;
+
+        var upper = anim.GetBoneTransform(goal);
+        if (upper == null) return 0f;
+
+        Vector3 target = leg.FootPosition + Vector3.up * ankleHeight;
+        float reach = legLength * maxLegExtension;
+        float distance = Vector3.Distance(upper.position, target);
+
+        return distance <= reach ? 0f : -(distance - reach);
     }
 
     /// <summary>
@@ -495,6 +651,9 @@ public class ProceduralLegsIK : MonoBehaviour
 
             text.Append("\nreach error  ").Append((reachError * 100f).ToString("0"))
                 .Append(" cm");
+
+            text.Append("\nhip offset   ").Append((hipOffsetY * 100f).ToString("0.0"))
+                .Append(" cm").Append(moveHips ? "" : "   (hips OFF)");
 
             text.Append("\n\n<color=#9999AA>left  ")
                 .Append(left == null ? "MISSING" : (left.IsStepping ? "stepping" : "planted"))

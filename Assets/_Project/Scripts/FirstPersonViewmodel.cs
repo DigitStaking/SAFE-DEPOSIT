@@ -129,6 +129,26 @@ public class FirstPersonViewmodel : MonoBehaviour
              "touching the rig's own position.")]
     public float handReach = 0f;
 
+    [Header("Only show the hands when they are doing something")]
+    [Tooltip("Keep the arms out of sight until you actually use them, the way " +
+             "We Were Here Together does it - hands are an interaction, not " +
+             "scenery you stare at for the whole game. " +
+             "Off = always visible, the usual shooter viewmodel.")]
+    public bool showOnlyWhenBusy = true;
+
+    [Tooltip("Where the arms rest while idle, as an offset from their normal " +
+             "position. Straight down by default, so they lower out of frame " +
+             "and rise back into it rather than blinking on and off.")]
+    public Vector3 hiddenOffset = new Vector3(0f, -0.45f, 0f);
+
+    [Tooltip("Seconds for the arms to rise into view or lower back out.")]
+    public float raiseTime = 0.22f;
+
+    [Tooltip("Seconds the hands stay up after an action finishes. Stops them " +
+             "dropping between two quick actions - grabbing one thing and then " +
+             "another should not lower and raise them twice.")]
+    public float holdAfter = 0.6f;
+
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]
     public float fieldOfView = 60f;
@@ -145,6 +165,14 @@ public class FirstPersonViewmodel : MonoBehaviour
     Transform clone;
     LocalFirstPersonBodyCull cull;   // on the REAL body, to ask about third person
     FirstPersonHands realHands;      // on the REAL body, turned off once we work
+    PlayerCarry realCarry;           // holding something
+    PlayerPush realPush;             // mid-shove
+
+    /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
+    float raised;
+
+    /// <summary>When the hands were last doing something, for holdAfter.</summary>
+    float lastBusy = -999f;
 
     [Header("Animation")]
     [Tooltip("Drive the viewmodel arms from the SAME animator parameters as " +
@@ -259,6 +287,8 @@ public class FirstPersonViewmodel : MonoBehaviour
             target = fpCam.target;
             cull = target.GetComponent<LocalFirstPersonBodyCull>();
             realHands = target.GetComponentInChildren<FirstPersonHands>(true);
+            realCarry = target.GetComponent<PlayerCarry>();
+            realPush = target.GetComponent<PlayerPush>();
             Rebuild();
         }
 
@@ -297,11 +327,67 @@ public class FirstPersonViewmodel : MonoBehaviour
     {
         if (clone == null) return;
 
-        clone.localPosition = localPosition;
+        // ---- RAISE THEM ONLY WHEN THEY ARE DOING SOMETHING ----
+        float want = !showOnlyWhenBusy || HandsBusy() ? 1f : 0f;
+
+        if (want > 0.5f) lastBusy = Time.time;
+        else if (Time.time - lastBusy < holdAfter) want = 1f;   // still in the hold
+
+        raised = Mathf.MoveTowards(raised, want,
+                                   raiseTime <= 0f ? 1f : Time.deltaTime / raiseTime);
+
+        // Eased so they arrive and leave softly rather than sliding linearly.
+        float k = raised * raised * (3f - 2f * raised);
+
+        clone.localPosition = localPosition + hiddenOffset * (1f - k);
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
 
         if (vmCam != null && !visible) vmCam.enabled = false;
+    }
+
+    /// <summary>
+    /// Is the player using their hands for anything right now?
+    ///
+    /// Every hand action in the game resolves to one of four signals, and
+    /// three of the four are read from the ANIMATOR rather than from a list of
+    /// keypresses - so an action added later is covered without touching this.
+    ///
+    ///   arms layer has a clip   pick up, stow, use, and the carry pose. That
+    ///                           masked layer exists precisely to mean "the
+    ///                           arms are busy", so asking whether it has
+    ///                           anything to play IS the question.
+    ///   carrying                belt and braces for the sustained hold, in
+    ///                           case the carry pose is ever moved off that
+    ///                           layer.
+    ///   mid-shove               push is IK, not a clip, so it has no layer to
+    ///                           show up on and has to be asked directly.
+    ///   emote playing           wave, point, dance, clap, salute. Those are
+    ///                           FULL-BODY on the base layer, tagged FreeArms -
+    ///                           the same tag FirstPersonHands and
+    ///                           ProceduralLegsIK already read, so all three
+    ///                           agree about what an emote is.
+    /// </summary>
+    bool HandsBusy()
+    {
+        if (realCarry != null && realCarry.IsCarrying) return true;
+
+        if (realPush != null && realPush.PushProgress >= 0f) return true;
+
+        if (realAnim == null || realAnim.runtimeAnimatorController == null) return false;
+
+        const int ArmsLayer = 1;
+
+        if (realAnim.layerCount > ArmsLayer &&
+            (realAnim.GetCurrentAnimatorClipInfoCount(ArmsLayer) > 0 ||
+             realAnim.GetNextAnimatorClipInfoCount(ArmsLayer) > 0))
+            return true;
+
+        if (realAnim.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
+            realAnim.GetNextAnimatorStateInfo(0).IsTag("FreeArms"))
+            return true;
+
+        return false;
     }
 
     /// <summary>

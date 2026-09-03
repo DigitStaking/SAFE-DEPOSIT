@@ -526,6 +526,60 @@ public class FirstPersonViewmodel : MonoBehaviour
     }
 
     /// <summary>
+    /// Copy the real body's animator parameters AND layer weights onto the
+    /// arms.
+    ///
+    /// Floats, ints and bools only. TRIGGERS are deliberately not forwarded:
+    /// there is no way to read whether one is currently set, and a one-shot
+    /// fired twice - once on each animator - is not the same as one fired on
+    /// both. Pickup, stow, use and emote are all triggers, so those arrive
+    /// with the interaction work rather than here, where they would be
+    /// guesswork.
+    ///
+    /// This copies INPUTS, never the pose. The two skeletons stay free to
+    /// differ, which is the entire reason there are two of them.
+    /// </summary>
+    void MirrorAnimation()
+    {
+        if (realAnim == null || cloneAnim == null || cloneParams == null) return;
+        if (realAnim.runtimeAnimatorController == null) return;
+        if (cloneAnim.runtimeAnimatorController == null) return;
+
+        // ---- LAYER WEIGHTS TOO, NOT JUST PARAMETERS ----
+        //
+        // The clone carries the same controller as the real body but NOT
+        // PlayerAnimatorDriver - that lives on the Player root, and the clone
+        // is parented to a camera. So nothing was setting the clone's LAYER
+        // WEIGHTS, and the masked Arms layer sat at its authored default of 1
+        // over an empty state: the exact bind-pose override that was fixed on
+        // the real body, reproduced perfectly on the copy.
+        int layers = Mathf.Min(cloneAnim.layerCount, realAnim.layerCount);
+
+        for (int i = 0; i < layers; i++)
+            cloneAnim.SetLayerWeight(i, realAnim.GetLayerWeight(i));
+
+        for (int i = 0; i < cloneParams.Length; i++)
+        {
+            var prm = cloneParams[i];
+
+            switch (prm.type)
+            {
+                case AnimatorControllerParameterType.Float:
+                    cloneAnim.SetFloat(prm.nameHash, realAnim.GetFloat(prm.nameHash));
+                    break;
+
+                case AnimatorControllerParameterType.Int:
+                    cloneAnim.SetInteger(prm.nameHash, realAnim.GetInteger(prm.nameHash));
+                    break;
+
+                case AnimatorControllerParameterType.Bool:
+                    cloneAnim.SetBool(prm.nameHash, realAnim.GetBool(prm.nameHash));
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
     /// How far out the shove is, 0 to 1, dipping negative during the wind-up.
     ///
     /// Zero at both ends, which is the contract that keeps the hands starting

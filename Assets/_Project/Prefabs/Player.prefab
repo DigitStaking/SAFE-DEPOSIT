@@ -1024,7 +1024,6 @@ MonoBehaviour:
   windBack: 0.16
   windPart: 0.28
   weight: 1
-  fade: 0.09
   thrustPart: 0.45
   followCamera: 1
   pitchLimit: 38

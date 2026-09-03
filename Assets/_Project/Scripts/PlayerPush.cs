@@ -105,8 +105,17 @@ public class PlayerPush : NetworkBehaviour
     [Header("The shove itself")]
     [Tooltip("Seconds the arms take to wind up, thrust and return. The impulse " +
              "lands at the moment of the thrust, not on the keypress, so the " +
-             "hit follows the hands.")]
-    public float armTime = 1.75f;
+             "hit follows the hands. " +
+             "THE ONE DIAL FOR SPEED - every other timing here is a fraction " +
+             "of it, and the lockout follows automatically, so nothing else " +
+             "needs touching to change the feel. " +
+             "7 seconds is a deliberate, asked-for 4x on the 1.75 it was. " +
+             "Worth knowing what that costs in play: the swing cannot be " +
+             "interrupted, so this is also how long a player is committed for, " +
+             "and a shove becomes a once-every-seven-seconds decision rather " +
+             "than a reaction. If that turns out to be too long to use, this " +
+             "is the only number to change.")]
+    public float armTime = 7f;
 
     [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
              "when the arms reach out, not when they start moving. " +

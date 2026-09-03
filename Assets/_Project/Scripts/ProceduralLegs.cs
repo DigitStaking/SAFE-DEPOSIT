@@ -194,6 +194,18 @@ public class ProceduralLegs : MonoBehaviour
              "both legs already take. 0 to 1.")]
     [Range(0f, 1f)] public float limpExtraCut = 0.35f;
 
+    [Header("Turning on the spot")]
+    [Tooltip("Degrees the body may turn under a planted foot before that foot " +
+             "must step to catch up. THE FIX FOR FEET THAT SLIDE WHEN YOU " +
+             "TURN THE CAMERA. " +
+             "Turning in place moves the body not at all, so measured speed " +
+             "stays zero and the distance test barely notices: a 90 degree " +
+             "turn swings the foot target only about 18cm, under the standing " +
+             "budget, so the feet stayed put and the body swivelled on top of " +
+             "them. Rotation needed its own threshold because it is not " +
+             "travel.")]
+    public float turnStepDegrees = 32f;
+
     [Header("Limits - what stops the legs tangling")]
     [Tooltip("Closest this foot may come to the body centre line, in metres. " +
              "The legs CANNOT cross. Strafing right pulls the left foot to the " +
@@ -291,6 +303,18 @@ public class ProceduralLegs : MonoBehaviour
     /// <summary>When this foot last touched down. Guards minStepGap.</summary>
     float lastLanded = -999f;
 
+    /// <summary>The body yaw at the moment this foot was planted. A planted
+    /// foot does not turn with the body, so the gap between this and the
+    /// body's yaw now is how far the character has swivelled on top of it.</summary>
+    float plantedYaw;
+
+    /// <summary>Which way the foot itself points. Held while planted - a foot
+    /// on the floor does not swivel - and carried round to the body's new yaw
+    /// during a step, which is the only time a real foot changes direction.</summary>
+    float footYaw;
+
+    float stepFromYaw;
+
     void Awake()
     {
         carry = GetComponent<PlayerCarry>();
@@ -314,6 +338,8 @@ public class ProceduralLegs : MonoBehaviour
         Speed = 0f;
         Travel = Vector3.zero;
         footPosition = Rest();
+        footYaw = transform.eulerAngles.y;
+        plantedYaw = footYaw;
     }
 
     // --------------------------------------------------------------------
@@ -695,11 +721,14 @@ public class ProceduralLegs : MonoBehaviour
             place.y += Mathf.Sin(Mathf.Pow(t, 0.72f) * Mathf.PI) * Arc;
 
             footPosition = place;
+            footYaw = Mathf.LerpAngle(stepFromYaw, transform.eulerAngles.y, Smooth(t));
 
             if (t >= 1f)
             {
                 stepping = false;
                 footPosition = stepTo;
+                footYaw = transform.eulerAngles.y;
+                plantedYaw = footYaw;
                 lastLanded = Time.time;
             }
 
@@ -713,6 +742,19 @@ public class ProceduralLegs : MonoBehaviour
         // the character walks over it, so it cannot skate no matter how fast
         // the body is travelling.
         float drift = DriftFraction(rest);
+
+        // ---- TURNING COUNTS, AND IT DID NOT BEFORE ----
+        //
+        // Rotating on the spot moves the body not at all, so the measured
+        // speed stays zero and the distance test barely reacts: a 90 degree
+        // turn swings a foot target only about 18cm, under the standing
+        // budget. So the feet stayed planted and the character swivelled on
+        // top of them - which is the sliding reported when turning the camera.
+        //
+        // Rotation is a displacement the distance test cannot see, so it gets
+        // its own threshold and is folded in as whichever need is greater.
+        float turned = Mathf.Abs(Mathf.DeltaAngle(plantedYaw, transform.eulerAngles.y));
+        drift = Mathf.Max(drift, turned / Mathf.Max(1f, turnStepDegrees));
 
         if (drift <= 1f) return;
 
@@ -777,6 +819,11 @@ public class ProceduralLegs : MonoBehaviour
         // about which it is.
         stepLength = Vector3.Distance(Flat(stepFrom), Flat(stepTo));
         stepTime = StepTime;
+
+        // A step is the only moment a real foot changes which way it points,
+        // so the turn is carried round during the swing rather than applied to
+        // a foot that is standing on the floor.
+        stepFromYaw = footYaw;
     }
 
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
@@ -833,6 +880,20 @@ public class ProceduralLegs : MonoBehaviour
 
     /// <summary>The slope under the planted foot, for tilting it in step 3.</summary>
     public Vector3 FootNormal => footNormal;
+
+    /// <summary>
+    /// Which way this foot points, in degrees.
+    ///
+    /// NOT the body's yaw. A planted foot does not swivel when you turn the
+    /// camera - it stays where it was put until it steps - and using the live
+    /// body yaw made every standing foot rotate under the character like it
+    /// was on ice.
+    /// </summary>
+    public float FootYaw => footYaw;
+
+    /// <summary>How far the body has turned since this foot was planted.</summary>
+    public float TurnedSincePlanted =>
+        Mathf.Abs(Mathf.DeltaAngle(plantedYaw, transform.eulerAngles.y));
 
     /// <summary>True while this foot is in the air.</summary>
     public bool IsStepping => stepping;

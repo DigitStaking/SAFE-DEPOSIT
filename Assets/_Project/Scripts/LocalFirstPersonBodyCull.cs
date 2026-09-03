@@ -235,7 +235,21 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             //
             // Restored in OnDisable as well, so a body destroyed while in
             // third person cannot take the camera down with it.
-            if (fpCam != null) fpCam.enabled = !thirdPerson;
+            // ---- THE LOOK CONTROLLER STAYS ON IN THIRD PERSON ----
+            //
+            // Disabling it froze the mouse: FirstPersonCamera is what turns
+            // mouse movement into yaw and pitch, so switching it off left the
+            // yaw stuck at whatever it was when P was pressed.
+            //
+            // That is worse than a stuck camera. PlayerMotor faces the body at
+            // the CAMERA's yaw, and the boom below aims the camera AT the
+            // body - so with nothing driving the yaw those two chase each
+            // other, and the camera ends up inside the character looking at
+            // the back of its own mesh.
+            //
+            // It stays enabled and keeps owning the aim. This script runs at
+            // execution order 60, after it, and overrides only the POSITION -
+            // which is all third person ever needed to change.
             RestoreHead();                       // full body in third person
 
             Debug.Log(thirdPerson
@@ -270,27 +284,22 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
         if (!thirdPerson || cam == null) return;
 
-        // Over-the-shoulder so you can check the walk cycle and the arm pose.
-        // ---- BEHIND THE CAMERA, NOT BEHIND THE BODY ----
+        // ---- PULLED BACK ALONG THE AIM IT ALREADY HAS ----
         //
-        // This used the BODY's forward, which was the same as the camera's
-        // right up until the body started facing where it walks. After that,
-        // strafing would swing the third-person camera around the character
-        // like a boom arm - which is unusable, and worse, it would have hidden
-        // the very turn this view exists to look at.
-        float lookYaw = fpCam != null ? fpCam.Yaw : transform.eulerAngles.y;
+        // The camera has been aimed by FirstPersonCamera a moment ago, from
+        // the mouse. So third person is only a POSITION change: slide back
+        // along that same forward and the view orbits the character exactly
+        // as the mouse says, with nothing here having to re-derive a yaw.
+        //
+        // The rotation is deliberately NOT touched. Aiming the camera at the
+        // body was the feedback loop - the body faces the camera's yaw, so a
+        // camera that turns to look at the body turns the body, which turns
+        // the camera. That is what put the view inside the mesh.
+        Vector3 pivot = transform.position + Vector3.up * thirdPersonHeight;
+        Vector3 target = pivot - cam.transform.forward * thirdPersonDistance;
 
-        Vector3 back = -(Quaternion.Euler(0f, lookYaw, 0f) * Vector3.forward);
-        back.y = 0f;
-        if (back.sqrMagnitude < 0.01f) back = Vector3.back;
-        back.Normalize();
-
-        Vector3 target = transform.position + Vector3.up * thirdPersonHeight + back * thirdPersonDistance;
-        cam.transform.position = Vector3.Lerp(cam.transform.position, target, 12f * Time.deltaTime);
-        cam.transform.rotation = Quaternion.Slerp(
-            cam.transform.rotation,
-            Quaternion.LookRotation((transform.position + Vector3.up * 1.2f) - cam.transform.position),
-            12f * Time.deltaTime);
+        cam.transform.position = Vector3.Lerp(cam.transform.position, target,
+                                              12f * Time.deltaTime);
     }
 
     void RestoreHead()

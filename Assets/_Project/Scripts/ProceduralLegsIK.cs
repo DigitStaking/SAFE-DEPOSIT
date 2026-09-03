@@ -98,6 +98,16 @@ public class ProceduralLegsIK : MonoBehaviour
              "connected to the picture.")]
     public bool showReadout = true;
 
+    [Tooltip("Seconds the body must be continuously off the ground before the " +
+             "legs are handed back to the clips. The ground SphereCast misses " +
+             "for a frame here and there on uneven floors, and without this the " +
+             "IK weight flickered between 1 and 0 several times a second - " +
+             "half-procedural feet, which look like sliding because the clip " +
+             "and the targets pull opposite ways.")]
+    public float airGrace = 0.25f;
+
+    float lastGrounded = -999f;
+
     Animator anim;
     PlayerMotor motor;
     PlayerHealth health;
@@ -196,10 +206,29 @@ public class ProceduralLegsIK : MonoBehaviour
         // AIRBORNE. No floor to step on, and the jump and fall clips already
         // say what the legs do. Holding the feet at the last ground they saw
         // would leave them hanging at take-off height while the body rises.
+        // ---- AND IT MUST BE AIRBORNE FOR A WHILE, NOT FOR A FRAME ----
+        //
+        // This is what the readout caught at IK WEIGHT 0.55. The ground check
+        // is a SphereCast that misses intermittently while walking over
+        // anything uneven, so the legs were handed back to the clips and taken
+        // away again several times a second. Half-procedural feet are the
+        // worst of both: the clip drags them one way while the targets pull
+        // the other, and the result reads exactly like sliding.
+        //
+        // A jump lasts a good fraction of a second. A missed cast lasts a
+        // frame. Requiring the airborne state to PERSIST tells them apart, and
+        // costs a real jump nothing anybody can see.
         if (releaseInAir && motor != null && !motor.IsGrounded)
         {
-            HeldBack = "airborne - releaseInAir hands the legs back to the clips";
-            return 0f;
+            if (Time.time - lastGrounded > airGrace)
+            {
+                HeldBack = "airborne - releaseInAir hands the legs back to the clips";
+                return 0f;
+            }
+        }
+        else
+        {
+            lastGrounded = Time.time;
         }
 
         if (weight <= 0.01f)
@@ -244,10 +273,16 @@ public class ProceduralLegsIK : MonoBehaviour
         // projected onto the slope to supply that. On a ramp the foot tilts up
         // the ramp; on the flat this is exactly the body's facing, which is
         // the camera's, so nothing changes on level ground.
-        Vector3 normal = leg.FootNormal;
-        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, normal);
+        // The foot's OWN facing, not the body's. A planted foot does not
+        // swivel when the camera turns - it stays where it was put until it
+        // steps - and reading the live body yaw here made every standing foot
+        // rotate under the character as if it were on ice.
+        Vector3 heading = Quaternion.Euler(0f, leg.FootYaw, 0f) * Vector3.forward;
 
-        if (forward.sqrMagnitude < 0.0001f) forward = transform.forward;
+        Vector3 normal = leg.FootNormal;
+        Vector3 forward = Vector3.ProjectOnPlane(heading, normal);
+
+        if (forward.sqrMagnitude < 0.0001f) forward = heading;
 
         anim.SetIKRotationWeight(goal, live);
         anim.SetIKRotation(goal, Quaternion.LookRotation(forward.normalized, normal));
@@ -325,7 +360,13 @@ public class ProceduralLegsIK : MonoBehaviour
         bool wired = anim != null && anim.runtimeAnimatorController != null &&
                      (left != null || right != null);
 
-        string colour = live > 0.5f ? "#7CFF7C" : "#FF7C5A";
+        // Green when the legs are getting what YOU asked for, orange only
+        // when something is holding them below it. A deliberate 0.55 is not a
+        // fault and must not be coloured like one - I read the first 0.55 as a
+        // flicker when it was a setting, which is exactly the mistake this
+        // colouring should stop anyone else making.
+        bool honoured = live >= weight - 0.02f;
+        string colour = honoured ? "#7CFF7C" : "#FF7C5A";
         text.Append("<color=").Append(colour).Append("><b>IK WEIGHT  ")
             .Append(live.ToString("0.00")).Append("</b></color>");
 

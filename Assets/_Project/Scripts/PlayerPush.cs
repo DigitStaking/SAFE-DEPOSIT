@@ -92,7 +92,7 @@ public class PlayerPush : NetworkBehaviour
              "the wind-up mid-thrust. Now the swing always completes first and " +
              "this is only the pause on the end, so spamming is impossible by " +
              "construction rather than by two numbers being kept in step.")]
-    public float restAfterSwing = 0.35f;
+    public float restAfterSwing = 0.4f;
 
     /// <summary>The full gap between one shove starting and the next being
     /// allowed: the whole swing, then the rest.</summary>
@@ -106,7 +106,7 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Seconds the arms take to wind up, thrust and return. The impulse " +
              "lands at the moment of the thrust, not on the keypress, so the " +
              "hit follows the hands.")]
-    public float armTime = 1.25f;
+    public float armTime = 1.75f;
 
     [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
              "when the arms reach out, not when they start moving.")]

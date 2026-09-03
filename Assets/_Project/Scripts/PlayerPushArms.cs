@@ -80,7 +80,22 @@ public class PlayerPushArms : MonoBehaviour
     [Tooltip("How much of the swing after the wind-up is the thrust itself, " +
              "0 to 1. The rest is the recovery. Larger means a longer, more " +
              "deliberate push; smaller means a snap.")]
-    [Range(0.15f, 0.8f)] public float thrustPart = 0.5f;
+    [Range(0.15f, 0.8f)] public float thrustPart = 0.52f;
+
+    [Header("Aim")]
+    [Tooltip("Follow where the player is LOOKING, up and down, instead of " +
+             "shoving flat out of the chest. The body only carries yaw - it is " +
+             "welded to the camera horizontally and knows nothing about pitch - " +
+             "so without this the hands ignore the camera entirely whenever you " +
+             "look up or down.")]
+    public bool followCamera = true;
+
+    [Tooltip("Degrees of look pitch the hands will follow, up or down. Clamped " +
+             "because the IMPULSE stays roughly level on purpose - a shove is " +
+             "for moving people sideways, not stapling them to the floor - and " +
+             "hands that dived at your boots while the push went flat would " +
+             "just look wrong.")]
+    [Range(0f, 80f)] public float pitchLimit = 38f;
 
     [Header("Palm")]
     [Tooltip("Rotation of the RIGHT hand relative to the direction of the " +
@@ -96,6 +111,7 @@ public class PlayerPushArms : MonoBehaviour
     Animator anim;
     PlayerPush push;
     Transform body;
+    PlayerMotor motor;
 
     void Awake()
     {
@@ -105,6 +121,55 @@ public class PlayerPushArms : MonoBehaviour
         // the player root and this lives on the model beneath it.
         push = GetComponentInParent<PlayerPush>();
         body = push != null ? push.transform : transform;
+        motor = GetComponentInParent<PlayerMotor>();
+    }
+
+    /// <summary>
+    /// Which way this shove is aimed, pitch included.
+    ///
+    /// The body is welded to the camera in YAW and knows nothing about pitch,
+    /// so shoving out of the body frame ignores the camera the moment anybody
+    /// looks up or down.
+    ///
+    /// Locally the eye is the truth. On a TEAMMATE'S screen there is no eye to
+    /// read, so it comes from the LookYaw and LookPitch already on the wire -
+    /// the pair PlayerHeadlamp uses to point a crewmate's beam. That is the
+    /// second customer for those two values, which is why they were worth
+    /// replicating rather than deriving from the body.
+    /// </summary>
+    Quaternion Aim()
+    {
+        if (!followCamera) return Quaternion.LookRotation(body.forward, Vector3.up);
+
+        float yaw = body.eulerAngles.y;
+        float pitch = 0f;
+
+        bool mine = motor != null && motor.IsLocal;
+
+        if (mine && motor.Eye != null)
+        {
+            Vector3 e = motor.Eye.eulerAngles;
+            yaw = e.y;
+            pitch = e.x;
+        }
+        else if (motor != null)
+        {
+            var row = CrewMemberNet.ForSlot(motor.Slot);
+
+            if (row != null)
+            {
+                yaw = row.LookYaw.Value;
+                pitch = row.LookPitch.Value;
+            }
+        }
+
+        // Euler angles arrive as 0..360, so a 20 degree look DOWN reads as 340
+        // and would clamp to the limit instead of to a fifth of it.
+        if (pitch > 180f) pitch -= 360f;
+
+        pitch = Mathf.Clamp(pitch, -pitchLimit, pitchLimit);
+
+        return Quaternion.Euler(pitch, yaw, 0f);
     }
 
     void OnAnimatorIK(int layerIndex)
@@ -138,7 +203,7 @@ public class PlayerPushArms : MonoBehaviour
         // has to be an offset from the direction of travel. Mirrored on Z
         // between the two hands, exactly as FirstPersonHands does it, because
         // a left hand is a right hand reflected.
-        Quaternion look = Quaternion.LookRotation(body.forward, Vector3.up);
+        Quaternion look = Aim();
 
         Quaternion rightPalm = look * Quaternion.Euler(palmEuler);
         Quaternion leftPalm = look * Quaternion.Euler(palmEuler.x, palmEuler.y,
@@ -162,9 +227,14 @@ public class PlayerPushArms : MonoBehaviour
     {
         float forward = Extension(t);
 
-        Vector3 local = new Vector3(side * spread * 0.5f, height, forward);
+        // Sideways and forward come from the AIM; the height still comes from
+        // the body, because a shove leaves your shoulders wherever you happen
+        // to be looking - it is the direction that pitches, not the chest.
+        Quaternion aim = Aim();
 
-        return body.TransformPoint(local);
+        Vector3 offset = aim * new Vector3(side * spread * 0.5f, 0f, forward);
+
+        return body.position + Vector3.up * height + offset;
     }
 
     /// <summary>

@@ -206,6 +206,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         handSpread = settings.handSpread;
         handReach = settings.handReach;
         pushReach = settings.pushReach;
+        pushTurn = settings.pushTurn;
         pushWindBack = settings.pushWindBack;
         pushSpread = settings.pushSpread;
         pushDrop = settings.pushDrop;
@@ -248,11 +249,16 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     float rigArmHeight = -1f;
 
+    /// <summary>How far through a shove, 0 to 1. Shared between the rig's
+    /// forward travel and the palm turn so the two cannot disagree.</summary>
+    float pushNow;
+
     [Header("Push")]
-    public float pushReach = 0.38f;
-    public float pushWindBack = 0.12f;
-    public float pushSpread = 0.09f;
-    public float pushDrop = 0.05f;
+    public float pushReach = 0.12f;
+    public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
+    public float pushWindBack = 0.05f;
+    public float pushSpread = 0.04f;
+    public float pushDrop = 0.02f;
 
     /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
     float raised;
@@ -459,9 +465,15 @@ public class FirstPersonViewmodel : MonoBehaviour
 
             float p = PushCurve(t, windPart, thrustPart);
 
+            // Along the camera's own view axis, which for a rig parented to
+            // that camera is simply local forward - "the axe where you are
+            // watching with camera".
             place += Vector3.forward * (pushReach * p)
                    + Vector3.down * (pushDrop * Mathf.Max(0f, p));
+
+            pushNow = Mathf.Max(0f, p);
         }
+        else pushNow = 0f;
 
         clone.localPosition = place + hiddenOffset * (1f - k);
 
@@ -471,9 +483,11 @@ public class FirstPersonViewmodel : MonoBehaviour
         {
             armsIK.leftOffset = leftHandOffset;
             armsIK.rightOffset = rightHandOffset;
-            armsIK.spread = handSpread;
+            armsIK.spread = handSpread + pushSpread * pushNow;
             armsIK.reach = handReach;
             armsIK.space = anchor;
+            armsIK.push = pushNow;
+            armsIK.pushTurnEuler = pushTurn;
         }
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);

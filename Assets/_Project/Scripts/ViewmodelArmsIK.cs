@@ -54,6 +54,20 @@ public class ViewmodelArmsIK : MonoBehaviour
     /// person dragging them is actually looking through.</summary>
     [HideInInspector] public Transform space;
 
+    // ---- THE SHOVE ----
+    //
+    // A push is mostly the PALMS TURNING to face where they are going. The
+    // hands travelling forward is the small part, and doing only that - which
+    // is what the first attempt did - reads as the arms flying rather than
+    // pushing. So the turn lives here, where there is a solver that can move
+    // an arm to follow a hand, rather than as more translation.
+
+    /// <summary>0 to 1 through the shove. Drives the palm turn.</summary>
+    [HideInInspector] public float push;
+
+    /// <summary>How far the palms rotate to face forward at full push.</summary>
+    [HideInInspector] public Vector3 pushTurnEuler = new Vector3(0f, 0f, 90f);
+
     Animator anim;
 
     void Awake() => anim = GetComponent<Animator>();
@@ -77,7 +91,8 @@ public class ViewmodelArmsIK : MonoBehaviour
 
     bool Wanted() =>
         leftOffset != Vector3.zero || rightOffset != Vector3.zero ||
-        !Mathf.Approximately(spread, 0f) || !Mathf.Approximately(reach, 0f);
+        !Mathf.Approximately(spread, 0f) || !Mathf.Approximately(reach, 0f) ||
+        push > 0.001f;
 
     void Apply(AvatarIKGoal goal, HumanBodyBones bone, Vector3 offset, float side)
     {
@@ -102,5 +117,25 @@ public class ViewmodelArmsIK : MonoBehaviour
         // where it was asked to sit.
         anim.SetIKPositionWeight(goal, 1f);
         anim.SetIKPosition(goal, t.position + world);
+
+        if (push <= 0.001f) return;
+
+        // ---- TURN THE PALMS INTO THE PUSH ----
+        //
+        // Rotated FROM the pose the animation is already holding, by an amount
+        // that follows the shove and returns to nothing at the end of it - so
+        // the hands turn into the push and unwind out of it, rather than
+        // snapping to a fixed angle and back.
+        //
+        // Mirrored on Z between the hands for the same reason PlayerPushArms
+        // and FirstPersonHands both mirror theirs: a left hand is a right hand
+        // reflected, and a shared angle would put one palm inside out.
+        Quaternion turn = Quaternion.Euler(pushTurnEuler.x,
+                                           pushTurnEuler.y,
+                                           pushTurnEuler.z * side);
+
+        anim.SetIKRotationWeight(goal, Mathf.Clamp01(push));
+        anim.SetIKRotation(goal, Quaternion.Slerp(t.rotation, t.rotation * turn,
+                                                  Mathf.Clamp01(push)));
     }
 }

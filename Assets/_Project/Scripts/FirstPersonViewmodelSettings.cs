@@ -110,24 +110,31 @@ public class FirstPersonViewmodelSettings : ScriptableObject
     public float holdAfter = 0.6f;
 
     [Header("Push - the shove, seen from your own eyes")]
-    [Tooltip("How far the hands thrust FORWARD during a shove, in metres, " +
-             "measured from wherever they normally rest. This is the whole " +
-             "gesture as you see it - the world-space version that a teammate " +
-             "sees is PlayerPushArms on the real body and is tuned separately, " +
-             "because the two are looking at completely different things.")]
-    public float pushReach = 0.38f;
+    [Tooltip("How far the hands travel FORWARD during a shove, in metres, " +
+             "along the camera's own view axis. " +
+             "SMALL ON PURPOSE. A push is mostly the palms TURNING - see " +
+             "pushTurn below - and the travel is the small part. 0.38 was the " +
+             "first attempt and it read as the arms flying rather than pushing, " +
+             "because translation was doing the entire job on its own.")]
+    public float pushReach = 0.12f;
+
+    [Tooltip("How far the palms rotate to face forward at full push, in " +
+             "degrees. THIS is the gesture - the hands turning into the shove. " +
+             "Mirrored between the two hands, so Z is the one that usually " +
+             "matters and the sign flips itself for the left hand.")]
+    public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
 
     [Tooltip("How far the hands draw BACK before the thrust, in metres.")]
-    public float pushWindBack = 0.12f;
+    public float pushWindBack = 0.05f;
 
     [Tooltip("How much the hands separate during the shove, in metres. Two " +
              "palms going out, not one fist.")]
-    public float pushSpread = 0.09f;
+    public float pushSpread = 0.04f;
 
     [Tooltip("How far the hands drop as they thrust, in metres. A shove comes " +
              "from the chest and pushes slightly down and out; hands that " +
              "travel dead level read as a zombie reaching.")]
-    public float pushDrop = 0.05f;
+    public float pushDrop = 0.02f;
 
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]

@@ -296,10 +296,21 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
         // camera that turns to look at the body turns the body, which turns
         // the camera. That is what put the view inside the mesh.
         Vector3 pivot = transform.position + Vector3.up * thirdPersonHeight;
-        Vector3 target = pivot - cam.transform.forward * thirdPersonDistance;
 
-        cam.transform.position = Vector3.Lerp(cam.transform.position, target,
-                                              12f * Time.deltaTime);
+        // ---- ASSIGNED, NOT SMOOTHED, AND THAT IS THE WHOLE FIX ----
+        //
+        // A Lerp here does nothing, because FirstPersonCamera has already put
+        // the camera back on the head THIS FRAME. Easing 20% of the way toward
+        // the boom target and then being reset to the head next frame never
+        // accumulates - so the camera sat at the head and third person looked
+        // broken.
+        //
+        // Smoothing only works when the value it smooths from is its own last
+        // answer. Here it is somebody else's, rewritten every frame, so the
+        // position is set outright. There is nothing to ease anyway: the aim
+        // is already smoothed by the look controller, and the boom is a fixed
+        // offset from it.
+        cam.transform.position = pivot - cam.transform.forward * thirdPersonDistance;
     }
 
     void RestoreHead()

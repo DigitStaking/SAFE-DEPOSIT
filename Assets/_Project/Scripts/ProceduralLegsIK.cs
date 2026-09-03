@@ -64,7 +64,7 @@ public class ProceduralLegsIK : MonoBehaviour
              "exactly where ProceduralLegs decided. Drop toward 0 to A/B it " +
              "against the old animation without leaving Play mode - which is " +
              "the fastest way to see what this is actually changing.")]
-    [Range(0f, 1f)] public float weight = 1f;
+    [Range(0f, 1f)] public float weight = 0.55f;
 
     [Tooltip("Turn the foot to match the slope it is standing on, instead of " +
              "keeping it level. This is most of what makes rubble and stairs " +

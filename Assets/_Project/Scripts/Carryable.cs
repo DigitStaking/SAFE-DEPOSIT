@@ -72,6 +72,41 @@ public class Carryable : MonoBehaviour
     Collider[] colliders;
     Renderer[] renderers;
 
+    /// <summary>
+    /// World bounds of everything this object draws.
+    ///
+    /// Exists so hands can be placed ON the actual object rather than at a
+    /// hand-authored offset. A grab animation is authored for ONE size, so a
+    /// can and a filing cabinet would get the same hand separation and the
+    /// hands would float inside the small one and clip through the big one.
+    /// Measured bounds give every item the right grip for free.
+    ///
+    /// Renderers rather than colliders, because what the player sees is what
+    /// their hands should be touching - a collider is often a rough box around
+    /// a more interesting shape.
+    /// </summary>
+    public Bounds WorldBounds
+    {
+        get
+        {
+            if (renderers == null || renderers.Length == 0)
+                renderers = GetComponentsInChildren<Renderer>();
+
+            var found = new Bounds(transform.position, Vector3.one * 0.2f);
+            bool any = false;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] == null || !renderers[i].enabled) continue;
+
+                if (!any) { found = renderers[i].bounds; any = true; }
+                else found.Encapsulate(renderers[i].bounds);
+            }
+
+            return found;
+        }
+    }
+
     int lootLayer = -1;
 
     // ------------------------------------------------------------------

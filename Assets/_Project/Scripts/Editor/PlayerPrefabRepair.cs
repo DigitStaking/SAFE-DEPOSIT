@@ -95,6 +95,16 @@ public static class PlayerPrefabRepair
             push.thrustPart = 0.45f;
             push.weight = 1f;
 
+            // ---- PlayerCarryArms ----
+            var carryArms = visual.GetComponent<PlayerCarryArms>();
+            if (carryArms == null)
+            {
+                visual.gameObject.AddComponent<PlayerCarryArms>();
+                added++;
+                log.Append("PlayerCarryArms ADDED. ");
+            }
+            else log.Append("PlayerCarryArms already present. ");
+
             // ---- FirstPersonHands: present, and it should STAY disabled ----
             //
             // Not removed here. FirstPersonViewmodel switches it off at

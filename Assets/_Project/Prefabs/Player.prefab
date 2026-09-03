@@ -386,7 +386,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3159604750
+  GlobalObjectIdHash: 2023920637
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -831,8 +831,8 @@ MonoBehaviour:
   mask:
     serializedVersion: 2
     m_Bits: 4294967295
-  armTime: 0.42
-  contactAt: 0.34
+  armTime: 1
+  contactAt: 0.341
 --- !u!1001 &3659666608676451951
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1019,8 +1019,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPushArms
   reach: 0.72
-  spread: 0.24
-  height: 1.1
+  spread: 0.34
+  height: 1
   windBack: 0.16
   windPart: 0.28
   weight: 1

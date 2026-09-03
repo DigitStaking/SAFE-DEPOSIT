@@ -104,6 +104,19 @@ public class PlayerPushArms : MonoBehaviour
              "karate chop instead of flat like a shove.")]
     public Vector3 palmEuler = new Vector3(0f, 0f, 90f);
 
+    [Header("Camera clearance")]
+    [Tooltip("Closest the hands may come to the EYE, in metres. " +
+             "The wind-up pulls the hands BACKWARD past their rest pose on " +
+             "purpose - LerpUnclamped with a negative k, so a real draw-back " +
+             "actually happens rather than just slowing down as it approaches " +
+             "rest. In first person 'backward' means 'toward your own face', " +
+             "and a fist a few centimetres from the lens fills the screen and " +
+             "clips through the near plane. This is the floor under that: " +
+             "never closer to the eye than this, whatever the curve asks for. " +
+             "In third person the eye is metres away and the clamp never " +
+             "engages, so it costs nothing there.")]
+    public float minEyeDistance = 0.38f;
+
     Animator anim;
     PlayerPush push;
     Transform body;
@@ -287,7 +300,29 @@ public class PlayerPushArms : MonoBehaviour
         Vector3 full = body.position + Vector3.up * height +
                        Aim() * new Vector3(side * spread * 0.5f, 0f, reach);
 
-        return Vector3.LerpUnclamped(rest, full, k);
+        Vector3 result = Vector3.LerpUnclamped(rest, full, k);
+
+        // ---- NEVER CLOSER TO THE EYE THAN THIS ----
+        //
+        // k goes negative during the wind-up by design - that IS the draw
+        // back - and LerpUnclamped keeps going past rest rather than stopping
+        // there. Past rest is toward the camera, and in first person that put
+        // a fist a few centimetres from the lens: the screenshot.
+        //
+        // Only checked locally. A remote body's hands filling YOUR screen is
+        // not a thing - you are watching them from metres away - and Eye is
+        // null on a teammate's machine's copy of them anyway.
+        if (motor != null && motor.IsLocal && motor.Eye != null)
+        {
+            Vector3 eye = motor.Eye.position;
+            Vector3 fromEye = result - eye;
+            float d = fromEye.magnitude;
+
+            if (d < minEyeDistance && d > 0.0001f)
+                result = eye + fromEye * (minEyeDistance / d);
+        }
+
+        return result;
     }
 
     /// <summary>

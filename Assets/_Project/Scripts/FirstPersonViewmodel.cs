@@ -122,6 +122,22 @@ public class FirstPersonViewmodel : MonoBehaviour
     LocalFirstPersonBodyCull cull;   // on the REAL body, to ask about third person
     FirstPersonHands realHands;      // on the REAL body, turned off once we work
 
+    [Header("Animation")]
+    [Tooltip("Drive the viewmodel arms from the SAME animator parameters as " +
+             "your real body, so they swing when you walk and breathe when you " +
+             "stand still instead of holding one frozen pose. " +
+             "The two skeletons stay separate - this copies the INPUTS, not the " +
+             "pose, so the arms can still be given their own reach and grab " +
+             "poses later without the real body having to share them.")]
+    public bool followBodyAnimation = true;
+
+    Animator realAnim;    // on the REAL body
+    Animator cloneAnim;   // on the viewmodel arms
+
+    // Cached because Animator.parameters ALLOCATES a fresh array every time it
+    // is read - fine once, garbage every frame.
+    AnimatorControllerParameter[] cloneParams;
+
     Mesh armsMesh;
     bool armsMeshChecked;
 
@@ -237,6 +253,48 @@ public class FirstPersonViewmodel : MonoBehaviour
         // arms have to go, since they are a first-person illusion sitting at
         // a camera that is now three metres behind you.
         if (cull != null) cull.HideBodyFromOwnCamera(firstPerson);
+
+        if (followBodyAnimation) MirrorAnimation();
+    }
+
+    /// <summary>
+    /// Copy the real body's animator parameters onto the arms.
+    ///
+    /// Floats, ints and bools only. TRIGGERS are deliberately not forwarded:
+    /// there is no way to read whether one is currently set, and a one-shot
+    /// fired twice - once on each animator - is not the same as one fired on
+    /// both. Pickup, stow, use and emote are all triggers, so those arrive
+    /// with the interaction work rather than here, where they would be
+    /// guesswork.
+    ///
+    /// This copies INPUTS, never the pose. The two skeletons stay free to
+    /// differ, which is the entire reason there are two of them.
+    /// </summary>
+    void MirrorAnimation()
+    {
+        if (realAnim == null || cloneAnim == null || cloneParams == null) return;
+        if (realAnim.runtimeAnimatorController == null) return;
+        if (cloneAnim.runtimeAnimatorController == null) return;
+
+        for (int i = 0; i < cloneParams.Length; i++)
+        {
+            var p = cloneParams[i];
+
+            switch (p.type)
+            {
+                case AnimatorControllerParameterType.Float:
+                    cloneAnim.SetFloat(p.nameHash, realAnim.GetFloat(p.nameHash));
+                    break;
+
+                case AnimatorControllerParameterType.Int:
+                    cloneAnim.SetInteger(p.nameHash, realAnim.GetInteger(p.nameHash));
+                    break;
+
+                case AnimatorControllerParameterType.Bool:
+                    cloneAnim.SetBool(p.nameHash, realAnim.GetBool(p.nameHash));
+                    break;
+            }
+        }
     }
 
     // --------------------------------------------------------------------
@@ -421,6 +479,28 @@ public class FirstPersonViewmodel : MonoBehaviour
         SetLayerRecursively(go, LayerMask.NameToLayer(ViewmodelLayerName));
 
         clone = t;
+
+        // ---- THE ARMS LISTEN TO THE SAME ANIMATION AS THE BODY ----
+        //
+        // The clone has its own Animator with the same controller, but
+        // nothing was ever setting its parameters - PlayerAnimatorDriver
+        // lives on the real Player root and drives the real body only. So the
+        // blend tree sat at MoveX 0 / MoveZ 0 forever and the arms held one
+        // pose no matter what the player did.
+        //
+        // Mirroring the parameters is what makes them move, and it is
+        // deliberately the PARAMETERS rather than the pose: the two skeletons
+        // stay independent, which is the whole point of having two. The arms
+        // can be given their own reach and grab states later without the real
+        // body being dragged into them.
+        cloneAnim = go.GetComponent<Animator>();
+        if (cloneAnim == null) cloneAnim = go.GetComponentInChildren<Animator>();
+
+        realAnim = target.GetComponentInChildren<Animator>();
+
+        cloneParams = cloneAnim != null && cloneAnim.runtimeAnimatorController != null
+            ? cloneAnim.parameters
+            : null;
 
         // Confirmed working on this body - the real skeleton no longer needs
         // to be bent toward the camera to fake hands.

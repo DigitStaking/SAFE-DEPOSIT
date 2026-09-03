@@ -386,7 +386,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2023920637
+  GlobalObjectIdHash: 3159604750
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -884,6 +884,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
       insertIndex: -1
       addedObject: {fileID: 247231972758600341}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3059792614481757242}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3009698359235393191}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
 --- !u!4 &4007666841464958271 stripped
 Transform:
@@ -918,6 +924,55 @@ MonoBehaviour:
   followSpeed: 16
   weightSpeed: 6
   drawTargets: 0
+--- !u!114 &3059792614481757242
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4383629090344744837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00bc8483f48aa3c4cb21a53dfa287a1f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralLegsIK
+  weight: 0.552
+  tiltToSlope: 1
+  ankleHeight: 0.09
+  releaseInAir: 1
+  blendTime: 0.15
+  releaseDuringEmotes: 1
+  moveHips: 1
+  hipBob: 0.035
+  hipSway: 0.028
+  maxLegExtension: 0.93
+  hipDropSpeed: 1.6
+  showReadout: 1
+  airGrace: 0.25
+  airborneHeight: 1.45
+--- !u!114 &3009698359235393191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4383629090344744837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71c58b9a28380c74d90b38f108e73b52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPushArms
+  reach: 0.72
+  spread: 0.24
+  height: 1.1
+  windBack: 0.16
+  windPart: 0.28
+  weight: 1
+  thrustPart: 0.45
+  followCamera: 1
+  pitchLimit: 38
+  palmEuler: {x: -90, y: 0, z: 0}
+  minEyeDistance: 0.38
 --- !u!95 &7025117437554898757 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

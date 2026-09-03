@@ -127,6 +127,14 @@ public class ProceduralLegsIK : MonoBehaviour
              "the whole body jolt the moment a foot lands on something lower.")]
     public float hipDropSpeed = 1.6f;
 
+    [Tooltip("Furthest the hips may ever sink, in metres. " +
+             "A deep crouch is about 0.35m and a person cannot do more without " +
+             "sitting down, so anything past this is arithmetic rather than " +
+             "anatomy. Without the cap a jump asked for 0.79m - the readout " +
+             "said 'hip offset -78.8 cm' - and the legs went through the floor " +
+             "on landing while that unwound.")]
+    public float maxHipDrop = 0.35f;
+
     [Header("Diagnosis")]
     [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
              "The first line is the one that matters: IK WEIGHT. If it reads " +
@@ -247,7 +255,24 @@ public class ProceduralLegsIK : MonoBehaviour
 
     void ApplyHips()
     {
-        if (!moveHips || live <= 0.001f || legLength <= 0.001f) return;
+        if (!moveHips || legLength <= 0.001f) return;
+
+        // ---- WHILE THE LEGS ARE RELEASED, GIVE THE DROP BACK ----
+        //
+        // This used to return outright when live hit zero, which FROZE
+        // hipDrop at whatever it held. Jumping releases the legs mid-air, so
+        // any drop taken during take-off was still being applied on the way
+        // down and for half a second after landing - the legs sinking through
+        // the floor.
+        //
+        // Unwound at the same speed it was taken, so the body rises back to
+        // normal instead of snapping.
+        if (live <= 0.001f)
+        {
+            hipDrop = Mathf.MoveTowards(hipDrop, 0f, hipDropSpeed * Time.deltaTime);
+            hipOffsetY = hipDrop;
+            return;
+        }
 
         Vector3 body = anim.bodyPosition;
 
@@ -266,6 +291,19 @@ public class ProceduralLegsIK : MonoBehaviour
 
         need = Mathf.Min(need, DropNeededFor(left, body));
         need = Mathf.Min(need, DropNeededFor(right, body));
+
+        // ---- AND IT CANNOT ASK FOR MORE THAN A PERSON CAN CROUCH ----
+        //
+        // DropNeededFor answers "how far down would the hips have to be for
+        // this foot to be reachable", and mid-jump that question has a silly
+        // answer: the body is rising while the feet are still planted on the
+        // floor, so it asked for most of a metre.
+        //
+        // A leg reaching further than a leg can reach is not a hip problem, it
+        // is a foot in the wrong place - and the honest response is to leave
+        // it unreached rather than to drive the pelvis into the ground chasing
+        // it.
+        need = Mathf.Max(need, -Mathf.Abs(maxHipDrop));
 
         // Eased, because landing on something lower should sink the body, not
         // jolt it.

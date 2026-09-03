@@ -100,6 +100,16 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     Camera cam;
     bool reported;
 
+    /// <summary>
+    /// True while looking at your own body from behind (P).
+    ///
+    /// Added for FirstPersonViewmodel: the viewmodel arms are a first-person
+    /// illusion sitting at the camera, and in third person that camera is
+    /// three metres back - so without a way to ask this, the tiny cloned arms
+    /// would hang in empty space behind the character instead of disappearing.
+    /// </summary>
+    public bool ThirdPerson => thirdPerson;
+
     void Start()
     {
         // ==============================================================

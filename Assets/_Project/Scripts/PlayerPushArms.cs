@@ -73,10 +73,6 @@ public class PlayerPushArms : MonoBehaviour
              "over completely for the length of the swing.")]
     [Range(0f, 1f)] public float weight = 1f;
 
-    [Tooltip("Seconds to fade in and out at the ends of the swing, so the arms " +
-             "are never snatched from or handed back to the clip abruptly.")]
-    public float fade = 0.09f;
-
     [Tooltip("How much of the swing after the wind-up is the thrust itself, " +
              "0 to 1. The rest is the recovery. Larger means a longer, more " +
              "deliberate push; smaller means a snap.")]
@@ -112,6 +108,42 @@ public class PlayerPushArms : MonoBehaviour
     PlayerPush push;
     Transform body;
     PlayerMotor motor;
+
+    // ---- WHERE THE HANDS ACTUALLY ARE WHEN NOBODY IS PUSHING ----
+    //
+    // Sampled from the real bones every frame the arms are idle, in the body's
+    // frame so it stays valid as the player walks and turns.
+    //
+    // This is what fixes the teleport. FirstPersonHands holds the hands at 40%
+    // toward its own camera-locked targets, and the old code faded MY weight
+    // up from zero - which does not blend between the two poses at all, it
+    // blends toward the raw CLIP pose on the way in and back to it on the way
+    // out. So the hands jumped to wherever the animation had them, travelled,
+    // and jumped again coming back.
+    //
+    // Blending the POSITION instead, from wherever the hands genuinely are,
+    // means there is nothing to jump to: at both ends of the swing the target
+    // IS the rest pose, so the arms leave from and return to exactly where
+    // they were.
+    Vector3 restLocalL, restLocalR;
+    Quaternion restRotL, restRotR;
+    bool sampled;
+
+    void LateUpdate()
+    {
+        if (anim == null || !anim.isHuman || body == null) return;
+        if (push != null && push.PushProgress >= 0f) return;   // mid-swing, hold
+
+        var l = anim.GetBoneTransform(HumanBodyBones.LeftHand);
+        var r = anim.GetBoneTransform(HumanBodyBones.RightHand);
+        if (l == null || r == null) return;
+
+        restLocalL = body.InverseTransformPoint(l.position);
+        restLocalR = body.InverseTransformPoint(r.position);
+        restRotL = Quaternion.Inverse(body.rotation) * l.rotation;
+        restRotR = Quaternion.Inverse(body.rotation) * r.rotation;
+        sampled = true;
+    }
 
     void Awake()
     {
@@ -185,11 +217,24 @@ public class PlayerPushArms : MonoBehaviour
         // nobody was pushing.
         if (t < 0f) return;
 
-        float w = weight * Ease(t);
-        if (w <= 0.001f) return;
+        if (!sampled) return;
 
-        Vector3 left = HandTarget(t, -1f);
-        Vector3 right = HandTarget(t, +1f);
+        // ---- CONSTANT WEIGHT, MOVING TARGET ----
+        //
+        // The weight does NOT ramp. Ramping it was the teleport: a low weight
+        // does not mean "near the rest pose", it means "near the CLIP pose",
+        // and the clip pose is somewhere else entirely.
+        //
+        // Held at full for the whole swing, with the TARGET travelling from
+        // the rest pose out and back. Continuity is then guaranteed by the
+        // curve rather than hoped for: Reach() returns 0 at t=0 and at t=1, so
+        // both ends of the swing ask for exactly where the hands already are.
+        float w = weight;
+
+        float k = Reach(t);
+
+        Vector3 left = HandTarget(k, -1f);
+        Vector3 right = HandTarget(k, +1f);
 
         anim.SetIKPositionWeight(AvatarIKGoal.LeftHand, w);
         anim.SetIKPositionWeight(AvatarIKGoal.RightHand, w);
@@ -209,79 +254,69 @@ public class PlayerPushArms : MonoBehaviour
         Quaternion leftPalm = look * Quaternion.Euler(palmEuler.x, palmEuler.y,
                                                       -palmEuler.z);
 
+        // Turned by the same curve that moves them, and from the rotation the
+        // hands actually had. A palm that snapped to its shove angle on frame
+        // one would be the same teleport in a different axis.
+        float turn = Mathf.Clamp01(k);
+
         anim.SetIKRotationWeight(AvatarIKGoal.LeftHand, w);
         anim.SetIKRotationWeight(AvatarIKGoal.RightHand, w);
-        anim.SetIKRotation(AvatarIKGoal.LeftHand, leftPalm);
-        anim.SetIKRotation(AvatarIKGoal.RightHand, rightPalm);
+        anim.SetIKRotation(AvatarIKGoal.LeftHand,
+                           Quaternion.Slerp(body.rotation * restRotL, leftPalm, turn));
+        anim.SetIKRotation(AvatarIKGoal.RightHand,
+                           Quaternion.Slerp(body.rotation * restRotR, rightPalm, turn));
     }
 
     /// <summary>
-    /// Where one hand should be, this far through the swing.
+    /// Where one hand should be, given how far out the shove is.
     ///
-    /// Built in the BODY's frame rather than the camera's, so the shove goes
-    /// where the character is facing. Those are the same thing while you are
-    /// pushing - the body is welded to the camera - but on a TEAMMATE'S screen
-    /// only the body is known, and this has to look right there too.
+    /// LERPED FROM WHERE THE HAND ACTUALLY IS, not built from scratch. At k=0
+    /// this returns the sampled rest pose exactly, which is what makes the
+    /// start and end of the swing invisible instead of a jump.
+    ///
+    /// Unclamped, so the small negative k during the wind-up pulls the hands
+    /// BEHIND their rest position rather than clamping them to it.
     /// </summary>
-    Vector3 HandTarget(float t, float side)
+    Vector3 HandTarget(float k, float side)
     {
-        float forward = Extension(t);
+        Vector3 rest = body.TransformPoint(side < 0f ? restLocalL : restLocalR);
 
-        // Sideways and forward come from the AIM; the height still comes from
-        // the body, because a shove leaves your shoulders wherever you happen
-        // to be looking - it is the direction that pitches, not the chest.
-        Quaternion aim = Aim();
+        // Sideways and forward come from the AIM; the height comes from the
+        // body, because a shove leaves your shoulders wherever you happen to
+        // be looking - it is the direction that pitches, not the chest.
+        Vector3 full = body.position + Vector3.up * height +
+                       Aim() * new Vector3(side * spread * 0.5f, 0f, reach);
 
-        Vector3 offset = aim * new Vector3(side * spread * 0.5f, 0f, forward);
-
-        return body.position + Vector3.up * height + offset;
+        return Vector3.LerpUnclamped(rest, full, k);
     }
 
     /// <summary>
-    /// How far forward the hands are, in metres. Negative during the wind-up.
+    /// How far out the shove is, 0 to 1, dipping slightly negative during the
+    /// wind-up. Zero at both ends of the swing, which is the whole contract:
+    /// the hands begin and finish exactly where they were resting.
     /// </summary>
-    float Extension(float t)
+    float Reach(float t)
     {
+        // Wind up: draw back a little. Expressed as a FRACTION of the reach so
+        // that changing the reach cannot leave the wind-up out of proportion.
+        float back = -Mathf.Abs(windBack) / Mathf.Max(0.01f, reach);
+
         if (t < windPart)
-        {
-            // Drawing back. Eased so the pull is soft and the release is not.
-            float k = t / Mathf.Max(0.001f, windPart);
-            return Mathf.Lerp(0f, -windBack, Smooth(k));
-        }
+            return Mathf.Lerp(0f, back, Smooth(t / Mathf.Max(0.001f, windPart)));
 
         float rest = (t - windPart) / Mathf.Max(0.001f, 1f - windPart);
 
         // ---- OUT FIRMLY, BACK SLOWLY ----
         //
-        // A single symmetrical curve gives a shove that retracts as hard as it
-        // extends, which reads as a puppet being pulled. Real arms are thrown
-        // out and then relax, so the return is deliberately the longer half.
-        //
-        // The thrust used to be a hard square-out over a tenth of a second,
-        // which is the "really fast" that was reported: the arms crossed the
-        // whole distance in about three frames, so there was no travel to see
-        // at all - just hands appearing at the far end. Eased instead of
-        // squared, and over a much longer slice.
+        // A symmetrical curve retracts as hard as it extends, which reads as a
+        // puppet being pulled. Real arms are thrown out and then relax, so the
+        // return is the longer half and both halves are eased - the earlier
+        // squared thrust crossed the whole distance in a few frames and had no
+        // travel to see.
         if (rest < thrustPart)
-        {
-            float k = rest / thrustPart;
-            return Mathf.Lerp(-windBack, reach, Smooth(k));
-        }
+            return Mathf.Lerp(back, 1f, Smooth(rest / thrustPart));
 
-        float back = (rest - thrustPart) / (1f - thrustPart);
-        return Mathf.Lerp(reach, 0f, Smooth(back));
-    }
-
-    /// <summary>
-    /// Fade in at the start of the swing and out at the end, in swing-fraction
-    /// rather than seconds, so a longer armTime fades proportionally.
-    /// </summary>
-    float Ease(float t)
-    {
-        float f = Mathf.Clamp01(fade / Mathf.Max(0.01f, push.armTime));
-        if (f <= 0.001f) return 1f;
-
-        return Mathf.Min(Mathf.Clamp01(t / f), Mathf.Clamp01((1f - t) / f));
+        return Mathf.Lerp(1f, 0f, Smooth((rest - thrustPart) / (1f - thrustPart)));
     }
 
     static float Smooth(float t) => t * t * (3f - 2f * t);

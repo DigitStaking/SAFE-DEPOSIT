@@ -109,8 +109,12 @@ public class PlayerPush : NetworkBehaviour
     public float armTime = 1.75f;
 
     [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
-             "when the arms reach out, not when they start moving.")]
-    [Range(0.1f, 0.8f)] public float contactAt = 0.34f;
+             "when the arms reach out, not when they start moving. " +
+             "0.62 is where PlayerPushArms actually reaches full extension. " +
+             "It was 0.34, which the corrected curve revealed was still inside " +
+             "the WIND-UP - the impulse was landing while the hands were moving " +
+             "backwards.")]
+    [Range(0.1f, 0.9f)] public float contactAt = 0.62f;
 
     float lastPush = -999f;
     bool contacted;

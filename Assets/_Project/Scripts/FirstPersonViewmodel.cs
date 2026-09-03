@@ -35,11 +35,15 @@
 //      check to get wrong, because their camera was never told the layer
 //      exists.
 //
-// Cleared with CameraClearFlags.Depth: it wipes only the DEPTH buffer, not
-// the colour the main camera already drew, and starts that depth fresh. The
-// arms therefore draw ON TOP of the entire world regardless of what is
-// actually in front of them - which is what makes clipping through nearby
-// geometry structurally impossible rather than just unlikely.
+// This project renders through URP, which has its own layering system and
+// ignores the legacy Camera.clearFlags/depth fields entirely. The viewmodel
+// camera is registered as a URP OVERLAY camera in the main camera's own
+// stack - see the long comment at BuildViewmodelCamera() for what went wrong
+// the first time and why. Overlay cameras never clear anything; they draw
+// only their own culling mask on top of whatever the Base camera already
+// produced, which is what makes clipping through nearby geometry structurally
+// impossible rather than just unlikely - there is no world geometry in this
+// camera's frustum to clip against in the first place.
 //
 // ------------------------------------------------------------------------
 // WHY THE CLONE'S HEAD AND LEGS CAN BE HIDDEN AND THE TORSO CANNOT
@@ -64,6 +68,7 @@
 // ========================================================================
 
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 public class FirstPersonViewmodel : MonoBehaviour
 {
@@ -216,16 +221,46 @@ public class FirstPersonViewmodel : MonoBehaviour
         camGo.transform.SetParent(mainCam.transform, false);
 
         vmCam = camGo.AddComponent<Camera>();
-        vmCam.clearFlags = CameraClearFlags.Depth;
         vmCam.cullingMask = 1 << layer;
         vmCam.nearClipPlane = nearClip;
         vmCam.fieldOfView = fieldOfView;
-        vmCam.depth = mainCam.depth + 1;   // draws after, so it draws on top
 
-        // The main camera must NOT also draw this layer. It normally
-        // wouldn't reach it - the clone sits well inside the main camera's
-        // own near clip plane in most setups - but excluding it outright
-        // costs nothing and removes a "mostly" from that sentence.
+        // ---- THIS PROJECT RENDERS THROUGH URP, WHICH IGNORES ALL OF THAT
+        //      UNLESS THE CAMERA IS REGISTERED INTO A STACK ----
+        //
+        // clearFlags and depth are the LEGACY pipeline's answer to layering
+        // two cameras, and they do nothing under URP - which is why the
+        // result was not "the clone drawn over the world" but "the whole
+        // world replaced by flat blue". A Camera added at runtime with
+        // AddComponent has no UniversalAdditionalCameraData, and URP's
+        // fallback for a camera in that state is to render it as its own
+        // independent BASE camera - clearing to its own background (Unity's
+        // default camera blue) rather than drawing on top of anything.
+        //
+        // A camera in the Editor gets that component attached automatically
+        // the moment URP is the active pipeline. One created purely in code
+        // does not, and there is no warning when it is missing - it just
+        // quietly renders wrong.
+        //
+        // The actual URP mechanism: a camera is either Base (clears the
+        // screen, the normal kind - your Main Camera already is one) or
+        // Overlay (draws on top of a Base camera's result, never clears
+        // anything itself). Overlay cameras do not free-float - they have to
+        // be added to a Base camera's OWN camera stack, in the order they
+        // should draw.
+        var vmData = camGo.AddComponent<UniversalAdditionalCameraData>();
+        vmData.renderType = CameraRenderType.Overlay;
+
+        var baseData = mainCam.GetComponent<UniversalAdditionalCameraData>();
+        if (baseData == null) baseData = mainCam.gameObject.AddComponent<UniversalAdditionalCameraData>();
+
+        baseData.cameraStack.Add(vmCam);
+
+        // The main camera must NOT also draw this layer - an Overlay camera
+        // still only draws what its OWN culling mask names, but the Base
+        // camera underneath it would otherwise draw the same clone a second
+        // time, at whatever tiny size it happens to be relative to the WORLD
+        // camera rather than the viewmodel one.
         mainCam.cullingMask &= ~(1 << layer);
 
         anchor = camGo.transform;

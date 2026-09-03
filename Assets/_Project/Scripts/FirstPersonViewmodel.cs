@@ -205,11 +205,10 @@ public class FirstPersonViewmodel : MonoBehaviour
         rightHandOffset = settings.rightHandOffset;
         handSpread = settings.handSpread;
         handReach = settings.handReach;
-        pushReach = settings.pushReach;
+        pushMove = settings.pushMove;
         pushTurn = settings.pushTurn;
         pushWindBack = settings.pushWindBack;
         pushSpread = settings.pushSpread;
-        pushDrop = settings.pushDrop;
         showOnlyWhenBusy = settings.showOnlyWhenBusy;
         hiddenOffset = settings.hiddenOffset;
         raiseTime = settings.raiseTime;
@@ -254,11 +253,10 @@ public class FirstPersonViewmodel : MonoBehaviour
     float pushNow;
 
     [Header("Push")]
-    public float pushReach = 0.12f;
+    public Vector3 pushMove = new Vector3(0f, -0.02f, 0.12f);
     public Vector3 pushTurn = new Vector3(0f, 0f, 55f);
     public float pushWindBack = 0.05f;
     public float pushSpread = 0.04f;
-    public float pushDrop = 0.02f;
 
     /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
     float raised;
@@ -468,8 +466,10 @@ public class FirstPersonViewmodel : MonoBehaviour
             // Along the camera's own view axis, which for a rig parented to
             // that camera is simply local forward - "the axe where you are
             // watching with camera".
-            place += Vector3.forward * (pushReach * p)
-                   + Vector3.down * (pushDrop * Mathf.Max(0f, p));
+            // The whole direction, in camera space, rather than "forward and
+            // a bit down" - X right, Y up, Z forward. The rig is parented to
+            // the viewmodel camera, so its local axes ARE the camera's.
+            place += pushMove * p;
 
             pushNow = Mathf.Max(0f, p);
         }
@@ -602,7 +602,9 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     float PushCurve(float t, float windPart, float thrustPart)
     {
-        float back = -Mathf.Abs(pushWindBack) / Mathf.Max(0.01f, pushReach);
+        // The wind-back is expressed in metres but the curve is a fraction,
+        // so it is divided by the length of the move it is a fraction OF.
+        float back = -Mathf.Abs(pushWindBack) / Mathf.Max(0.01f, pushMove.magnitude);
 
         if (t < windPart)
             return Mathf.Lerp(0f, back, Smooth(t / Mathf.Max(0.001f, windPart)));

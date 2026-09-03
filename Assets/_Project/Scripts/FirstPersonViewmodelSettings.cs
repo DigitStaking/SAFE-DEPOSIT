@@ -110,13 +110,15 @@ public class FirstPersonViewmodelSettings : ScriptableObject
     public float holdAfter = 0.6f;
 
     [Header("Push - the shove, seen from your own eyes")]
-    [Tooltip("How far the hands travel FORWARD during a shove, in metres, " +
-             "along the camera's own view axis. " +
-             "SMALL ON PURPOSE. A push is mostly the palms TURNING - see " +
-             "pushTurn below - and the travel is the small part. 0.38 was the " +
-             "first attempt and it read as the arms flying rather than pushing, " +
-             "because translation was doing the entire job on its own.")]
-    public float pushReach = 0.12f;
+    [Tooltip("How far the hands MOVE during a shove, in metres, in CAMERA " +
+             "space: X right, Y up, Z forward. " +
+             "Was two separate numbers - forward reach and downward drop - " +
+             "which meant the shove could only ever go straight out and down. " +
+             "One vector gives the whole direction, so the hands can push up, " +
+             "across, or wherever the gesture actually wants to go. " +
+             "SMALL ON PURPOSE: a push is mostly the palms TURNING, see " +
+             "pushTurn. 0.38 forward on its own read as arms flying.")]
+    public Vector3 pushMove = new Vector3(0f, -0.02f, 0.12f);
 
     [Tooltip("How far the palms rotate to face forward at full push, in " +
              "degrees. THIS is the gesture - the hands turning into the shove. " +
@@ -131,10 +133,6 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "palms going out, not one fist.")]
     public float pushSpread = 0.04f;
 
-    [Tooltip("How far the hands drop as they thrust, in metres. A shove comes " +
-             "from the chest and pushes slightly down and out; hands that " +
-             "travel dead level read as a zombie reaching.")]
-    public float pushDrop = 0.02f;
 
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]

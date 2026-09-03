@@ -402,6 +402,12 @@ public class FirstPersonViewmodel : MonoBehaviour
         // to be bent toward the camera to fake hands.
         if (realHands != null) realHands.enabled = false;
 
+        // And hide the REAL body's arms from YOUR camera, now that there are
+        // arms to replace them with. Only now - doing it any earlier, or
+        // unconditionally, would mean no hands at all whenever this failed.
+        // Local-only bone scale; a teammate still sees your real arms.
+        if (cull != null) cull.hideArms = true;
+
         Report("BUILT on '" + target.name + "'. FirstPersonHands " +
                (realHands != null ? "disabled" : "NOT FOUND (old hands may still show)") +
                ". If the arms are not visible, they are in the wrong place rather than " +

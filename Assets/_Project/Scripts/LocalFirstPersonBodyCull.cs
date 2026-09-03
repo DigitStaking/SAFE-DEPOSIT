@@ -59,6 +59,17 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
              "buys you very little.")]
     public bool hideLegs = false;
 
+    [Tooltip("Hide your own ARMS from your own camera. " +
+             "Off by default and switched on by FirstPersonViewmodel ONLY once " +
+             "it has actually built its arms - because until then these are the " +
+             "only hands you have, and hiding them would leave you with none. " +
+             "This is a LOCAL-ONLY bone scale, exactly like the head above: " +
+             "bone scales are not replicated, so a teammate still sees your real " +
+             "arms doing their normal third-person animation. Shrinking UpperArm " +
+             "takes the forearm, hand and fingers with it, because they are its " +
+             "children.")]
+    public bool hideArms = false;
+
     [Tooltip("Stop your own body casting a shadow. Your headlamp sits ABOVE " +
              "your chest, so your torso throws a large moving blob onto the " +
              "floor directly in front of you - the dark shape in your " +
@@ -89,7 +100,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     readonly List<Renderer> hidden = new List<Renderer>();
     Animator anim;
-    Transform headBone, neckBone, legL, legR;
+    Transform headBone, neckBone, legL, legR, armL, armR;
     Renderer bodyRenderer, armsRenderer;
     Vector3 headScale = Vector3.one, neckScale = Vector3.one;
     Vector3 legLScale = Vector3.one, legRScale = Vector3.one;
@@ -143,6 +154,8 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             neckBone = anim.GetBoneTransform(HumanBodyBones.Neck);
             legL     = anim.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
             legR     = anim.GetBoneTransform(HumanBodyBones.RightUpperLeg);
+            armL     = anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            armR     = anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
 
             if (headBone != null) headScale = headBone.localScale;
             if (neckBone != null) neckScale = neckBone.localScale;
@@ -284,6 +297,23 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
                 if (legR != null) legR.localScale = Vector3.one * headShrink;
             }
 
+            // ---- THE REAL ARMS, ONCE THE VIEWMODEL HAS ITS OWN ----
+            //
+            // Two pairs of hands on screen at once is what this fixes. The
+            // viewmodel draws arms on its own camera; the REAL body's arms
+            // were still being drawn by the main camera as well, because
+            // nothing ever hid them - only the head was hidden.
+            //
+            // Local-only, like everything else here: a bone scale is not
+            // replicated, so a teammate still sees your real arms animating
+            // normally. Scaling UpperArm carries the forearm, hand and
+            // fingers with it - they are its children.
+            if (hideArms)
+            {
+                if (armL != null) armL.localScale = Vector3.one * headShrink;
+                if (armR != null) armR.localScale = Vector3.one * headShrink;
+            }
+
             if (!reported)
             {
                 reported = true;
@@ -325,6 +355,9 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     void RestoreHead()
     {
+        if (armL != null) armL.localScale = Vector3.one;
+        if (armR != null) armR.localScale = Vector3.one;
+
         if (headBone != null) headBone.localScale = headScale;
         if (neckBone != null) neckBone.localScale = neckScale;
         if (legL != null) legL.localScale = legLScale;

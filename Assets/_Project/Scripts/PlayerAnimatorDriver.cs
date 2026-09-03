@@ -229,7 +229,35 @@ public class PlayerAnimatorDriver : MonoBehaviour
             bool emoting = animator.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
                            animator.GetNextAnimatorStateInfo(0).IsTag("FreeArms");
 
-            float target = emoting ? 0f : 1f;
+            // ---- AN EMPTY OVERRIDE LAYER IS NOT A DISABLED ONE ----
+            //
+            // AnimatorBuilder builds this layer with an empty default state
+            // and a comment claiming that "an empty state that writes nothing
+            // lets the base layer through untouched - that is how the layer
+            // switches itself off without any script babysitting it."
+            //
+            // That is not what Unity does. An OVERRIDE layer at weight 1 with
+            // no clip does not pass the base layer through; it overrides every
+            // bone in its mask with the BIND POSE. So the arms sat in a fixed
+            // raised pose no matter what Happy Idle or Walking were doing
+            // underneath - which is exactly what the audit found:
+            //
+            //   layer 0 'Base Layer'  weight 1.00  -> Happy Idle 0.98 + Walking 0.02
+            //   layer 1 'Arms'        weight 1.00  -> NO CLIPS (empty state)
+            //
+            // FirstPersonHands hid this for months by dragging the hands to
+            // the camera every frame. Switching it off for the viewmodel did
+            // not cause the bad pose - it uncovered one that was always there.
+            //
+            // The layer only earns its weight when it actually has something
+            // to play. Carry, pickup, stow and use all bring clips with them,
+            // so this reads as "is there a clip" rather than naming states -
+            // a fifth one added later needs no change here.
+            bool armsHaveSomethingToPlay =
+                animator.GetCurrentAnimatorClipInfoCount(ArmsLayer) > 0 ||
+                animator.GetNextAnimatorClipInfoCount(ArmsLayer) > 0;
+
+            float target = (emoting || !armsHaveSomethingToPlay) ? 0f : 1f;
             armsWeight = Mathf.MoveTowards(armsWeight, target, dt * 6f);
             animator.SetLayerWeight(ArmsLayer, armsWeight);
         }

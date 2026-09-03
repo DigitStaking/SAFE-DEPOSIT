@@ -228,8 +228,15 @@ public class FirstPersonViewmodel : MonoBehaviour
         // camera's position, and in third person that is three metres behind
         // the character, which would show the arms floating in mid-air for
         // no reason.
-        bool show = cull == null || !cull.ThirdPerson;
-        if (vmCam != null) vmCam.enabled = show;
+        bool firstPerson = cull == null || !cull.ThirdPerson;
+
+        if (vmCam != null) vmCam.enabled = firstPerson;
+
+        // Third person exists to LOOK at your own character, so the body has
+        // to come back the moment the camera pulls away from it - and the
+        // arms have to go, since they are a first-person illusion sitting at
+        // a camera that is now three metres behind you.
+        if (cull != null) cull.HideBodyFromOwnCamera(firstPerson);
     }
 
     // --------------------------------------------------------------------
@@ -288,6 +295,23 @@ public class FirstPersonViewmodel : MonoBehaviour
         // time, at whatever size it happens to be relative to the WORLD
         // camera rather than the viewmodel one.
         mainCam.cullingMask &= ~(1 << layer);
+
+        // ---- AND STOP DRAWING YOUR OWN BODY ----
+        //
+        // The other half of the same idea. The viewmodel camera draws ONLY
+        // the Viewmodel layer; the main camera draws everything EXCEPT
+        // LocalBody. Between them: world and loot from the main camera, arms
+        // from the overlay, and none of your own character.
+        //
+        // Only this machine's main camera is touched, and only the local
+        // body's renderers are ever put on that layer - so a teammate's
+        // camera, which was never told the layer means anything, keeps
+        // drawing your full character normally.
+        int bodyLayer = LayerMask.NameToLayer(LocalFirstPersonBodyCull.BodyLayerName);
+
+        if (bodyLayer >= 0) mainCam.cullingMask &= ~(1 << bodyLayer);
+        else Report("layer '" + LocalFirstPersonBodyCull.BodyLayerName + "' does not exist " +
+                    "- run the layer setup menu item. Your own body will stay visible.", true);
 
         anchor = camGo.transform;
     }
@@ -402,11 +426,14 @@ public class FirstPersonViewmodel : MonoBehaviour
         // to be bent toward the camera to fake hands.
         if (realHands != null) realHands.enabled = false;
 
-        // And hide the REAL body's arms from YOUR camera, now that there are
-        // arms to replace them with. Only now - doing it any earlier, or
-        // unconditionally, would mean no hands at all whenever this failed.
-        // Local-only bone scale; a teammate still sees your real arms.
-        if (cull != null) cull.hideArms = true;
+        // And stop YOUR camera drawing your own body, now that there are arms
+        // to replace it with. Only now - doing it earlier or unconditionally
+        // would leave you with no hands at all whenever this failed.
+        //
+        // By LAYER, not by scaling bones. The skeleton keeps its real pose,
+        // keeps animating, keeps replicating; the local camera is simply not
+        // told to draw it. A teammate sees the complete character, unchanged.
+        if (cull != null) cull.HideBodyFromOwnCamera(true);
 
         Report("BUILT on '" + target.name + "'. FirstPersonHands " +
                (realHands != null ? "disabled" : "NOT FOUND (old hands may still show)") +

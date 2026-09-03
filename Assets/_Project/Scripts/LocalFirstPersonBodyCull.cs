@@ -59,16 +59,6 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
              "buys you very little.")]
     public bool hideLegs = false;
 
-    [Tooltip("Hide your own ARMS from your own camera. " +
-             "Off by default and switched on by FirstPersonViewmodel ONLY once " +
-             "it has actually built its arms - because until then these are the " +
-             "only hands you have, and hiding them would leave you with none. " +
-             "This is a LOCAL-ONLY bone scale, exactly like the head above: " +
-             "bone scales are not replicated, so a teammate still sees your real " +
-             "arms doing their normal third-person animation. Shrinking UpperArm " +
-             "takes the forearm, hand and fingers with it, because they are its " +
-             "children.")]
-    public bool hideArms = false;
 
     [Tooltip("Stop your own body casting a shadow. Your headlamp sits ABOVE " +
              "your chest, so your torso throws a large moving blob onto the " +
@@ -100,7 +90,7 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     readonly List<Renderer> hidden = new List<Renderer>();
     Animator anim;
-    Transform headBone, neckBone, legL, legR, armL, armR;
+    Transform headBone, neckBone, legL, legR;
     Renderer bodyRenderer, armsRenderer;
     Vector3 headScale = Vector3.one, neckScale = Vector3.one;
     Vector3 legLScale = Vector3.one, legRScale = Vector3.one;
@@ -110,6 +100,79 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     FirstPersonCamera fpCam;
     Camera cam;
     bool reported;
+
+    // ---- HIDING THE BODY WITHOUT TOUCHING IT ----
+    //
+    // The renderers' ORIGINAL layers, so third person can put them back
+    // exactly as they were rather than assuming Default.
+    readonly List<Renderer> bodyRenderers = new List<Renderer>();
+    readonly List<int> bodyLayers = new List<int>();
+    bool bodyHiddenByLayer;
+
+    /// <summary>
+    /// Move this body's renderers onto the LocalBody layer, which the local
+    /// main camera has been told not to draw.
+    ///
+    /// ONLY the objects that carry a Renderer are moved - never the root, and
+    /// never the bones. The CapsuleCollider lives on the root, so the ground
+    /// check, the pickup ray, the push probe and every physics layer mask see
+    /// exactly what they saw before. Layers are not replicated either, so a
+    /// teammate's copy of this body stays on its normal layer and renders
+    /// normally on their machine.
+    ///
+    /// Called by FirstPersonViewmodel only after its arms actually exist.
+    /// </summary>
+    public void HideBodyFromOwnCamera(bool hide)
+    {
+        if (hide == bodyHiddenByLayer) return;
+
+        int layer = LayerMask.NameToLayer(BodyLayerName);
+
+        if (hide && layer < 0)
+        {
+            Debug.LogWarning("[FP Cull] layer '" + BodyLayerName + "' does not exist - run " +
+                             "SAFE DEPOSIT > Player > Setup First-Person Viewmodel Layer. " +
+                             "Keeping the old head-shrink instead so you are not looking " +
+                             "at the inside of your own helmet.");
+            return;
+        }
+
+        if (hide)
+        {
+            bodyRenderers.Clear();
+            bodyLayers.Clear();
+
+            foreach (var r in GetComponentsInChildren<Renderer>(true))
+            {
+                if (r == null) continue;
+                bodyRenderers.Add(r);
+                bodyLayers.Add(r.gameObject.layer);
+                r.gameObject.layer = layer;
+            }
+
+            // The bones were only ever scaled to fake this. Put them back -
+            // the whole body is about to be invisible to this camera anyway,
+            // and a teammate should never have been able to see a squashed
+            // head in the first place.
+            RestoreHead();
+            reported = false;
+        }
+        else
+        {
+            for (int i = 0; i < bodyRenderers.Count; i++)
+                if (bodyRenderers[i] != null)
+                    bodyRenderers[i].gameObject.layer = bodyLayers[i];
+
+            bodyRenderers.Clear();
+            bodyLayers.Clear();
+            reported = false;
+        }
+
+        bodyHiddenByLayer = hide;
+    }
+
+    /// <summary>MUST MATCH ViewmodelLayerSetup.BodyLayerName.</summary>
+    public const string BodyLayerName = "LocalBody";
 
     /// <summary>
     /// True while looking at your own body from behind (P).
@@ -154,8 +217,6 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
             neckBone = anim.GetBoneTransform(HumanBodyBones.Neck);
             legL     = anim.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
             legR     = anim.GetBoneTransform(HumanBodyBones.RightUpperLeg);
-            armL     = anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
-            armR     = anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
 
             if (headBone != null) headScale = headBone.localScale;
             if (neckBone != null) neckScale = neckBone.localScale;
@@ -286,6 +347,29 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
     {
         // Re-apply every frame. The Animator rewrites the pose each update, so
         // a one-off scale in Start would be undone on the very next frame.
+        // ---- THE WHOLE BODY, HIDDEN BY LAYER, SKELETON UNTOUCHED ----
+        //
+        // When the viewmodel is live it calls HideBodyFromOwnCamera(true) and
+        // every bone trick below stands down. The body then animates, poses
+        // and replicates EXACTLY as it always did - the local main camera
+        // simply is not told to draw it.
+        //
+        // That is the difference between this and shrinking bones: a scaled
+        // bone is a change to the actual pose, made to solve a rendering
+        // problem. This changes nothing about the character at all.
+        if (bodyHiddenByLayer)
+        {
+            if (!reported)
+            {
+                reported = true;
+                Debug.Log("[FP Cull] whole body hidden from your own camera by layer. " +
+                          "Skeleton untouched - teammates see the full character " +
+                          "animating normally.");
+            }
+
+            return;
+        }
+
         if (!thirdPerson)
         {
             if (headBone != null) headBone.localScale = Vector3.one * headShrink;
@@ -297,22 +381,6 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
                 if (legR != null) legR.localScale = Vector3.one * headShrink;
             }
 
-            // ---- THE REAL ARMS, ONCE THE VIEWMODEL HAS ITS OWN ----
-            //
-            // Two pairs of hands on screen at once is what this fixes. The
-            // viewmodel draws arms on its own camera; the REAL body's arms
-            // were still being drawn by the main camera as well, because
-            // nothing ever hid them - only the head was hidden.
-            //
-            // Local-only, like everything else here: a bone scale is not
-            // replicated, so a teammate still sees your real arms animating
-            // normally. Scaling UpperArm carries the forearm, hand and
-            // fingers with it - they are its children.
-            if (hideArms)
-            {
-                if (armL != null) armL.localScale = Vector3.one * headShrink;
-                if (armR != null) armR.localScale = Vector3.one * headShrink;
-            }
 
             if (!reported)
             {
@@ -355,9 +423,6 @@ public class LocalFirstPersonBodyCull : MonoBehaviour
 
     void RestoreHead()
     {
-        if (armL != null) armL.localScale = Vector3.one;
-        if (armR != null) armR.localScale = Vector3.one;
-
         if (headBone != null) headBone.localScale = headScale;
         if (neckBone != null) neckBone.localScale = neckScale;
         if (legL != null) legL.localScale = legLScale;

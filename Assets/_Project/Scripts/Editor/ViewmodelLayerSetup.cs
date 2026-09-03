@@ -25,12 +25,24 @@ using UnityEngine;
 
 public static class ViewmodelLayerSetup
 {
-    // MUST MATCH FirstPersonViewmodel.ViewmodelLayerName exactly - see the
-    // comment there for why this cannot be one shared constant.
+    // MUST MATCH FirstPersonViewmodel's own constants exactly - see the
+    // comment there for why these cannot be shared constants.
     public const string LayerName = "Viewmodel";
+
+    // The local player's OWN body goes here so the main camera can simply not
+    // draw it. Its own layer rather than reusing Viewmodel, because the two
+    // are opposites: the viewmodel camera draws ONLY Viewmodel, and the main
+    // camera draws everything EXCEPT LocalBody.
+    public const string BodyLayerName = "LocalBody";
 
     [MenuItem("SAFE DEPOSIT/Player/Setup First-Person Viewmodel Layer")]
     static void Setup()
+    {
+        Claim(LayerName);
+        Claim(BodyLayerName);
+    }
+
+    static void Claim(string LayerName)
     {
         var asset = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
         if (asset == null || asset.Length == 0)

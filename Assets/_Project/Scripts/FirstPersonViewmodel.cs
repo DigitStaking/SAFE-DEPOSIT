@@ -232,6 +232,7 @@ public class FirstPersonViewmodel : MonoBehaviour
     PlayerCarry realCarry;           // holding something
     PlayerPush realPush;             // mid-shove
     PlayerPushArms realPushArms;     // the world-space shove, read for its TIMING only
+    ViewmodelArmsIK armsIK;          // on the CLONE, for per-hand offsets
 
     [Header("Height")]
     public bool deriveHeightFromEye = true;
@@ -434,7 +435,46 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (deriveHeightFromEye && rigArmHeight > 0f)
             place.y = -handsBelowEye - rigArmHeight * localScale;
 
+        // ---- THE SHOVE MOVES THE WHOLE RIG, NOT THE HAND BONES ----
+        //
+        // This was setting hand bone POSITIONS directly, which is the classic
+        // skinned-mesh mistake: a hand bone is a child of the forearm, so
+        // moving it alone does not move the arm - it drags the hand away from
+        // the wrist and the mesh stretches to span the gap. That is the
+        // "weird animation like stretching", and it is the reason the hands
+        // appeared to fly upward too: a stretched limb has to go somewhere.
+        //
+        // Moving a hand properly in a skinned rig means IK - solving the
+        // shoulder and elbow so the whole arm follows. But for a shove seen
+        // from your own eyes there is nothing to solve FOR: no target, no
+        // contact point, no reach problem. The whole viewmodel lunging forward
+        // reads as a push and cannot stretch anything, because every bone
+        // keeps its relationship to every other bone.
+        float t = realPush != null ? realPush.PushProgress : -1f;
+
+        if (t >= 0f)
+        {
+            float windPart = realPushArms != null ? realPushArms.windPart : 0.3f;
+            float thrustPart = realPushArms != null ? realPushArms.thrustPart : 0.52f;
+
+            float p = PushCurve(t, windPart, thrustPart);
+
+            place += Vector3.forward * (pushReach * p)
+                   + Vector3.down * (pushDrop * Mathf.Max(0f, p));
+        }
+
         clone.localPosition = place + hiddenOffset * (1f - k);
+
+        // Per-hand nudges go through IK so the whole arm follows the hand
+        // rather than the wrist tearing away from it.
+        if (armsIK != null)
+        {
+            armsIK.leftOffset = leftHandOffset;
+            armsIK.rightOffset = rightHandOffset;
+            armsIK.spread = handSpread;
+            armsIK.reach = handReach;
+            armsIK.space = anchor;
+        }
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
 
@@ -486,74 +526,6 @@ public class FirstPersonViewmodel : MonoBehaviour
     }
 
     /// <summary>
-    /// Per-hand nudges, applied AFTER the animation has posed the arms.
-    ///
-    /// LateUpdate, because the Animator writes its pose during the animation
-    /// update and anything set before that is simply overwritten - the same
-    /// ordering rule LocalFirstPersonBodyCull's head shrink lives by.
-    ///
-    /// These move the BONES rather than IK goals on purpose. There is no IK
-    /// running on the viewmodel arms at all, so a goal would have nothing to
-    /// solve; a bone offset is the honest way to say "and about two
-    /// centimetres to the left".
-    /// </summary>
-    void LateUpdate()
-    {
-        if (clone == null || cloneAnim == null || !cloneAnim.isHuman) return;
-
-        var l = cloneAnim.GetBoneTransform(HumanBodyBones.LeftHand);
-        var r = cloneAnim.GetBoneTransform(HumanBodyBones.RightHand);
-
-        // Offsets are given in CAMERA space, which is the space the person
-        // dragging them is looking through - "further right" should mean
-        // further right on screen, not further right along some bone's own
-        // axis that happens to point backwards.
-        Vector3 right = anchor != null ? anchor.right : Vector3.right;
-        Vector3 fwd = anchor != null ? anchor.forward : Vector3.forward;
-
-        Vector3 common = right * handSpread + fwd * handReach;
-
-        // ---- AND THE SHOVE, ON TOP ----
-        //
-        // Push is IK on the real body, not a clip and not an animator
-        // parameter, so mirroring parameters can never carry it across. The
-        // viewmodel needs its own gesture.
-        //
-        // Deliberately NOT the same code as PlayerPushArms. That one solves a
-        // hard problem - reach a person who might be a step away or at arm's
-        // length, on a ramp, at a different height - because a teammate is
-        // watching it connect. This one is seen from inside the player's own
-        // head, where there is no target to reach and nothing to connect
-        // with: it is two hands going forward. Sharing the world-space
-        // solution here would import all of that difficulty for none of the
-        // benefit.
-        //
-        // The TIMING is shared though, read live off the real component, so
-        // the two halves cannot drift apart when one is tuned.
-        float t = realPush != null ? realPush.PushProgress : -1f;
-
-        if (t >= 0f)
-        {
-            float windPart = realPushArms != null ? realPushArms.windPart : 0.3f;
-            float thrustPart = realPushArms != null ? realPushArms.thrustPart : 0.52f;
-
-            float k = PushCurve(t, windPart, thrustPart);
-
-            // Out, apart and slightly down - a shove comes off the chest.
-            Vector3 shove = fwd * (pushReach * k)
-                          + Vector3.down * (pushDrop * Mathf.Max(0f, k));
-
-            Vector3 apart = right * (pushSpread * Mathf.Max(0f, k));
-
-            if (l != null) l.position += shove - apart;
-            if (r != null) r.position += shove + apart;
-        }
-
-        if (l != null) l.position += Offset(leftHandOffset) - right * handSpread + common;
-        if (r != null) r.position += Offset(rightHandOffset) + common;
-    }
-
-    /// <summary>
     /// How far out the shove is, 0 to 1, dipping negative during the wind-up.
     ///
     /// Zero at both ends, which is the contract that keeps the hands starting
@@ -576,72 +548,6 @@ public class FirstPersonViewmodel : MonoBehaviour
     }
 
     static float Smooth(float t) => t * t * (3f - 2f * t);
-
-    /// <summary>A per-hand offset, rotated out of camera space into the world.</summary>
-    Vector3 Offset(Vector3 local)
-    {
-        if (local == Vector3.zero) return Vector3.zero;
-        if (anchor == null) return local;
-
-        return anchor.right * local.x + anchor.up * local.y + anchor.forward * local.z;
-    }
-
-    /// <summary>
-    /// Copy the real body's animator parameters onto the arms.
-    ///
-    /// Floats, ints and bools only. TRIGGERS are deliberately not forwarded:
-    /// there is no way to read whether one is currently set, and a one-shot
-    /// fired twice - once on each animator - is not the same as one fired on
-    /// both. Pickup, stow, use and emote are all triggers, so those arrive
-    /// with the interaction work rather than here, where they would be
-    /// guesswork.
-    ///
-    /// This copies INPUTS, never the pose. The two skeletons stay free to
-    /// differ, which is the entire reason there are two of them.
-    /// </summary>
-    void MirrorAnimation()
-    {
-        if (realAnim == null || cloneAnim == null || cloneParams == null) return;
-        if (realAnim.runtimeAnimatorController == null) return;
-        if (cloneAnim.runtimeAnimatorController == null) return;
-
-        // ---- LAYER WEIGHTS TOO, NOT JUST PARAMETERS ----
-        //
-        // This is why the viewmodel arms had no animation. The clone carries
-        // the same controller as the real body but NOT PlayerAnimatorDriver -
-        // that lives on the Player root, and the clone is parented to a
-        // camera. So nothing was setting the clone's LAYER WEIGHTS, and the
-        // masked Arms layer sat at its authored default of 1 over an empty
-        // state: the exact bind-pose override that was just fixed on the real
-        // body, reproduced perfectly on the copy.
-        //
-        // Copying the weights carries that fix across for free, and keeps the
-        // carry pose, pickup and use one-shots weighted the same on both.
-        int layers = Mathf.Min(cloneAnim.layerCount, realAnim.layerCount);
-
-        for (int i = 0; i < layers; i++)
-            cloneAnim.SetLayerWeight(i, realAnim.GetLayerWeight(i));
-
-        for (int i = 0; i < cloneParams.Length; i++)
-        {
-            var p = cloneParams[i];
-
-            switch (p.type)
-            {
-                case AnimatorControllerParameterType.Float:
-                    cloneAnim.SetFloat(p.nameHash, realAnim.GetFloat(p.nameHash));
-                    break;
-
-                case AnimatorControllerParameterType.Int:
-                    cloneAnim.SetInteger(p.nameHash, realAnim.GetInteger(p.nameHash));
-                    break;
-
-                case AnimatorControllerParameterType.Bool:
-                    cloneAnim.SetBool(p.nameHash, realAnim.GetBool(p.nameHash));
-                    break;
-            }
-        }
-    }
 
     // --------------------------------------------------------------------
     // THE SECOND CAMERA
@@ -825,6 +731,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         smr.sharedMesh = armsMesh;
 
         StripForViewmodel(go);
+
+        // Per-hand placement needs IK, and Unity only delivers OnAnimatorIK to
+        // components sharing a GameObject with the Animator - so it has to be
+        // added HERE, to the thing that did not exist until a moment ago.
+        armsIK = go.GetComponent<ViewmodelArmsIK>();
+        if (armsIK == null) armsIK = go.AddComponent<ViewmodelArmsIK>();
+        armsIK.space = anchor;
         SetLayerRecursively(go, LayerMask.NameToLayer(ViewmodelLayerName));
 
         clone = t;

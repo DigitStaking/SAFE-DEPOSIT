@@ -114,8 +114,6 @@ public class FirstPersonViewmodel : MonoBehaviour
              "level geometry to clip against.")]
     public float nearClip = 0.01f;
 
-    static bool booted;
-
     FirstPersonCamera fpCam;
     Camera mainCam;
     Camera vmCam;
@@ -127,6 +125,20 @@ public class FirstPersonViewmodel : MonoBehaviour
     Mesh armsMesh;
     bool armsMeshChecked;
 
+    float waiting;
+    bool warnedNoTarget;
+
+    /// <summary>
+    /// One line, prefixed, so this system can be found in the Editor log
+    /// without a screenshot. Everything here is once-per-event, never
+    /// per-frame.
+    /// </summary>
+    static void Report(string what, bool bad = false)
+    {
+        if (bad) Debug.LogWarning("[Viewmodel] " + what);
+        else Debug.Log("[Viewmodel] " + what);
+    }
+
     Transform target;   // the body we last cloned, so a respawn re-clones
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -137,6 +149,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         // loading a different one. Re-running each time is correct: the old
         // camera and the old clone died with the scene, and a fresh one is
         // needed for whatever body spawns next.
+        // Asked of the SCENE rather than remembered in a static. A static
+        // "booted" flag survives entering Play mode when Reload Domain is
+        // switched off, so a second session would find it already true and
+        // destroy its own instance on the first frame - a viewmodel that
+        // works once and never again, with nothing logged to say why.
+        if (Object.FindFirstObjectByType<FirstPersonViewmodel>() != null) return;
+
         var go = new GameObject("~FirstPersonViewmodel");
 
         // DontSave, not HideAndDontSave - visible and selectable in the
@@ -147,13 +166,6 @@ public class FirstPersonViewmodel : MonoBehaviour
         go.AddComponent<FirstPersonViewmodel>();
     }
 
-    void Awake()
-    {
-        if (booted) { Destroy(gameObject); return; }
-        booted = true;
-    }
-
-    void OnDestroy() => booted = false;
 
     void Update()
     {
@@ -165,10 +177,42 @@ public class FirstPersonViewmodel : MonoBehaviour
             if (fpCam == null) return;
 
             mainCam = fpCam.GetComponent<Camera>();
+
+            if (mainCam == null)
+            {
+                Report("FirstPersonCamera has no Camera component beside it - cannot " +
+                       "build a viewmodel camera.", true);
+                enabled = false;
+                return;
+            }
+
             BuildViewmodelCamera();
         }
 
-        if (fpCam.target == null) return;
+        // ---- SILENCE WAS THE BUG IN THE DEBUGGING, NOT IN THE CODE ----
+        //
+        // Every failure path here used to log and the SUCCESS path used to
+        // say nothing, so "it worked" and "it returned early on frame one and
+        // never spoke again" produced identical console output: none. That is
+        // exactly the state this was found in - mesh present, layer present,
+        // no errors, no viewmodel.
+        //
+        // Waiting for a body is normal for a few frames while the local
+        // player spawns, so it is only worth complaining about once it has
+        // gone on long enough to mean something is actually wrong.
+        if (fpCam.target == null)
+        {
+            waiting += Time.deltaTime;
+
+            if (waiting > 5f && !warnedNoTarget)
+            {
+                warnedNoTarget = true;
+                Report("FirstPersonCamera has had no target for 5 seconds - no local " +
+                       "player body to clone arms from, so nothing will appear.", true);
+            }
+
+            return;
+        }
 
         if (fpCam.target != target)
         {
@@ -204,6 +248,9 @@ public class FirstPersonViewmodel : MonoBehaviour
                            "Play mode. The viewmodel cannot show without it.");
             return;
         }
+
+        Report("layer '" + ViewmodelLayerName + "' is index " + layer +
+               ", building the overlay camera.");
 
         var camGo = new GameObject("~ViewmodelCamera");
         camGo.transform.SetParent(mainCam.transform, false);
@@ -265,6 +312,13 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         armsMesh = Resources.Load<Mesh>("PlayerArmsViewmodel");
 
+        if (armsMesh != null)
+        {
+            Report("arms mesh loaded: " + armsMesh.vertexCount + " verts, " +
+                   armsMesh.subMeshCount + " submeshes, " +
+                   armsMesh.bindposes.Length + " bindposes.");
+        }
+
         if (armsMesh == null)
         {
             Debug.LogWarning("[Viewmodel] Assets/_Project/Resources/PlayerArmsViewmodel.asset " +
@@ -290,7 +344,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         // re-decided every time rather than trusted from the last body.
         if (realHands != null) realHands.enabled = true;
 
-        if (anchor == null) return;         // layer setup failed; nothing to show
+        if (anchor == null)
+        {
+            Report("no viewmodel camera was built, so there is nothing to hang arms " +
+                   "on - the layer step above failed.", true);
+            return;
+        }
+
         if (!TryLoadArmsMesh()) return;      // Stage 1 not run; leave real hands alone
 
         var visual = target.Find("PlayerModel_FBX_VISUAL");
@@ -341,6 +401,11 @@ public class FirstPersonViewmodel : MonoBehaviour
         // Confirmed working on this body - the real skeleton no longer needs
         // to be bent toward the camera to fake hands.
         if (realHands != null) realHands.enabled = false;
+
+        Report("BUILT on '" + target.name + "'. FirstPersonHands " +
+               (realHands != null ? "disabled" : "NOT FOUND (old hands may still show)") +
+               ". If the arms are not visible, they are in the wrong place rather than " +
+               "missing - select ~FirstPersonViewmodel and move Local Position.");
     }
 
     /// <summary>

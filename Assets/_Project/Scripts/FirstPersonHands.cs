@@ -187,6 +187,42 @@ public class FirstPersonHands : MonoBehaviour
         anim = GetComponent<Animator>();
     }
 
+    /// <summary>
+    /// LET GO OF THE HANDS ON THE WAY OUT.
+    ///
+    /// An IK weight PERSISTS. SetIKPositionWeight is not a per-frame
+    /// instruction to the solver, it is a value the Animator keeps using
+    /// until somebody changes it - so a component that simply stops running
+    /// leaves the last goal it wrote in force forever.
+    ///
+    /// That is what "his hand still up" was: FirstPersonViewmodel switches
+    /// this component off once its own arms exist, OnAnimatorIK stopped being
+    /// called, and the final weight-1 goal at the camera stayed applied. The
+    /// character kept both hands pinned in front of its face - the exact
+    /// clutching-my-own-face pose this whole system was built to get rid of -
+    /// with nothing left running to explain why.
+    ///
+    /// ProceduralLegsIK already carries a comment saying precisely this about
+    /// feet, written before this bug was introduced. Same trap, same file
+    /// author, one system later.
+    ///
+    /// Setting the weights here works even though OnAnimatorIK will not run
+    /// again: the Animator reads the stored weights during its own IK pass,
+    /// so zero is what it finds.
+    /// </summary>
+    void OnDisable()
+    {
+        if (anim == null || !anim.isHuman) return;
+
+        anim.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0f);
+        anim.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);
+        anim.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0f);
+        anim.SetIKRotationWeight(AvatarIKGoal.RightHand, 0f);
+
+        weight = 0f;
+        primed = false;
+    }
+
     void Start()
     {
         // The IK targets are placed relative to the EYE, so a remote body

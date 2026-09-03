@@ -142,6 +142,16 @@ public class PlayerPushArms : MonoBehaviour
     Quaternion restRotL, restRotR;
     bool sampled;
 
+    /// <summary>True while this component is the one holding the hand IK
+    /// goals, so they are released exactly once when a shove ends rather
+    /// than re-zeroed every idle frame.</summary>
+    bool heldGoals;
+
+    /// <summary>The other writer of these same goals. If it is alive it owns
+    /// releasing them; if it has been switched off, this component has to
+    /// clean up after itself.</summary>
+    FirstPersonHands fpHands;
+
     void LateUpdate()
     {
         if (anim == null || !anim.isHuman || body == null) return;
@@ -165,6 +175,7 @@ public class PlayerPushArms : MonoBehaviour
         // Found upward, like everything else on this model: the push lives on
         // the player root and this lives on the model beneath it.
         push = GetComponentInParent<PlayerPush>();
+        fpHands = GetComponent<FirstPersonHands>();
         body = push != null ? push.transform : transform;
         motor = GetComponentInParent<PlayerMotor>();
     }
@@ -224,11 +235,40 @@ public class PlayerPushArms : MonoBehaviour
 
         float t = push.PushProgress;
 
-        // Not swinging. Deliberately writes NOTHING - not even a zero weight -
-        // because FirstPersonHands has already set the hands this frame and
-        // zeroing them here would undo its work every single frame that
-        // nobody was pushing.
-        if (t < 0f) return;
+        // ---- NOT SWINGING ----
+        //
+        // This used to write NOTHING here, on the stated assumption that
+        // FirstPersonHands had already set the hands this frame and zeroing
+        // them would undo its work.
+        //
+        // THAT ASSUMPTION IS NO LONGER TRUE. FirstPersonViewmodel switches
+        // FirstPersonHands off once the real viewmodel arms exist, so on that
+        // path nothing sets the hand weights at all - and an IK weight
+        // PERSISTS. The last weight-1 goal from a completed shove would stay
+        // applied forever, leaving both hands frozen wherever the push ended.
+        //
+        // So it now depends on whether anybody else is still driving them:
+        // if FirstPersonHands is alive it is left to do its job, and if it is
+        // not, this releases the goals it wrote itself. Asked live rather than
+        // cached, because the viewmodel disables that component at runtime
+        // after this one has already started.
+        if (t < 0f)
+        {
+            bool handsDriven = fpHands != null && fpHands.enabled;
+
+            if (!handsDriven && heldGoals)
+            {
+                anim.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0f);
+                anim.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);
+                anim.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0f);
+                anim.SetIKRotationWeight(AvatarIKGoal.RightHand, 0f);
+                heldGoals = false;
+            }
+
+            return;
+        }
+
+        heldGoals = true;
 
         if (!sampled) return;
 

@@ -95,7 +95,7 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "that is only on screen for half a second at a time. Turn it back " +
              "on once the position, rotation and scale are where you want " +
              "them, and the hide behaviour is waiting exactly as it was.")]
-    public bool showOnlyWhenBusy = false;
+    public bool showOnlyWhenBusy = true;
 
     [Tooltip("Where the arms rest while idle, as an offset from their normal " +
              "position. Straight down by default so they lower out of frame " +

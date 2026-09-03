@@ -137,7 +137,7 @@ public class FirstPersonViewmodel : MonoBehaviour
              "you cannot position something that is only on screen for half a " +
              "second. The hide behaviour is built and waiting; switch it on " +
              "once the arms sit where you want them.")]
-    public bool showOnlyWhenBusy = false;
+    public bool showOnlyWhenBusy = true;
 
     [Tooltip("Where the arms rest while idle, as an offset from their normal " +
              "position. Straight down by default, so they lower out of frame " +

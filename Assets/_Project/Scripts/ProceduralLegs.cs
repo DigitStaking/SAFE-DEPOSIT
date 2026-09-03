@@ -340,6 +340,7 @@ public class ProceduralLegs : MonoBehaviour
         footPosition = Rest();
         footYaw = transform.eulerAngles.y;
         plantedYaw = footYaw;
+        Plant();
     }
 
     // --------------------------------------------------------------------
@@ -586,7 +587,8 @@ public class ProceduralLegs : MonoBehaviour
     /// <summary>How high the foot lifts. Proportional to the distance it is
     /// covering, so it reads as a step at every stride length. A heavy load
     /// flattens it toward a shuffle.</summary>
-    float Arc => Mathf.Max(stepArc, stepLength * arcPerLength) *
+    float Arc => Mathf.Min(maxReach * 0.6f,
+                           Mathf.Max(stepArc, stepLength * arcPerLength)) *
                  (1f - loadArcFlatten * Load);
 
     /// <summary>
@@ -670,6 +672,11 @@ public class ProceduralLegs : MonoBehaviour
         {
             probeHit = true;
             footNormal = hit.normal;
+
+            // WHAT the foot is standing on, not just where. The elevator moves,
+            // and a foot planted in world space does not go with it.
+            groundTransform = hit.collider != null ? hit.collider.transform : null;
+
             return hit.point;
         }
 
@@ -693,6 +700,24 @@ public class ProceduralLegs : MonoBehaviour
 
     void Advance(float dt)
     {
+        // ---- A PLANTED FOOT RIDES THE FLOOR IT IS STANDING ON ----
+        //
+        // This is the elevator bug, and it was the one thing step 1 knowingly
+        // left out. A planted foot held a fixed WORLD position while the lift
+        // carried the body away from it, so going down left the feet hanging
+        // in the air above the car - a foot target nearly five metres up, which
+        // the readout reported as an asked lift of 488cm - and going up buried
+        // them under the floor, which is why walking became a fight: every
+        // frame the foot was out of reach, so every frame it stepped.
+        //
+        // Storing the plant in the FLOOR's local space instead of the world's
+        // makes the whole class of problem disappear. The lift, a moving
+        // platform, anything that carries you - the foot goes with it because
+        // it is described relative to it. Standing on static geometry this
+        // costs one matrix multiply and changes nothing.
+        if (!stepping && plantedOn != null)
+            footPosition = plantedOn.TransformPoint(plantedLocal);
+
         Vector3 rest = Rest();
         restCache = rest;
 
@@ -708,6 +733,12 @@ public class ProceduralLegs : MonoBehaviour
             // during it, so committing to the old target lands every foot a
             // third of a second behind, permanently - which reads as wading.
             stepTo = rest;
+
+            // The foot it is swinging FROM was standing on something, and that
+            // something may still be moving. Without this the start of the arc
+            // stays behind in world space while the lift descends, and the
+            // swing stretches over the whole distance the car travelled.
+            if (plantedOn != null) stepFrom = plantedOn.TransformPoint(stepFromLocal);
 
             Vector3 place = Vector3.Lerp(stepFrom, stepTo, Smooth(t));
 
@@ -730,6 +761,7 @@ public class ProceduralLegs : MonoBehaviour
                 footYaw = transform.eulerAngles.y;
                 plantedYaw = footYaw;
                 lastLanded = Time.time;
+                Plant();
             }
 
             return;
@@ -824,6 +856,34 @@ public class ProceduralLegs : MonoBehaviour
         // so the turn is carried round during the swing rather than applied to
         // a foot that is standing on the floor.
         stepFromYaw = footYaw;
+
+        stepFromLocal = plantedOn != null
+            ? plantedOn.InverseTransformPoint(stepFrom)
+            : stepFrom;
+    }
+
+    /// <summary>What this foot is standing on, from the last ground probe.</summary>
+    Transform groundTransform;
+
+    /// <summary>What it was standing on when it planted, and where on it.</summary>
+    Transform plantedOn;
+    Vector3 plantedLocal;
+    Vector3 stepFromLocal;
+
+    /// <summary>
+    /// Tie the foot to the floor it just landed on.
+    ///
+    /// Recorded on landing rather than every frame, because the point is to
+    /// remember the moment of contact - a foot that re-plants itself
+    /// continuously would simply track whatever is under it and never hold
+    /// still, which is the opposite of what a planted foot is for.
+    /// </summary>
+    void Plant()
+    {
+        plantedOn = groundTransform;
+        plantedLocal = plantedOn != null
+            ? plantedOn.InverseTransformPoint(footPosition)
+            : footPosition;
     }
 
     static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);

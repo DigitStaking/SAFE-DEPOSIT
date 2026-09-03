@@ -42,7 +42,6 @@ public class PlayerCarry : MonoBehaviour
     Rigidbody rb;
     PlayerBackpack backpack;
     PlayerHealth health;
-    Animator remoteRig;
 
     void Awake()
     {
@@ -86,83 +85,91 @@ public class PlayerCarry : MonoBehaviour
         var cam = Eye;
         if (cam == null)
         {
-            // ---- BETWEEN THEIR ACTUAL HANDS ----
+            // ---- THE SAME BODY ANCHOR EVERY VIEWER USES ----
             //
-            // The first version hung the crate at a fixed spot in front of the
-            // chest. It travelled with them, and it did not MOVE with them:
-            // they reached, leaned, turned their head, and the box sat there
-            // like it was glued to the air. Reported as "the boxe not moving,
-            // staying in top".
+            // This used to place the crate at the midpoint of the remote
+            // body's HANDS, which was a good idea right up until
+            // PlayerCarryArms started placing those hands under the CRATE. Two
+            // systems each deriving their position from the other settle
+            // nowhere.
             //
-            // The fix costs nothing because the work is already done. Step 6's
-            // animation change put OwnerNetworkAnimator on the wire, so a
-            // remote body's hands are ALREADY playing the real carry pose,
-            // driven by their machine. The bones are right there and nobody
-            // was reading them.
+            // Both machines compute the same body-relative anchor from data
+            // that already replicates, so the crate agrees everywhere without
+            // being sent - and the hands now have something stable to grip
+            // instead of chasing themselves.
+            // ---- THE SAME ANCHOR, FOR THE SAME REASON ----
             //
-            // Midpoint of the two hands. Not a hand-relative offset, which
-            // would need the model's grip to be authored consistently - the
-            // point between the palms is where a two-handed carry looks like
-            // it is, on any rig.
+            // This used to place the crate at the midpoint of the remote
+            // body's HANDS, which was a good idea right up until PlayerCarryArms
+            // started placing those hands under the CRATE. Two systems each
+            // deriving their position from the other settle nowhere.
             //
-            // No lerp either. The hands are already smoothed by the animator
-            // and by NetworkTransform's interpolation, so easing toward them a
-            // second time would only add lag to a pose that has arrived.
-            Transform lh = null, rh = null;
-            var anim = remoteRig != null ? remoteRig : remoteRig = GetComponentInChildren<Animator>();
-
-            if (anim != null && anim.isHuman)
-            {
-                lh = anim.GetBoneTransform(HumanBodyBones.LeftHand);
-                rh = anim.GetBoneTransform(HumanBodyBones.RightHand);
-            }
-
-            if (lh != null && rh != null)
-            {
-                // Pushed out by weight, the same way the first-person hold is.
-                // The hands play ONE generic carry pose for everything right
-                // now - per-item poses are not authored yet and are not worth
-                // authoring for this - so a vending machine and a can would
-                // otherwise sit in exactly the same place between the palms.
-                // A big thing needs to look like it is being held away from
-                // the body, and that is a number, not an animation.
-                float reach =
-                    held.Weight == Carryable.WeightClass.Massive ? 0.42f :
-                    held.Weight == Carryable.WeightClass.Heavy   ? 0.26f :
-                                                                   0.12f;
-
-                held.transform.position = (lh.position + rh.position) * 0.5f
-                                        + transform.forward * reach;
-                held.transform.rotation = transform.rotation;
-                return;
-            }
-
-            // No humanoid rig - chest height, and at least it travels with
-            // them. A carry that is roughly right beats a crate left behind.
-            Vector3 anchor = transform.position + Vector3.up * 1.15f
-                           + transform.forward * 0.55f;
-
-            held.transform.position = Vector3.Lerp(
-                held.transform.position, anchor, holdSnapSpeed * Time.deltaTime);
-            held.transform.rotation = Quaternion.Slerp(
-                held.transform.rotation, transform.rotation, holdSnapSpeed * Time.deltaTime);
+            // Both machines now compute the same body-relative anchor from
+            // replicated data, so the crate agrees everywhere without being
+            // sent, and the hands have something stable to grip.
+            held.transform.position = HoldAnchor();
+            held.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
             return;
+
         }
 
-        // Hold offset by weight: small crate close, cabinet two-hand, vending hug.
-        Vector3 offset = holdOffset;
-        if (held.Weight == Carryable.WeightClass.Heavy)
-            offset = new Vector3(0f, -0.45f, 1.25f);
-        else if (held.Weight == Carryable.WeightClass.Massive)
-            offset = new Vector3(0f, -0.55f, 1.45f);
-        else
-            offset = new Vector3(0.25f, -0.30f, 1.05f);
+        // ---- ANCHORED TO THE BODY, NOT THE CAMERA ----
+        //
+        // This used cam.position + cam.rotation * offset, which is right for
+        // exactly one viewpoint and wrong for every other. In THIRD PERSON the
+        // camera is three metres behind the character, so the crate hung out
+        // there in mid-air while the body walked around without it - the
+        // reported "friends will see the items fixed".
+        //
+        // It was conceptually wrong as well as visibly wrong. A carried object
+        // is a WORLD object; where it sits must not depend on where anybody's
+        // camera happens to be, because a teammate's view of your crate has
+        // nothing to do with your camera at all.
+        //
+        // The body is the anchor now - its position, and its YAW only. Yaw
+        // because the body is welded to the camera horizontally, so the crate
+        // still swings around as you look; pitch deliberately excluded, since
+        // a box carried in two hands does not tilt when you glance at the
+        // ceiling.
+        Vector3 target = HoldAnchor();
+        Quaternion facing = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
 
-        Vector3 target = cam.position + cam.rotation * offset;
         held.transform.position = Vector3.Lerp(
             held.transform.position, target, holdSnapSpeed * Time.deltaTime);
         held.transform.rotation = Quaternion.Slerp(
-            held.transform.rotation, cam.rotation, holdSnapSpeed * Time.deltaTime);
+            held.transform.rotation, facing, holdSnapSpeed * Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Where the carried thing sits, for EVERY viewer.
+    ///
+    /// One answer, body-relative, so your own screen, a teammate's screen and
+    /// third person all agree. Heights are chosen to land where the old
+    /// camera-relative offsets did with the eye at 1.6, so the first-person
+    /// framing is unchanged - it is the anchor that moved, not the result.
+    ///
+    /// This is also what breaks a feedback loop that had just been created:
+    /// PlayerCarryArms puts the HANDS under the ITEM, and the old remote path
+    /// put the ITEM at the midpoint of the HANDS. Each chased the other. The
+    /// item is placed independently now and the hands follow it - one
+    /// direction, no argument.
+    /// </summary>
+    public Vector3 HoldAnchor()
+    {
+        if (held == null) return transform.position + Vector3.up * 1.2f;
+
+        // height above the feet, and how far out in front
+        float up, out_;
+
+        if (held.Weight == Carryable.WeightClass.Massive) { up = 1.05f; out_ = 0.62f; }
+        else if (held.Weight == Carryable.WeightClass.Heavy) { up = 1.15f; out_ = 0.52f; }
+        else { up = 1.30f; out_ = 0.42f; }
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude > 0.0001f) forward.Normalize();
+
+        return transform.position + Vector3.up * up + forward * out_;
     }
 
     void OnInteract(InputValue value)

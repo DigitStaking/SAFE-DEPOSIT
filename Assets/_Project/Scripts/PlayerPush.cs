@@ -92,12 +92,38 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Layers a shove looks for. Include the player layer.")]
     public LayerMask mask = ~0;
 
+    [Header("The shove itself")]
+    [Tooltip("Seconds the arms take to wind up, thrust and return. The impulse " +
+             "lands at the moment of the thrust, not on the keypress, so the " +
+             "hit follows the hands.")]
+    public float armTime = 0.42f;
+
+    [Tooltip("How far through the swing contact happens, 0 to 1. A shove lands " +
+             "when the arms reach out, not when they start moving.")]
+    [Range(0.1f, 0.8f)] public float contactAt = 0.34f;
+
     float lastPush = -999f;
+    bool contacted;
+
+    /// <summary>
+    /// How far through the shove this body is, 0 to 1, or -1 when idle.
+    ///
+    /// Read by PlayerPushArms on EVERY machine. The arms are animated locally
+    /// from this rather than replicated as a pose - a push is a quarter of a
+    /// second, and sending one bool beats sending an arm.
+    /// </summary>
+    public float PushProgress
+    {
+        get
+        {
+            float age = Time.time - lastPush;
+            return age >= 0f && age <= armTime ? age / armTime : -1f;
+        }
+    }
 
     PlayerMotor motor;
     PlayerHealth health;
     PlayerCarry carry;
-    PlayerAnimatorDriver anim;
 
     /// <summary>Seconds until this player may shove again. For the HUD.</summary>
     public float CooldownLeft => Mathf.Max(0f, cooldown - (Time.time - lastPush));
@@ -107,10 +133,9 @@ public class PlayerPush : NetworkBehaviour
         motor = GetComponent<PlayerMotor>();
         health = GetComponent<PlayerHealth>();
         carry = GetComponent<PlayerCarry>();
-        anim = GetComponent<PlayerAnimatorDriver>();
     }
 
-    void Update()
+    void ReadKey()
     {
         // Only the person at this keyboard, and only their own body. Read
         // through PlayerMotor.Keys rather than Keyboard.current, because
@@ -124,6 +149,24 @@ public class PlayerPush : NetworkBehaviour
         TryPush();
     }
 
+    void Update()
+    {
+        // ---- CONTACT HAPPENS WHEN THE ARMS ARRIVE ----
+        //
+        // Resolved here rather than on the keypress, because a shove that
+        // lands before the hands have moved reads as telekinesis. The probe
+        // also happens at the moment of contact rather than at the moment of
+        // input, so somebody who steps out of the way during the wind-up
+        // actually gets away with it.
+        if (!contacted && PushProgress >= contactAt)
+        {
+            contacted = true;
+            Connect();
+        }
+
+        ReadKey();
+    }
+
     void TryPush()
     {
         if (Time.time - lastPush < cooldown) return;
@@ -135,6 +178,42 @@ public class PlayerPush : NetworkBehaviour
         // Both hands full. You can shove with a crate in your arms about as
         // well as you can open a door with them.
         if (carry != null && carry.IsCarrying && !carry.CanJump) return;
+
+        if (motor == null || motor.Eye == null) return;
+
+        // ---- THE SWING STARTS NOW. THE HIT COMES LATER. ----
+        //
+        // Nothing is probed here. A shove that connects on the keypress, before
+        // the hands have moved, reads as telekinesis - and it also means
+        // whiffing is impossible, because a miss simply never plays. Both are
+        // fixed by separating the ANIMATION from the CONTACT: the arms always
+        // swing, and Connect decides a third of the way through whether they
+        // found anybody.
+        StartSwing();
+
+        // Everyone else needs to see the same arms move. One announcement, and
+        // each machine animates locally from it - a push is under half a
+        // second, so sending "it happened" beats streaming an arm.
+        if (NetworkManager.Singleton != null && IsSpawned && IsOwner)
+            AnnounceSwingServerRpc();
+    }
+
+    void StartSwing()
+    {
+        lastPush = Time.time;
+        contacted = false;
+    }
+
+    /// <summary>
+    /// The moment the hands arrive. Probes, and shoves whatever is there.
+    ///
+    /// Runs only on the pusher's own machine - it is their aim and their
+    /// reach, and a target that has stepped aside on THEIR screen is a target
+    /// they missed.
+    /// </summary>
+    void Connect()
+    {
+        if (NetworkManager.Singleton != null && IsSpawned && !IsOwner) return;
 
         Transform eye = motor != null ? motor.Eye : null;
         if (eye == null) return;
@@ -153,14 +232,6 @@ public class PlayerPush : NetworkBehaviour
 
         // Never yourself. The probe starts inside your own capsule.
         if (body.transform == transform || body.transform.IsChildOf(transform)) return;
-
-        lastPush = Time.time;
-
-        // The reach-out. Reuses the existing DoUse trigger rather than adding
-        // an animation state - a shove and pressing a button are the same
-        // motion from the shoulder, and one clip that already exists beats a
-        // second one that does not.
-        if (anim != null) anim.PlayUse();
 
         Vector3 push = Direction(eye) * impulse;
 
@@ -209,6 +280,32 @@ public class PlayerPush : NetworkBehaviour
     /// forwards it to whoever owns that body, because they are the machine
     /// running its physics.
     /// </summary>
+    /// <summary>
+    /// Tells everyone this body just swung, so the arms move on every screen.
+    ///
+    /// Deliberately NOT tied to whether the shove connected. A whiff is worth
+    /// seeing - it is how a crewmate knows somebody just tried to put them
+    /// down the shaft and missed.
+    /// </summary>
+    [ServerRpc]
+    void AnnounceSwingServerRpc() => SwingClientRpc();
+
+    [ClientRpc]
+    void SwingClientRpc()
+    {
+        // The owner already started their own swing on the keypress. Replaying
+        // it here would restart the arms a round trip later, which is a visible
+        // hitch on the one machine that should never see one.
+        if (IsOwner) return;
+
+        lastPush = Time.time;
+
+        // Remote bodies never probe - Connect early-returns for them - but the
+        // flag has to be armed or the guard in Update would fire on the next
+        // real swing.
+        contacted = true;
+    }
+
     [ServerRpc]
     void RequestPushServerRpc(ulong targetId, Vector3 push)
     {

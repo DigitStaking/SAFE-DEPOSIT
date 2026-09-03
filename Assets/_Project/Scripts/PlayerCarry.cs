@@ -14,6 +14,32 @@ public class PlayerCarry : MonoBehaviour
 {
     [Header("Hold position")]
     public Vector3 holdOffset = new Vector3(0.35f, -0.35f, 1.15f);
+
+    [Header("Where a carried thing sits - tune these")]
+    [Tooltip("Height above the feet that a SMALL item is carried at, in " +
+             "metres. " +
+             "This rig is short and stocky - its shoulder is at about 1.42 and " +
+             "its eye at 1.55 - so 1.30 was shoulder height and put the crate " +
+             "in the character's face. Chest is nearer 1.0.")]
+    public float holdHeightSmall = 1.02f;
+
+    [Tooltip("Height for a HEAVY item. Lower than small: a heavy thing is " +
+             "carried against the body, not held up.")]
+    public float holdHeightHeavy = 0.92f;
+
+    [Tooltip("Height for a MASSIVE item - a safe, a vending machine. Lowest of " +
+             "the three, because you hug it at waist level.")]
+    public float holdHeightMassive = 0.82f;
+
+    [Tooltip("How far in FRONT of the body a small item sits, in metres.")]
+    public float holdDistanceSmall = 0.38f;
+
+    [Tooltip("How far in front for a heavy item. Further out - a big box " +
+             "cannot occupy the same space as your chest.")]
+    public float holdDistanceHeavy = 0.5f;
+
+    [Tooltip("How far in front for a massive item.")]
+    public float holdDistanceMassive = 0.6f;
     public float holdSnapSpeed = 18f;
 
     [Header("Reach")]
@@ -158,12 +184,25 @@ public class PlayerCarry : MonoBehaviour
     {
         if (held == null) return transform.position + Vector3.up * 1.2f;
 
-        // height above the feet, and how far out in front
+        // Height above the feet, and how far out in front. Fields rather than
+        // constants, because the right numbers depend on the model's actual
+        // proportions and this one is shorter than the hardcoded values
+        // assumed - 1.30 was shoulder height on it, which put the crate in the
+        // character's face.
         float up, out_;
 
-        if (held.Weight == Carryable.WeightClass.Massive) { up = 1.05f; out_ = 0.62f; }
-        else if (held.Weight == Carryable.WeightClass.Heavy) { up = 1.15f; out_ = 0.52f; }
-        else { up = 1.30f; out_ = 0.42f; }
+        if (held.Weight == Carryable.WeightClass.Massive)
+        {
+            up = holdHeightMassive; out_ = holdDistanceMassive;
+        }
+        else if (held.Weight == Carryable.WeightClass.Heavy)
+        {
+            up = holdHeightHeavy; out_ = holdDistanceHeavy;
+        }
+        else
+        {
+            up = holdHeightSmall; out_ = holdDistanceSmall;
+        }
 
         Vector3 forward = transform.forward;
         forward.y = 0f;

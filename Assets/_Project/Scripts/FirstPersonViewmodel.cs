@@ -86,24 +86,48 @@ using UnityEngine.Rendering.Universal;
 
 public class FirstPersonViewmodel : MonoBehaviour
 {
-    [Header("Placement")]
-    [Tooltip("Local position of the cloned arms, relative to the viewmodel " +
-             "camera. " +
-             "STARTING NUMBERS ONLY - this could not be previewed while " +
-             "writing it, the same way the whole-body attempt could not. " +
-             "Select ~FirstPersonViewmodel in the Hierarchy while playing and " +
-             "drag these until they read like a normal FPS view of your own " +
-             "arms, low and to the sides.")]
-    public Vector3 localPosition = new Vector3(0f, -0.35f, 0.45f);
+    [Header("Viewmodel - drag these while playing")]
+    [Tooltip("Show the arms at all. Quickest A/B against no viewmodel.")]
+    public bool visible = true;
 
-    [Tooltip("Local rotation of the cloned arms, in degrees.")]
+    [Tooltip("Position of the arms relative to the camera. X right, Y up, " +
+             "Z forward, in metres. " +
+             "Y IS THE ONE THAT MATTERS AND IT IS VERY NEGATIVE ON PURPOSE. " +
+             "The clone's origin is the CHARACTER'S ROOT - between the feet - " +
+             "not its shoulders. The arms sit about 1.4m above that origin " +
+             "inside the model, so placing the root at the camera puts the " +
+             "hands a metre and a half over your head, which is exactly why " +
+             "they were hanging down from the top of the screen. Dropping the " +
+             "root by roughly that much brings them back down into frame.")]
+    public Vector3 localPosition = new Vector3(0f, -1.05f, 0.35f);
+
+    [Tooltip("Rotation of the arms relative to the camera, in degrees. " +
+             "X tips the hands up or down, Y swings them left or right, Z " +
+             "rolls them.")]
     public Vector3 localEulerAngles = Vector3.zero;
 
-    [Tooltip("Uniform scale. Arms-only geometry does not balloon the frame " +
-             "the way a whole body did, so this can sit much closer to real " +
-             "scale than the old attempt's 0.3 - start near 1 and adjust from " +
-             "here rather than assuming it needs shrinking.")]
-    public float localScale = 0.7f;
+    [Tooltip("Uniform scale of the whole arm rig. Below 1 pulls the hands " +
+             "in and makes them read as further away.")]
+    [Range(0.1f, 2f)] public float localScale = 0.7f;
+
+    [Header("Per hand - fine placement")]
+    [Tooltip("Extra offset for the LEFT hand only, in metres, applied after " +
+             "the animation has posed it. For nudging one hand into frame " +
+             "without moving the whole rig.")]
+    public Vector3 leftHandOffset = Vector3.zero;
+
+    [Tooltip("Extra offset for the RIGHT hand only, in metres.")]
+    public Vector3 rightHandOffset = Vector3.zero;
+
+    [Tooltip("Pushes BOTH hands apart along the camera's right axis, in " +
+             "metres. Positive widens the stance, negative brings them " +
+             "together in front of you.")]
+    public float handSpread = 0f;
+
+    [Tooltip("Pushes BOTH hands forward along the camera's forward axis, in " +
+             "metres. The single knob for 'reaching further out' without " +
+             "touching the rig's own position.")]
+    public float handReach = 0f;
 
     [Header("Camera")]
     [Tooltip("Field of view of the dedicated viewmodel camera, in degrees.")]
@@ -246,7 +270,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         // no reason.
         bool firstPerson = cull == null || !cull.ThirdPerson;
 
-        if (vmCam != null) vmCam.enabled = firstPerson;
+        if (vmCam != null) vmCam.enabled = firstPerson && visible;
 
         // Third person exists to LOOK at your own character, so the body has
         // to come back the moment the camera pulls away from it - and the
@@ -255,6 +279,70 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (cull != null) cull.HideBodyFromOwnCamera(firstPerson);
 
         if (followBodyAnimation) MirrorAnimation();
+
+        ApplyPlacement();
+    }
+
+    /// <summary>
+    /// Push the inspector values onto the rig EVERY FRAME rather than once at
+    /// build time.
+    ///
+    /// That is the whole point of this step: these numbers were guessed blind
+    /// twice and both guesses were wrong, so they have to be draggable while
+    /// the game is running and answer immediately. Assigning once in Rebuild
+    /// would mean re-entering Play mode to see every change - which is how the
+    /// first two guesses survived as long as they did.
+    /// </summary>
+    void ApplyPlacement()
+    {
+        if (clone == null) return;
+
+        clone.localPosition = localPosition;
+        clone.localRotation = Quaternion.Euler(localEulerAngles);
+        clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
+
+        if (vmCam != null && !visible) vmCam.enabled = false;
+    }
+
+    /// <summary>
+    /// Per-hand nudges, applied AFTER the animation has posed the arms.
+    ///
+    /// LateUpdate, because the Animator writes its pose during the animation
+    /// update and anything set before that is simply overwritten - the same
+    /// ordering rule LocalFirstPersonBodyCull's head shrink lives by.
+    ///
+    /// These move the BONES rather than IK goals on purpose. There is no IK
+    /// running on the viewmodel arms at all, so a goal would have nothing to
+    /// solve; a bone offset is the honest way to say "and about two
+    /// centimetres to the left".
+    /// </summary>
+    void LateUpdate()
+    {
+        if (clone == null || cloneAnim == null || !cloneAnim.isHuman) return;
+
+        var l = cloneAnim.GetBoneTransform(HumanBodyBones.LeftHand);
+        var r = cloneAnim.GetBoneTransform(HumanBodyBones.RightHand);
+
+        // Offsets are given in CAMERA space, which is the space the person
+        // dragging them is looking through - "further right" should mean
+        // further right on screen, not further right along some bone's own
+        // axis that happens to point backwards.
+        Vector3 right = anchor != null ? anchor.right : Vector3.right;
+        Vector3 fwd = anchor != null ? anchor.forward : Vector3.forward;
+
+        Vector3 common = right * handSpread + fwd * handReach;
+
+        if (l != null) l.position += Offset(leftHandOffset) - right * handSpread + common;
+        if (r != null) r.position += Offset(rightHandOffset) + common;
+    }
+
+    /// <summary>A per-hand offset, rotated out of camera space into the world.</summary>
+    Vector3 Offset(Vector3 local)
+    {
+        if (local == Vector3.zero) return Vector3.zero;
+        if (anchor == null) return local;
+
+        return anchor.right * local.x + anchor.up * local.y + anchor.forward * local.z;
     }
 
     /// <summary>
@@ -455,10 +543,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         var go = Instantiate(visual.gameObject, anchor);
         go.name = "ArmsViewmodel";
 
+        // Placement is applied every frame by ApplyPlacement so the sliders
+        // work live; this just stops the rig existing at the origin for the
+        // one frame before that runs.
         var t = go.transform;
         t.localPosition = localPosition;
         t.localRotation = Quaternion.Euler(localEulerAngles);
-        t.localScale = Vector3.one * localScale;
+        t.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
 
         var smr = go.GetComponentInChildren<SkinnedMeshRenderer>();
         if (smr == null)

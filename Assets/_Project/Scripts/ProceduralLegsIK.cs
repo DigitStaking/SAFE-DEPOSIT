@@ -89,6 +89,15 @@ public class ProceduralLegsIK : MonoBehaviour
              "jump the instant you leave or touch the floor.")]
     public float blendTime = 0.15f;
 
+    [Tooltip("Hand the legs back to the clip while an emote is playing. " +
+             "Emotes are FULL-BODY - a dance is mostly legs - so holding the " +
+             "feet on the floor would keep the upper half dancing while the " +
+             "lower half stood still. " +
+             "This reads the same FreeArms tag that FirstPersonHands already " +
+             "uses to release the HAND ik for the same reason, so an emote is " +
+             "released by both halves off one signal and they cannot disagree.")]
+    public bool releaseDuringEmotes = true;
+
     [Header("Diagnosis")]
     [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
              "The first line is the one that matters: IK WEIGHT. If it reads " +
@@ -229,6 +238,28 @@ public class ProceduralLegsIK : MonoBehaviour
         else
         {
             lastGrounded = Time.time;
+        }
+
+        // ---- AN EMOTE OWNS THE WHOLE BODY ----
+        //
+        // The dance, the wave, the salute - every one of them is a full-body
+        // clip, and the two dances are mostly legs. Pinning the feet through
+        // one leaves the top half performing over a pair of legs standing to
+        // attention, which is worse than having no emote at all.
+        //
+        // Read from the SAME TAG FirstPersonHands uses to release the hand IK.
+        // One signal, both halves, so the arms and the legs can never disagree
+        // about whether an emote is happening - and any emote added later is
+        // covered by both without touching either file.
+        //
+        // Next as well as current, so the release begins on the transition
+        // INTO the emote rather than a fifth of a second after it starts.
+        if (releaseDuringEmotes && anim.runtimeAnimatorController != null &&
+            (anim.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
+             anim.GetNextAnimatorStateInfo(0).IsTag("FreeArms")))
+        {
+            HeldBack = "emote playing - the clip owns the whole body";
+            return 0f;
         }
 
         if (weight <= 0.01f)

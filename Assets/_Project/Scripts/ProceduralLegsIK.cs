@@ -161,20 +161,54 @@ public class ProceduralLegsIK : MonoBehaviour
     /// Three cases hand control back to the clips, and all three are cases
     /// where the ground is not the thing deciding where a foot goes.
     /// </summary>
+    /// <summary>
+    /// Why the weight is whatever it is. Empty when the legs are in charge.
+    ///
+    /// Kept as text because every one of these reasons is invisible on screen
+    /// and identical to the others: the feet simply carry on playing the clip.
+    /// Guessing which of three silent causes it is has already cost more time
+    /// than printing it would have.
+    /// </summary>
+    public string HeldBack { get; private set; } = "";
+
     float Target()
     {
-        if (left == null && right == null) return 0f;
+        if (left == null && right == null)
+        {
+            HeldBack = "no ProceduralLegs found on any parent";
+            return 0f;
+        }
 
         // DOWNED. The kneel is a full-body pose that puts the feet somewhere
         // no walk would - underneath and behind. Pinning them to a walking
         // stance would fight it, and the player is not walking anyway.
-        if (health != null && health.IsDowned) return 0f;
+        //
+        // WORTH KNOWING: IsDowned is Health <= 0, and Health comes from the
+        // crew table, which is 0 until a run has actually started. So a body
+        // dropped into a test scene with no run reads as DOWNED, and the legs
+        // switch themselves off with no way to tell from looking.
+        if (health != null && health.IsDowned)
+        {
+            HeldBack = "player reads as DOWNED (crew health is 0 - has a run started?)";
+            return 0f;
+        }
 
         // AIRBORNE. No floor to step on, and the jump and fall clips already
         // say what the legs do. Holding the feet at the last ground they saw
         // would leave them hanging at take-off height while the body rises.
-        if (releaseInAir && motor != null && !motor.IsGrounded) return 0f;
+        if (releaseInAir && motor != null && !motor.IsGrounded)
+        {
+            HeldBack = "airborne - releaseInAir hands the legs back to the clips";
+            return 0f;
+        }
 
+        if (weight <= 0.01f)
+        {
+            HeldBack = "weight on this component is 0";
+            return 0f;
+        }
+
+        HeldBack = "";
         return weight;
     }
 
@@ -234,6 +268,45 @@ public class ProceduralLegsIK : MonoBehaviour
 
     GUIStyle style;
 
+    // ---- WHAT THE BONE ACTUALLY DID ----
+    //
+    // Everything above is what the code ASKED for. This is what the skeleton
+    // did about it, sampled in LateUpdate once the animation has been applied
+    // and the solver has run.
+    //
+    // The gap between the two is the whole diagnosis, and it separates the two
+    // failures that look identical on screen:
+    //
+    //   target barely rises   -> the arc is wrong, tune ProceduralLegs
+    //   target rises, bone does not follow -> the leg cannot reach, which no
+    //                            amount of tuning fixes, and means the hips
+    //                            have to move (step 4)
+    //
+    // Three rounds of tuning went into the first when it might have been the
+    // second, because from outside they are the same picture.
+
+    float boneLift;      // how far the foot bone is off the floor, metres
+    float askedLift;     // how far we asked it to be, metres
+    float reachError;    // how far the bone ended up from the goal
+
+    void LateUpdate()
+    {
+        if (!showReadout || anim == null || !anim.isHuman) return;
+
+        var leg = right != null ? right : left;
+        if (leg == null) return;
+
+        var goal = leg == right ? HumanBodyBones.RightFoot : HumanBodyBones.LeftFoot;
+        var bone = anim.GetBoneTransform(goal);
+        if (bone == null) return;
+
+        Vector3 want = leg.FootPosition + Vector3.up * ankleHeight;
+
+        boneLift = bone.position.y - leg.GroundHeight;
+        askedLift = want.y - leg.GroundHeight;
+        reachError = Vector3.Distance(bone.position, want);
+    }
+
     void OnGUI()
     {
         if (!showReadout) return;
@@ -270,6 +343,9 @@ public class ProceduralLegsIK : MonoBehaviour
             text.Append("   <color=#FF7C5A>feet are still clip-driven</color>");
         }
 
+        if (!string.IsNullOrEmpty(HeldBack))
+            text.Append("\n<color=#FF7C5A>").Append(HeldBack).Append("</color>");
+
         var leg = right != null ? right : left;
 
         if (leg != null)
@@ -298,6 +374,23 @@ public class ProceduralLegsIK : MonoBehaviour
 
             if (leg.InjuryAmount > 0.01f)
                 text.Append("\ninjury       ").Append((leg.InjuryAmount * 100f).ToString("0")).Append("%");
+
+            // ---- ASKED FOR versus ACTUALLY HAPPENED ----
+            //
+            // The line that ends the guessing. If the asked lift is healthy
+            // and the bone lift is not, the leg cannot reach and no parameter
+            // in ProceduralLegs will change it.
+            text.Append("\n\n<b>asked lift   ").Append((askedLift * 100f).ToString("0"))
+                .Append(" cm</b>");
+            text.Append("\n<b>bone lift    ").Append((boneLift * 100f).ToString("0"))
+                .Append(" cm</b>");
+
+            if (askedLift > 0.02f && boneLift < askedLift * 0.5f)
+                text.Append("   <color=#FF7C5A>THE LEG IS NOT FOLLOWING - " +
+                            "it cannot reach, so the hips must move (step 4)</color>");
+
+            text.Append("\nreach error  ").Append((reachError * 100f).ToString("0"))
+                .Append(" cm");
 
             text.Append("\n\n<color=#9999AA>left  ")
                 .Append(left == null ? "MISSING" : (left.IsStepping ? "stepping" : "planted"))

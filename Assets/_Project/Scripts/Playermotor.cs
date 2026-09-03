@@ -38,8 +38,16 @@ using UnityEngine.InputSystem;
 public class PlayerMotor : MonoBehaviour
 {
     [Header("Movement")]
-    [Tooltip("Top horizontal speed in metres per second. A brisk jog is 4-5.")]
-    public float moveSpeed = 4.5f;
+    [Tooltip("Top horizontal speed in metres per second. " +
+             "2.5 is a purposeful walk. It was 4.5, which is a RUN - real " +
+             "walking is about 1.4 - and that turned out to be most of why the " +
+             "legs never looked like walking. No leg geometry makes a run read " +
+             "as a walk, so the legs were being blamed for the speed. " +
+             "Raising this again also lengthens the stride the legs ask for, " +
+             "and that is capped by ProceduralLegs.maxReach - so past roughly " +
+             "3.5 the feet start being dragged further than the leg can reach " +
+             "until the hips move (step 4).")]
+    public float moveSpeed = 2.5f;
 
     [Tooltip("How fast horizontal velocity can change while standing on " +
              "something. High = snappy. Lower it if the character feels twitchy.")]

@@ -7414,6 +7414,10 @@ PrefabInstance:
       propertyPath: shrinkNeck
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5205805949960071234, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
+      propertyPath: moveSpeed
+      value: 2.5
+      objectReference: {fileID: 0}
     - target: {fileID: 5905128192338178620, guid: e194ad3e4f127b7428ab8e1932efa092, type: 3}
       propertyPath: m_Name
       value: Player

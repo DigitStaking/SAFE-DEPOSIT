@@ -839,6 +839,16 @@ public class ProceduralLegs : MonoBehaviour
 
     // ---- what the on-screen readout reports -----------------------------
 
+    /// <summary>
+    /// The height of the floor this foot is working over.
+    ///
+    /// Taken from the target rather than from the body, so that a lift
+    /// measured against it is a lift off THE GROUND UNDER THE FOOT and not off
+    /// whatever height the player happens to be standing at. On a staircase
+    /// those are different numbers, and the one that matters is this one.
+    /// </summary>
+    public float GroundHeight => restCache.y;
+
     /// <summary>How far the current or last step travelled, in metres.</summary>
     public float StepLength => stepLength;
 

@@ -54,7 +54,26 @@ using UnityEngine;
 
 public static class FirstPersonArmsMeshBuilder
 {
-    const string PlayerPrefabPath = "Assets/_Project/Prefabs/Player.prefab";
+    // ---- THE RAW FBX, NOT THE PLAYER PREFAB ----
+    //
+    // This used to instantiate Player.prefab and strip the gameplay scripts
+    // off the result. That strip FAILED, silently, and left a live PlayerMotor
+    // in the scene - which registered with PlayerRegistry, claimed crew slot 0,
+    // and became "the local player", so the real body was pushed to slot 1 and
+    // could not move or emote.
+    //
+    // The strip failed because component removal is a DEPENDENCY GRAPH, not a
+    // list. NetworkPlayer and PlayerFallDamage both declare
+    // [RequireComponent(typeof(PlayerMotor))], so Unity refuses to destroy
+    // PlayerMotor while either still exists - it logs and skips. One pass in
+    // arbitrary order cannot win that, and PlayerMotor was never retried.
+    // Rigidbody and CapsuleCollider then survived in turn, because PlayerMotor
+    // requires THEM.
+    //
+    // The fix is not to strip harder. It is to never have the scripts: the raw
+    // FBX is mesh, skeleton and Animator, with no gameplay components on it at
+    // all. Nothing to remove means nothing that can survive removal.
+    const string FbxPath = "Assets/_Project/Models/Player.fbx";
 
     // Under a folder literally named "Resources" so Stage 2's runtime code
     // can load it by name with Resources.Load<Mesh>("PlayerArmsViewmodel") -
@@ -93,16 +112,51 @@ public static class FirstPersonArmsMeshBuilder
         HumanBodyBones.RightLittleProximal, HumanBodyBones.RightLittleIntermediate, HumanBodyBones.RightLittleDistal,
     };
 
+    /// <summary>
+    /// Removes a preview left by any earlier run, including the one whose
+    /// PlayerMotor stole crew slot 0. Separate menu item because that object
+    /// got SAVED into Prototype.unity, so it outlives the tool that made it.
+    /// </summary>
+    [MenuItem("SAFE DEPOSIT/Player/Delete Arms Mesh Preview")]
+    public static void DeletePreview()
+    {
+        int killed = 0;
+
+        foreach (var go in Object.FindObjectsByType<GameObject>(
+                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (go == null) continue;
+            if (!go.name.StartsWith("PREVIEW - Arms Mesh") &&
+                !go.name.StartsWith("~ArmsExtract_temp")) continue;
+
+            Undo.DestroyObjectImmediate(go);
+            killed++;
+        }
+
+        if (killed == 0)
+        {
+            Debug.Log("[Arms] No arms preview found in the open scene - nothing to delete.");
+            return;
+        }
+
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+            UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
+
+        Debug.Log("[Arms] Deleted " + killed + " arms preview object(s). SAVE THE SCENE " +
+                  "(Ctrl+S) to make it stick - the old one was saved into Prototype.unity, " +
+                  "which is why it kept coming back and kept stealing crew slot 0.");
+    }
+
     [MenuItem("SAFE DEPOSIT/Player/Build First-Person Arms Mesh")]
     public static void Build()
     {
         var log = new System.Text.StringBuilder();
         log.AppendLine("[Arms] ---- extraction report ----");
 
-        var playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        if (playerPrefab == null)
+        var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(FbxPath);
+        if (fbx == null)
         {
-            Debug.LogError("[Arms] " + PlayerPrefabPath + " not found.");
+            Debug.LogError("[Arms] " + FbxPath + " not found.");
             return;
         }
 
@@ -120,26 +174,24 @@ public static class FirstPersonArmsMeshBuilder
             return;
         }
 
-        var temp = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab);
+        var temp = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
         temp.name = "~ArmsExtract_temp";
         bool reachedPreview = false;
 
         try
         {
-            var visual = temp.transform.Find("PlayerModel_FBX_VISUAL");
-            if (visual == null)
-            {
-                Debug.LogError("[Arms] No PlayerModel_FBX_VISUAL under the Player prefab.");
-                return;
-            }
+            // The FBX root IS the model - there is no PlayerModel_FBX_VISUAL
+            // wrapper here, that name belongs to the Player prefab's child.
+            var visual = temp.transform;
 
             var anim = visual.GetComponent<Animator>();
             var smr = visual.GetComponentInChildren<SkinnedMeshRenderer>();
 
             if (anim == null || !anim.isHuman)
             {
-                Debug.LogError("[Arms] PlayerModel_FBX_VISUAL has no Humanoid Animator - " +
-                               "cannot resolve bone names without one.");
+                Debug.LogError("[Arms] " + FbxPath + " has no Humanoid Animator - check " +
+                               "its Rig tab is set to Humanoid. Bone names cannot be " +
+                               "resolved without one.");
                 return;
             }
 
@@ -367,9 +419,8 @@ public static class FirstPersonArmsMeshBuilder
     {
         fbxPath = null;
 
-        var playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        var visual = playerPrefab != null ? playerPrefab.transform.Find("PlayerModel_FBX_VISUAL") : null;
-        var smr = visual != null ? visual.GetComponentInChildren<SkinnedMeshRenderer>() : null;
+        var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(FbxPath);
+        var smr = fbx != null ? fbx.GetComponentInChildren<SkinnedMeshRenderer>() : null;
         var mesh = smr != null ? smr.sharedMesh : null;
 
         if (mesh == null)
@@ -430,21 +481,37 @@ public static class FirstPersonArmsMeshBuilder
 
         smr.sharedMesh = trimmed;
 
-        // Every other component the Player prefab carries assumes it is a
-        // real, playing character - PlayerMotor wants a Rigidbody driving it
-        // every physics step, PlayerHealth polls Crew state, and so on. None
-        // of that belongs on a static mesh sitting in the air for inspection.
-        foreach (var c in temp.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (c == null) continue;               // a component whose script failed to load
-            Object.DestroyImmediate(c);
-        }
+        // ---- VERIFY, DO NOT TRUST ----
+        //
+        // Sourced from the raw FBX, this should carry no gameplay components
+        // at all - that is the entire reason the source changed. But "should"
+        // is exactly what was believed last time, while a live PlayerMotor sat
+        // in the scene claiming crew slot 0 and locking the real player out of
+        // their own controls.
+        //
+        // So it is CHECKED, and a failure is loud and destroys the preview
+        // rather than leaving it for somebody to find the hard way.
+        var strays = new List<string>();
 
-        var rb = temp.GetComponentInChildren<Rigidbody>(true);
-        if (rb != null) Object.DestroyImmediate(rb);
+        foreach (var c in temp.GetComponentsInChildren<MonoBehaviour>(true))
+            if (c != null) strays.Add(c.GetType().Name);
+
+        foreach (var rb in temp.GetComponentsInChildren<Rigidbody>(true))
+            if (rb != null) strays.Add("Rigidbody");
 
         foreach (var col in temp.GetComponentsInChildren<Collider>(true))
-            Object.DestroyImmediate(col);
+            if (col != null) strays.Add(col.GetType().Name);
+
+        if (strays.Count > 0)
+        {
+            Object.DestroyImmediate(temp);
+            Debug.LogError("[Arms] The preview would have carried live components (" +
+                           string.Join(", ", strays) + ") so it was DESTROYED rather " +
+                           "than left in your scene. The mesh asset was still saved " +
+                           "correctly - only the preview is missing. This is the guard " +
+                           "for the PlayerMotor bug that stole crew slot 0.");
+            return;
+        }
 
         Selection.activeGameObject = temp;
 

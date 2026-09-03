@@ -69,9 +69,15 @@ public class FirstPersonViewmodel : MonoBehaviour
 {
     [Header("Placement")]
     [Tooltip("Local position of the cloned body, relative to the viewmodel " +
-             "camera. Negative Y and a modest Z is what keeps a whole small " +
-             "figure low and close rather than filling the screen.")]
-    public Vector3 localPosition = new Vector3(0.06f, -0.55f, 0.35f);
+             "camera. " +
+             "SIZE ON SCREEN IS DISTANCE, NOT SCALE. The first numbers here " +
+             "put the clone 0.35m out at half size and it filled the entire " +
+             "screen with a chest, because a person-sized object that close " +
+             "is enormous regardless of what the scale slider says - the two " +
+             "fight each other. Z is now the one to move first if it is still " +
+             "too big: push it further away before shrinking it further, or " +
+             "shrinking eventually produces a doll rather than a small figure.")]
+    public Vector3 localPosition = new Vector3(0f, -0.65f, 0.95f);
 
     [Tooltip("Local rotation of the cloned body, in degrees.")]
     public Vector3 localEulerAngles = Vector3.zero;
@@ -79,7 +85,7 @@ public class FirstPersonViewmodel : MonoBehaviour
     [Tooltip("Uniform scale. Small enough that a whole idle figure reads as " +
              "a viewmodel rather than a shrunken person standing in front of " +
              "you.")]
-    public float localScale = 0.5f;
+    public float localScale = 0.3f;
 
     [Header("What to hide on the clone")]
     [Tooltip("Shrink the head bone so it cannot be seen. Same technique as " +
@@ -128,7 +134,19 @@ public class FirstPersonViewmodel : MonoBehaviour
         // Not guarded with a "once ever" flag for that reason - booted below
         // only stops TWO of these existing at once within the same load.
         var go = new GameObject("~FirstPersonViewmodel");
-        go.hideFlags = HideFlags.HideAndDontSave;
+
+        // DontSave, not HideAndDontSave. VoiceMic hides itself completely
+        // because nobody ever needs its inspector. This is the opposite case:
+        // every number on it is something to drag a slider on and watch,
+        // exactly like ProceduralLegs and PlayerPush all session - hiding it
+        // from the Hierarchy would have meant reporting a screenshot, reading
+        // a guess back, and repeating that for every number below, instead of
+        // moving one slider and seeing the answer immediately.
+        //
+        // DontSave alone still keeps it out of the saved scene, which is the
+        // part that actually matters - a debug object baked into Prototype.unity
+        // would be a real bug.
+        go.hideFlags = HideFlags.DontSave;
         go.AddComponent<FirstPersonViewmodel>();
     }
 

@@ -442,11 +442,30 @@ public static class FirstPersonArmsMeshBuilder
             return false;
         }
 
-        Debug.Log("[Arms] Read/Write was off on " + fbxPath + " - enabling it and reimporting.");
-        importer.isReadable = true;
-        importer.SaveAndReimport();
+        // ---- THIS NO LONGER REIMPORTS. IT ASKS. ----
+        //
+        // Flipping isReadable and calling SaveAndReimport() here is what
+        // destroyed components on the Player prefab: the reimport regenerates
+        // the FBX's internal fileIDs, and PlayerModel_FBX_VISUAL is a NESTED
+        // PREFAB INSTANCE of that FBX whose extra components are keyed by
+        // those exact IDs. Unity could not resolve them afterwards and
+        // silently dropped ProceduralLegsIK and PlayerPushArms.
+        //
+        // A convenience that can quietly delete somebody's components is not
+        // a convenience. It is one checkbox, done once, with the consequence
+        // stated - and if it does get toggled by hand, the repair tool is
+        // there to put the components back.
+        Debug.LogError("[Arms] Read/Write is OFF on " + fbxPath + ". " +
+                       "Turn it on by hand: select that file, Inspector > Model tab > " +
+                       "tick Read/Write Enabled > Apply. Then run this again. " +
+                       "This tool will NOT flip it for you any more. Doing so triggers a " +
+                       "reimport, the reimport renumbers the FBX's internal IDs, and the " +
+                       "Player prefab loses every component added onto " +
+                       "PlayerModel_FBX_VISUAL - which is exactly how ProceduralLegsIK and " +
+                       "PlayerPushArms disappeared. If that happens, run " +
+                       "SAFE DEPOSIT > Player > Repair Player Prefab Components.");
 
-        return true;
+        return false;
     }
 
     static void EnsureFolder(string path)

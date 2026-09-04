@@ -1,69 +1,69 @@
 // HandFingerCurl.cs  -  SAFE DEPOSIT
 // Assets/_Project/Scripts/HandFingerCurl.cs
-// Goes on: PlayerModel_FBX_VISUAL  (the SAME GameObject as the Animator).
+// Goes on: PlayerModel_FBX_VISUAL, and the first-person arms clone.
 //
 // ========================================================================
-// FINGERS THAT ACTUALLY CLOSE AROUND THINGS.
+// FINGERS THAT ACTUALLY CLOSE AROUND THINGS - AND ACTUALLY OPEN.
 //
-// "we don't grab boxes like that you grab them with fingers"
-// "can you add something for the hand to control the grip like of each hand"
-// "like the fingers"
+// "look at the fingers of left hand they are at 0 and his hand looks like he
+//  open his hand but when i put 0 in right hand fingers his fingers stayed
+//  closed not open"
 //
-// Putting the hand in the right place was only ever half of it. An open, flat
-// hand parked against a crate reads as PUSHING it. What makes it read as
-// holding is the fingers closing - and until now nothing in this project
-// touched a finger bone at all, so every grip was a flat hand no matter where
-// it was placed.
+// Exactly right, and the cause was not the right hand. It was what ZERO meant.
 //
-// This closes them. One number per finger, 0 straight to 1 fully curled,
-// applied to the real bones after the animation has run.
+// ---- WHY 0 USED TO MEAN NOTHING ----
 //
-// ---- WHY NOT A GRIP POSE CLIP ----
+// The first version was purely ADDITIVE: it bent each joint on top of whatever
+// the animation clip had. So 0 did not mean "open", it meant "write nothing and
+// let the clip decide" - and this rig's clip poses one hand open and the other
+// closed. Two hands, same number, different result, and nothing in the finger
+// code was asymmetric at all.
 //
-// Same reason the hand placement is not a clip. A pose is authored for one
-// grip; this game's loot goes from a can to a filing cabinet to an
-// unconscious teammate. Numbers blend, interpolate between items, and can be
-// dragged in the Inspector while the game runs. A pose cannot.
+// That is a bad contract regardless of the clip. A grip is a definite pose:
+// asking for an open hand should produce an open hand on any character, in any
+// clip, on any frame.
 //
-// ---- THE PART THAT IS NOT OBVIOUS: WHICH WAY IS "CLOSED" ----
+// ---- SO THE CURL IS ABSOLUTE NOW ----
 //
-// A finger bone's local axes are whatever the person who rigged the model
-// felt like. Hard-coding "rotate around local Z" works on exactly one rig and
-// silently produces fingers bending sideways or backwards on the next one -
-// and backwards fingers are the kind of thing you notice in a screenshot
-// three weeks later.
+//     0  straight, from the rig's own BIND POSE
+//     1  fully curled
 //
-// So the axis is MEASURED, not assumed. It is built from the PALM:
+// The bind pose comes from Avatar.humanDescription.skeleton - the rotations the
+// model was authored with, before any animation. That is a real "straight" for
+// THIS rig, readable at any moment, needing no reference captured at a lucky
+// frame.
 //
-//   palm normal  =  across the knuckles  x  along the fingers
-//   bend axis    =  along this joint     x  palm normal
+// While a hand is being driven these bones are OURS: the clip's finger pose is
+// replaced rather than added to. When the hand is released the override eases
+// back to zero over blendTime and the clip has them again - so idle hands still
+// breathe and swing normally.
 //
-// and rotating a positive amount about that axis always moves the fingertip
-// toward the palm, which is the definition of closing a hand.
+// ---- WHICH WAY IS "CLOSED" ----
 //
-// ---- THE FIRST VERSION OF THIS WAS WRONG, AND WORTH KEEPING WRITTEN DOWN ----
+// Measured, never assumed, because finger bone axes are whatever the rigger
+// felt like and hard-coding one produces sideways fingers on the next model:
 //
-// It found the sign by rotating a fingertip 20 degrees each way and keeping
-// whichever ended up closer to the WRIST. That reasoning sounds fine and is
-// geometrically degenerate: the bend axis is perpendicular to the
-// wrist-to-knuckle line, so both directions land almost exactly the same
-// distance from the wrist. The comparison was decided by floating-point noise
-// - which is exactly why it came out right on one hand and wrong on the
-// other, and why it looked like a left/right bug rather than a maths bug.
+//     palm normal = across the knuckles  x  along the fingers
+//     bend axis   = along this joint     x  palm normal
 //
-// The palm normal has no such degeneracy. Its only subtlety is that a left
-// hand is a right hand reflected, so the cross product lands on the BACK of
-// one and the PALM of the other - handled by one sign flip, which is a fact
-// about mirrored geometry rather than a fact about this particular rig.
+// Rotating positive about that always moves the tip toward the palm. One sign
+// flip for the left hand, because a left hand is a right hand reflected - a
+// fact about mirrored geometry, not about this rig.
 //
-// ---- RUNS IN LateUpdate, ON PURPOSE ----
+// An earlier version picked the sign by rotating a fingertip both ways and
+// keeping whichever ended closer to the WRIST. That is geometrically
+// degenerate: the axis is perpendicular to the wrist-to-knuckle line, so both
+// answers are near-identical and the winner was decided by rounding error. It
+// came out right on one hand and wrong on the other.
 //
-// The Animator writes the whole skeleton during its own update, and IK goals
-// are solved inside that. Anything written before then is overwritten. This
-// runs after all of it, so it layers on top of whatever pose the walk cycle
-// and the hand IK have already agreed on, instead of fighting them.
+// ---- RUNS IN LateUpdate ----
+//
+// The Animator writes the whole skeleton during its own update and solves IK
+// inside that. This runs after all of it, so it layers on top of the pose the
+// walk cycle and the hand IK have already agreed on.
 // ========================================================================
 
+using System.Collections.Generic;
 using UnityEngine;
 
 [DefaultExecutionOrder(60)]          // after PlayerCarryArms (35), PlayerPushArms (40)
@@ -85,13 +85,15 @@ public class HandFingerCurl : MonoBehaviour
     [Range(0f, 1f)] public float thumbScale = 0.55f;
 
     [Header("Blend")]
-    [Tooltip("Seconds to close and open. Snapping the fingers shut the frame " +
-             "a pickup completes looks like the hand glitched.")]
+    [Tooltip("Seconds to take control of the fingers and to hand them back. " +
+             "Handing back matters as much as taking over: dropping a crate " +
+             "should relax the fingers into the walk cycle, not snap them.")]
     public float blendTime = 0.14f;
 
     [Header("Debug")]
-    [Tooltip("Log the measured bend axis and sign for each hand once, at " +
-             "startup. Worth a look the first time, and after any rig change.")]
+    [Tooltip("Log what was measured for each hand at startup: how many finger " +
+             "bones were found, how many had a readable bind pose, and whether " +
+             "the hand came out usable. Worth one look on a new rig.")]
     public bool logCalibration = false;
 
     Animator anim;
@@ -102,14 +104,26 @@ public class HandFingerCurl : MonoBehaviour
     readonly float[] liveL = new float[5];
     readonly float[] liveR = new float[5];
 
-    // Bones, cached: [hand][finger][joint]
-    Transform[,,] bones = new Transform[2, 5, 3];
-    Transform[] hands = new Transform[2];
-    bool[] ready = new bool[2];
+    // Whether anybody is currently driving each hand, and how strongly we have
+    // taken it over. SEPARATE FROM THE CURL VALUES, which is the whole fix:
+    // "drive this hand, at curl 0" and "do not drive this hand" used to be the
+    // same state, so an open hand was indistinguishable from no opinion.
+    readonly bool[] driven = new bool[2];
+    readonly float[] authority = new float[2];
 
-    // Measured per hand, once: which way the palm faces, in the HAND bone's
-    // own space so it stays correct wherever the arm swings.
-    Vector3[] palmLocal = new Vector3[2];
+    // Bones, cached: [hand][finger][joint]
+    readonly Transform[,,] bones = new Transform[2, 5, 3];
+
+    // The rig's own straight pose for each of those.
+    readonly Quaternion[,,] bind = new Quaternion[2, 5, 3];
+    readonly bool[,,] haveBind = new bool[2, 5, 3];
+
+    readonly Transform[] hands = new Transform[2];
+    readonly bool[] ready = new bool[2];
+
+    // Measured per hand, once: which way the palm faces, in the HAND bone's own
+    // space so it stays correct wherever the arm swings.
+    readonly Vector3[] palmLocal = new Vector3[2];
 
     static readonly HumanBodyBones[,] Map = new HumanBodyBones[2, 5]
     {
@@ -151,48 +165,74 @@ public class HandFingerCurl : MonoBehaviour
         return true;
     }
 
-    /// <summary>
-    /// Find every finger bone once. The humanoid enum orders each finger's
-    /// three joints consecutively - Proximal, Intermediate, Distal - so the
-    /// two children are just the next two values along, which saves naming
-    /// thirty bones by hand.
-    /// </summary>
     void Cache()
     {
         hands[0] = anim.GetBoneTransform(HumanBodyBones.LeftHand);
         hands[1] = anim.GetBoneTransform(HumanBodyBones.RightHand);
 
+        // ---- THE RIG'S OWN STRAIGHT POSE ----
+        //
+        // humanDescription.skeleton holds the rotations the model was authored
+        // with, before any clip touched it. That is a real "open hand" for THIS
+        // rig, readable at any moment - no need to catch the skeleton at a lucky
+        // frame before the Animator has run, which is the kind of timing
+        // assumption that works on the body and fails on the clone.
+        var byName = new Dictionary<string, Quaternion>();
+
+        if (anim.avatar != null && anim.avatar.isValid)
+            foreach (var sb in anim.avatar.humanDescription.skeleton)
+                byName[sb.name] = sb.rotation;
+
         for (int h = 0; h < 2; h++)
         {
             int found = 0;
+            int binds = 0;
 
             for (int f = 0; f < 5; f++)
                 for (int j = 0; j < 3; j++)
                 {
                     var b = anim.GetBoneTransform((HumanBodyBones)((int)Map[h, f] + j));
                     bones[h, f, j] = b;
-                    if (b != null) found++;
+
+                    if (b == null) continue;
+                    found++;
+
+                    if (byName.TryGetValue(b.name, out Quaternion q))
+                    {
+                        bind[h, f, j] = q;
+                        binds++;
+                    }
+                    else
+                    {
+                        // Fallback: whatever it is right now. Worse, because the
+                        // clip may already have moved it - but a hand that curls
+                        // from a slightly wrong straight beats a hand that does
+                        // not curl at all.
+                        bind[h, f, j] = b.localRotation;
+                    }
+
+                    haveBind[h, f, j] = true;
                 }
 
             // Needs the hand and at least the index and middle knuckles: the
-            // axis is measured from across the knuckles, so one finger is not
+            // palm normal is measured across the knuckles, so one finger is not
             // enough to measure anything.
             ready[h] = hands[h] != null && found >= 6 && Calibrate(h);
 
-            if (!ready[h] && logCalibration)
+            if (logCalibration)
+                Debug.Log("[Fingers] " + (h == 0 ? "Left" : "Right") +
+                          "  bones " + found + "/15" +
+                          "  bindPose " + binds + "/15" +
+                          "  ready " + ready[h]);
+            else if (!ready[h])
                 Debug.LogWarning("[Fingers] " + (h == 0 ? "Left" : "Right") +
-                                 " hand has no usable finger bones (" + found +
-                                 "/15). The avatar probably has fingers unmapped.");
+                                 " hand unusable (" + found + "/15 bones). The " +
+                                 "avatar probably has fingers unmapped.");
         }
     }
 
-    /// <summary>
-    /// Work out which way this rig's fingers close, from the rig itself.
-    ///
-    /// The axis is across the knuckles. The sign is whichever direction moves
-    /// a fingertip toward the wrist, because that is the definition of closing
-    /// a hand and it is true of every hand ever rigged.
-    /// </summary>
+    /// <summary>Work out which way this rig's fingers close, from the rig
+    /// itself.</summary>
     bool Calibrate(int h)
     {
         Transform hand = hands[h];
@@ -205,7 +245,7 @@ public class HandFingerCurl : MonoBehaviour
         if (indexP != null && littleP != null)
             across = littleP.position - indexP.position;
         else if (indexP != null && middleP != null)
-            across = middleP.position - indexP.position;   // rough, but a direction
+            across = middleP.position - indexP.position;
         else
             return false;
 
@@ -217,26 +257,21 @@ public class HandFingerCurl : MonoBehaviour
         if (across.sqrMagnitude < 1e-10f || alongFingers.sqrMagnitude < 1e-10f)
             return false;
 
-        // Perpendicular to the plane of the hand. Which FACE of the hand it
-        // lands on depends only on handedness - a left hand is a right hand
-        // reflected - so one flip covers it, on every rig, forever.
+        // Perpendicular to the plane of the hand. Which FACE it lands on depends
+        // only on handedness - a left hand is a right hand reflected - so one
+        // flip covers it, on every rig, forever.
         Vector3 palm = Vector3.Cross(across.normalized, alongFingers.normalized);
         if (palm.sqrMagnitude < 1e-10f) return false;
 
         if (h == 0) palm = -palm;          // left hand: the cross lands on the back
 
         palmLocal[h] = hand.InverseTransformDirection(palm.normalized);
-
-        if (logCalibration)
-            Debug.Log("[Fingers] " + (h == 0 ? "Left" : "Right") +
-                      " palm(local)=" + palmLocal[h].ToString("F3"));
-
         return true;
     }
 
     /// <summary>First of these that actually exists. Written out rather than
-    /// using ?? because that operator bypasses Unity's overloaded null check
-    /// and will happily hand back a destroyed object.</summary>
+    /// using ?? because that operator bypasses Unity's overloaded null check and
+    /// will happily hand back a destroyed object.</summary>
     static Transform Pick(params Transform[] options)
     {
         for (int i = 0; i < options.Length; i++)
@@ -248,28 +283,31 @@ public class HandFingerCurl : MonoBehaviour
     // ASKED FOR BY WHOEVER IS HOLDING SOMETHING
     // ------------------------------------------------------------------
 
-    /// <summary>Close one hand. Five values, 0 straight to 1 fully curled.</summary>
+    /// <summary>
+    /// Drive one hand. Five values, 0 STRAIGHT to 1 fully curled.
+    ///
+    /// Zero is a real instruction now, not the absence of one: it opens the
+    /// hand. Stop driving with ClearCurl.
+    /// </summary>
     public void SetCurl(bool leftHand, float thumb, float index, float middle,
                         float ring, float little)
     {
         float[] w = leftHand ? wantL : wantR;
+
         w[0] = thumb; w[1] = index; w[2] = middle; w[3] = ring; w[4] = little;
+        driven[leftHand ? 0 : 1] = true;
     }
 
-    /// <summary>Open one hand again. Called on release - and it must be
-    /// CALLED, not just left alone, for the same reason IK weights have to be
-    /// written to zero: nothing else resets these.</summary>
-    public void ClearCurl(bool leftHand)
-    {
-        float[] w = leftHand ? wantL : wantR;
-        for (int i = 0; i < 5; i++) w[i] = 0f;
-    }
+    /// <summary>Hand this one back to the animation. Must be CALLED, not just
+    /// left alone - these bones keep whatever they were last given, exactly like
+    /// an IK weight does.</summary>
+    public void ClearCurl(bool leftHand) => driven[leftHand ? 0 : 1] = false;
 
-    /// <summary>Open both hands.</summary>
+    /// <summary>Hand both back to the animation.</summary>
     public void ClearAll()
     {
-        ClearCurl(true);
-        ClearCurl(false);
+        driven[0] = false;
+        driven[1] = false;
     }
 
     // ------------------------------------------------------------------
@@ -285,65 +323,86 @@ public class HandFingerCurl : MonoBehaviour
             float[] want = h == 0 ? wantL : wantR;
             float[] live = h == 0 ? liveL : liveR;
 
-            bool any = false;
-
             for (int f = 0; f < 5; f++)
-            {
                 live[f] = Mathf.MoveTowards(live[f], Mathf.Clamp01(want[f]), step);
-                if (live[f] > 0.001f) any = true;
-            }
 
-            if (!any || !ready[h]) continue;
+            // How much of this hand is ours. Eased, so letting go relaxes the
+            // fingers into the walk cycle instead of snapping them back.
+            authority[h] = Mathf.MoveTowards(authority[h], driven[h] ? 1f : 0f, step);
 
-            // Back into world space from the hand's CURRENT orientation, so
-            // the fingers close correctly whatever the arm is doing.
+            if (!ready[h] || authority[h] <= 0.001f) continue;
+
+            // Back into world space from the hand's CURRENT orientation, so the
+            // fingers close correctly whatever the arm is doing.
             Vector3 palm = hands[h].TransformDirection(palmLocal[h]);
             if (palm.sqrMagnitude < 1e-8f) continue;
             palm.Normalize();
 
             for (int f = 0; f < 5; f++)
             {
-                if (live[f] <= 0.001f) continue;
-
                 float scale = (f == 0 ? thumbScale : 1f) * live[f];
 
-                Bend(bones[h, f, 0], bones[h, f, 1], palm, proximalDegrees * scale);
-                Bend(bones[h, f, 1], bones[h, f, 2], palm, intermediateDegrees * scale);
-                Bend(bones[h, f, 2], null, palm, distalDegrees * scale);
+                // NOT skipped at zero. Zero is "hold this finger straight",
+                // which is an instruction - and skipping it is exactly what made
+                // an open hand mean "whatever the clip wants", so one hand came
+                // out open and the other closed for the same number.
+                Pose(h, f, 0, bones[h, f, 1], palm, proximalDegrees * scale);
+                Pose(h, f, 1, bones[h, f, 2], palm, intermediateDegrees * scale);
+                Pose(h, f, 2, null, palm, distalDegrees * scale);
             }
         }
     }
 
     /// <summary>
-    /// Fold one joint toward the palm.
+    /// Put one joint where it should be: straight, plus however much curl.
     ///
-    /// The axis is built PER JOINT from that joint's own live direction, so it
-    /// stays correct as the finger folds - by the time the fingertip joint is
-    /// reached it is pointing somewhere quite different from where it started,
-    /// and a single axis measured at the knuckle would splay it sideways.
+    /// ---- WHY IT ROUTES THROUGH THE BIND POSE ----
     ///
-    /// Reading the rotation live is what makes the three bends accumulate down
-    /// the finger the way a real one folds: bending the knuckle drags the whole
-    /// finger with it, so the middle joint's rotation already includes it.
+    /// The result has to be the SAME whatever the clip was doing, or 0 does not
+    /// mean open. So the joint is set to its authored straight rotation first,
+    /// bent from there, and only then blended against the clip by how much
+    /// authority we have. At full authority the clip's finger pose is gone.
+    ///
+    /// ---- WHY THE AXIS IS PER JOINT ----
+    ///
+    /// A single axis measured at the knuckle splays the fingertip sideways once
+    /// the finger has folded, because by then it points somewhere quite
+    /// different. Each joint's axis comes from its own live direction, taken
+    /// after the joint above it has been placed - which is also what makes the
+    /// three bends accumulate down the finger the way a real one folds.
     /// </summary>
-    static void Bend(Transform bone, Transform next, Vector3 palm, float degrees)
+    void Pose(int h, int f, int j, Transform next, Vector3 palm, float degrees)
     {
-        if (bone == null || Mathf.Abs(degrees) < 0.01f) return;
+        Transform bone = bones[h, f, j];
+        if (bone == null || !haveBind[h, f, j]) return;
 
-        // Which way this joint points. The fingertip joint has no child bone,
-        // so it borrows its direction from the joint above it.
-        Vector3 dir = next != null
-            ? next.position - bone.position
-            : (bone.parent != null ? bone.position - bone.parent.position : Vector3.zero);
+        Quaternion fromClip = bone.localRotation;
 
-        if (dir.sqrMagnitude < 1e-10f) return;
+        // Straight, as the model was authored.
+        bone.localRotation = bind[h, f, j];
 
-        Vector3 axis = Vector3.Cross(dir.normalized, palm);
-        if (axis.sqrMagnitude < 1e-8f) return;
+        if (Mathf.Abs(degrees) > 0.01f)
+        {
+            Vector3 dir = next != null
+                ? next.position - bone.position
+                : (bone.parent != null ? bone.position - bone.parent.position : Vector3.zero);
 
-        // Positive, always. Rotating this way about this axis moves the tip
-        // toward the palm - that is what the cross product was built to
-        // guarantee, and it is why there is no sign to get wrong any more.
-        bone.rotation = Quaternion.AngleAxis(degrees, axis.normalized) * bone.rotation;
+            if (dir.sqrMagnitude > 1e-10f)
+            {
+                Vector3 axis = Vector3.Cross(dir.normalized, palm);
+
+                // Positive, always. Rotating this way about this axis moves the
+                // tip toward the palm - which is what the cross product was
+                // built to guarantee, and why there is no sign left to get
+                // wrong.
+                if (axis.sqrMagnitude > 1e-8f)
+                    bone.rotation = Quaternion.AngleAxis(degrees, axis.normalized) *
+                                    bone.rotation;
+            }
+        }
+
+        if (authority[h] < 0.999f)
+            bone.localRotation = Quaternion.Slerp(fromClip, bone.localRotation,
+                                                  authority[h]);
     }
 }

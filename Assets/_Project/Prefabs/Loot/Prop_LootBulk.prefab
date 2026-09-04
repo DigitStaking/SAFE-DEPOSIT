@@ -201,7 +201,7 @@ MonoBehaviour:
     little: 0
   rightGrip:
     localPosition: {x: 2.3, y: -1.45, z: -0.55}
-    localEuler: {x: 63.8, y: 7.77, z: 260.9}
+    localEuler: {x: 112.48, y: -82.9, z: -209.76}
     used: 1
     thumb: 0
     index: 0

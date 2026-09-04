@@ -58,6 +58,42 @@ public class CrewLobby : MonoBehaviour
     public int maxCrew = Crew.MaxMembers;
 
     NetworkManager net;
+    // ====================================================================
+    // TESTING TWO PLAYERS ON ONE MACHINE.
+    //
+    // UseRightTransport picks Steam whenever SteamAPI.Init succeeded, and it
+    // succeeds in EVERY instance on a machine where Steam is running - the
+    // Editor as well as a build. So a build launched from Steam hosts over
+    // Steam, the Editor also chooses Steam, and the two cannot meet:
+    //
+    //   "JOIN A RUN"          always local, over UnityTransport on 127.0.0.1
+    //   lobby code + "JOIN"   Steam, and only Steam
+    //
+    // Pressing JOIN A RUN against a Steam host gives "nothing is hosting on
+    // this machine", which is exactly true - nothing is listening locally.
+    //
+    // And the lobby code does not rescue it either: both instances are the
+    // SAME Steam account, so the client would be asked to connect to its own
+    // SteamID. Steam has no answer for that. Two accounts or two machines are
+    // the only way to test the Steam path for real.
+    //
+    // This switch makes both instances ignore Steam and use the local
+    // transport, so HOST A RUN and JOIN A RUN work window-to-window with Steam
+    // still open. Tick it in BOTH instances.
+    // ====================================================================
+
+    [Header("Testing")]
+    [Tooltip("Ignore Steam and use the local transport, so two windows on this " +
+             "machine can host and join each other. Tick it in BOTH windows. " +
+             "Voice still needs Steam, so leave it off for anything except " +
+             "two-window testing.")]
+    public bool forceLocalTransport = false;
+
+    /// <summary>Whether this instance should be talking over Steam at all.
+    /// One question, one answer, so Host, Join and the transport choice can
+    /// never disagree about it.</summary>
+    bool UseSteam => SteamBoot.Running && steam != null && !forceLocalTransport;
+
     SteamTransport steam;
     string crewName = "";
     string status = "";
@@ -123,7 +159,7 @@ public class CrewLobby : MonoBehaviour
     {
         if (net == null) return;
 
-        if (SteamBoot.Running && steam != null)
+        if (UseSteam)
         {
             net.NetworkConfig.NetworkTransport = steam;
             return;
@@ -143,7 +179,7 @@ public class CrewLobby : MonoBehaviour
 
         UseRightTransport();
 
-        if (!SteamBoot.Running)
+        if (!UseSteam)
         {
             // No Steam: the old local path, unchanged. Still two windows on one
             // machine, still useful, and still the only way to test alone.
@@ -224,6 +260,14 @@ public class CrewLobby : MonoBehaviour
         if (steam == null)
         {
             Say("no SteamTransport on the NETWORK object - run Build Network Manager");
+            return;
+        }
+
+        // Says so rather than quietly starting a client on the wrong
+        // transport, which would fail somewhere much less obvious.
+        if (forceLocalTransport)
+        {
+            Say("Force Local Transport is on - untick it to join over Steam");
             return;
         }
 

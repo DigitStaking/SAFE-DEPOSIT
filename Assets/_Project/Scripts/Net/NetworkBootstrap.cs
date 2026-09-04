@@ -54,23 +54,21 @@ public class NetworkBootstrap : MonoBehaviour
 
     public ushort port = 7777;
 
-    // ---- NOT SERIALIZED, AND THAT IS THE WHOLE POINT ----
+    // ---- SERIALIZED AGAIN. I SHOULD NOT HAVE TOUCHED THIS. ----
     //
-    // This was already "false by default" and it was showing anyway, because
-    // the scene had it saved as 1. A C# default only applies to objects created
-    // after the default changes; anything already saved keeps what it was saved
-    // with. Setting it back to 0 in the scene file did not stick either - Unity
-    // had the scene open and wrote its in-memory copy back over the edit.
+    // I made this NonSerialized to stop a stale "1" in the scene turning the
+    // panel on, having read its own comment as saying it was obsolete.
     //
-    // NonSerialized ends the argument. There is nowhere left for a stale 1 to
-    // live: the field is not written to the scene, so it starts false every
-    // single run, and the panel cannot appear in the game by accident.
+    // The saved value WAS the answer. The scene had showPanel: 1 because you
+    // were using it - it is the fastest way to start two local windows, which
+    // is exactly what you were doing when this stopped working. NonSerialized
+    // deleted the field from the scene, so the panel could never come back.
     //
-    // It is still here and still useful - tick it in the Inspector during play
-    // and it is the fastest way to start two local windows without Steam. It
-    // just cannot survive a restart, which is exactly the behaviour a developer
-    // aid should have.
-    [System.NonSerialized] public bool showPanel = false;
+    // A field being on in a saved scene is evidence about how the project is
+    // used, not a mistake to correct.
+    [Tooltip("The corner HOST/JOIN panel. The quickest way to start two local " +
+             "windows for testing - tick it and save the scene.")]
+    public bool showPanel = false;
 
     NetworkManager net;
     string lastEvent = "";

@@ -395,7 +395,26 @@ public class FirstPersonViewmodel : MonoBehaviour
         // no reason.
         bool firstPerson = cull == null || !cull.ThirdPerson;
 
-        if (vmCam != null) vmCam.enabled = firstPerson && visible;
+        // Eased here rather than inside ApplyPlacement, because the camera
+        // decision below needs THIS frame's value and ApplyPlacement runs
+        // after it. One place computes it, both places read it.
+        EaseRaised();
+
+        // ---- HIDDEN MEANS NOT DRAWN ----
+        //
+        // showOnlyWhenBusy never hid anything. All it did was slide the rig
+        // down by hiddenOffset - 48cm - and on arms this size 48cm is still
+        // comfortably on screen, which is why they stayed visible however the
+        // busy rules were written. The mechanism was wrong, not the rules.
+        //
+        // The viewmodel camera's culling mask contains nothing but the arms
+        // layer, so switching it off removes them outright and touches nothing
+        // else in the frame. The rig keeps animating underneath, so a shove
+        // that starts while hidden is already in progress when it appears -
+        // there is no pop.
+        bool shown = !showOnlyWhenBusy || raised > 0.001f;
+
+        if (vmCam != null) vmCam.enabled = firstPerson && visible && shown;
 
         // Third person exists to LOOK at your own character, so the body has
         // to come back the moment the camera pulls away from it - and the
@@ -418,11 +437,14 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// would mean re-entering Play mode to see every change - which is how the
     /// first two guesses survived as long as they did.
     /// </summary>
-    void ApplyPlacement()
+    /// <summary>
+    /// How far up the hands are, 0 hidden to 1 fully out.
+    ///
+    /// Its own method because two things need it in the same frame - the
+    /// camera switch and the placement - and they run in that order.
+    /// </summary>
+    void EaseRaised()
     {
-        if (clone == null) return;
-
-        // ---- RAISE THEM ONLY WHEN THEY ARE DOING SOMETHING ----
         float want = !showOnlyWhenBusy || HandsBusy() ? 1f : 0f;
 
         if (want > 0.5f) lastBusy = Time.time;
@@ -430,6 +452,12 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         raised = Mathf.MoveTowards(raised, want,
                                    raiseTime <= 0f ? 1f : Time.deltaTime / raiseTime);
+    }
+
+    void ApplyPlacement()
+    {
+        if (clone == null) return;
+
 
         // Eased so they arrive and leave softly rather than sliding linearly.
         float k = raised * raised * (3f - 2f * raised);
@@ -587,35 +615,48 @@ public class FirstPersonViewmodel : MonoBehaviour
     ///                           ProceduralLegsIK already read, so all three
     ///                           agree about what an emote is.
     /// </summary>
+    /// <summary>
+    /// Whether the camera hands are allowed on screen.
+    ///
+    /// A SHOVE, AND NOTHING ELSE, for now. Asked for directly: hidden by
+    /// default, up when G is pressed.
+    ///
+    /// Carrying and the arm clips are commented out rather than deleted, and
+    /// the reason matters - the viewmodel has no carry grip system yet, so
+    /// showing the hands during a carry shows two hands conspicuously NOT
+    /// holding the crate floating in front of them. Better to show nothing
+    /// than to show the wrong thing. Put them back when the first-person carry
+    /// grip exists.
+    /// </summary>
     bool HandsBusy()
     {
-        if (realCarry != null && realCarry.IsCarrying) return true;
-
-        // PUSH IS DELIBERATELY NOT HERE ANY MORE.
+        // ---- PUSH RAISES THEM ----
         //
-        // It used to count as busy, which raised the rig by hiddenOffset - 45cm
-        // straight up - the instant G was pressed. That was the "hands teleport
-        // upward before the push starts": the hide feature firing, not the
-        // shove. The gesture itself was still at 0,0,0 and contributing
-        // nothing, so the jump was the ONLY thing happening.
+        // Push was taken OUT of here once, because raising the rig 45cm the
+        // instant G was pressed read as the hands teleporting upward before
+        // the shove. That was correct when the hands were already on screen
+        // and simply jumped.
         //
-        // A shove now happens exactly where the hands already are. Nothing
-        // repositions the rig for it.
+        // Starting hidden inverts it: coming up out of frame to shove and
+        // dropping back after is the entire point of hiding them. Same
+        // mechanism, opposite reading, because the starting state is different.
+        return realPush != null && realPush.PushProgress >= 0f;
 
-        if (realAnim == null || realAnim.runtimeAnimatorController == null) return false;
-
-        const int ArmsLayer = 1;
-
-        if (realAnim.layerCount > ArmsLayer &&
-            (realAnim.GetCurrentAnimatorClipInfoCount(ArmsLayer) > 0 ||
-             realAnim.GetNextAnimatorClipInfoCount(ArmsLayer) > 0))
-            return true;
-
-        if (realAnim.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
-            realAnim.GetNextAnimatorStateInfo(0).IsTag("FreeArms"))
-            return true;
-
-        return false;
+        // if (realCarry != null && realCarry.IsCarrying) return true;
+        //
+        // if (realAnim != null && realAnim.runtimeAnimatorController != null)
+        // {
+        //     const int ArmsLayer = 1;
+        //
+        //     if (realAnim.layerCount > ArmsLayer &&
+        //         (realAnim.GetCurrentAnimatorClipInfoCount(ArmsLayer) > 0 ||
+        //          realAnim.GetNextAnimatorClipInfoCount(ArmsLayer) > 0))
+        //         return true;
+        //
+        //     if (realAnim.GetCurrentAnimatorStateInfo(0).IsTag("FreeArms") ||
+        //         realAnim.GetNextAnimatorStateInfo(0).IsTag("FreeArms"))
+        //         return true;
+        // }
     }
 
     /// <summary>

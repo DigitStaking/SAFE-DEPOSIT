@@ -505,6 +505,23 @@ public class LootSpawner : MonoBehaviour
 
         GameObject go = t.prefab != null ? Instantiate(t.prefab) : null;
 
+        // ---- TELL THE ITEM WHERE IT CAME FROM ----
+        //
+        // Object.Instantiate produces a plain clone with no prefab connection,
+        // so PrefabUtility cannot trace it back and the Grip Library was
+        // reduced to matching by NAME with "(Clone)" stripped. That works
+        // until two prefabs share a name or one gets renamed, and then it
+        // silently saves your tuning onto the wrong asset - the kind of bug
+        // you discover by finding a crate holding a filing cabinet's grip.
+        //
+        // One assignment removes the guesswork entirely. Editor-facing only;
+        // nothing in a build reads it.
+        if (go != null && t.prefab != null)
+        {
+            var carryable = go.GetComponent<Carryable>();
+            if (carryable != null) carryable.sourcePrefab = t.prefab;
+        }
+
         if (go == null)
         {
             go = GameObject.CreatePrimitive(PrimitiveType.Cube);

@@ -183,12 +183,12 @@ public class CarryableGripEditor : Editor
         Handles.Label(p + Vector3.up * 0.06f, label);
     }
 
-    /// <summary>Seed with the same numbers PlayerCarryArms would have measured,
-    /// so Custom starts where Auto left off rather than at nothing.</summary>
-    static void Seed(Carryable item)
-    {
-        item.SeedGripsFromBounds(0.78f, 0.85f, 0.55f, 0.06f);
-    }
+    /// <summary>Seed with the item's own measurements if it has them, the
+    /// known-good defaults otherwise. The four constants used to be typed out
+    /// here AND in the Grip Library AND as field defaults on PlayerCarryArms -
+    /// three places to change, so in practice one of them was always stale.
+    /// Carryable.GripMeasure.Default is the only copy now.</summary>
+    static void Seed(Carryable item) => item.SeedGripsFromBounds();
 
     /// <summary>Copy one hand to the other, reflected across the item's X
     /// axis. Most objects are symmetric and authoring the same grip twice by

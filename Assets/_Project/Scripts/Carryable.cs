@@ -186,22 +186,102 @@ public class Carryable : MonoBehaviour
         [Range(0f, 1f)] public float little = 0.8f;
     }
 
+    // ====================================================================
+    // ONE SET OF NUMBERS, ONE PLACE THAT MEASURES WITH THEM.
+    //
+    // These five used to live only on PlayerCarryArms, which made them
+    // CHARACTER-wide: every Auto item in the game shared one width and one
+    // height, and a single item could not be nudged without moving all of
+    // them. "each box has her own dimension" is not solvable from the
+    // character.
+    //
+    // So they are a struct, the character holds the default, and any item may
+    // override it. Not duplicated - OVERRIDDEN, which is the difference
+    // between one source of truth with an exception, and two sources of truth
+    // that disagree next month.
+    // ====================================================================
+
+    [System.Serializable]
+    public struct GripMeasure
+    {
+        [Tooltip("How far out toward the item's edges the hands sit, 0 to 1.")]
+        [Range(0.3f, 1.2f)] public float width;
+
+        [Tooltip("WHERE ON THE ITEM'S SIDE the fingers grip: 0 the bottom " +
+                 "edge, 1 the top. Near the top, because a crate HANGS from " +
+                 "fingers hooked over its sides.")]
+        [Range(0f, 1f)] public float heightOnBox;
+
+        [Tooltip("How far INTO the side face the hands sit, in metres.")]
+        public float inset;
+
+        [Tooltip("How far toward the player, from the item's centre, in metres.")]
+        public float toward;
+
+        [Tooltip("Widest the hands are ever placed apart, in metres.")]
+        public float maxWidth;
+
+        /// <summary>The values known to work, and the ONLY place they are
+        /// written down. Two editor tools used to hardcode the same four
+        /// numbers, which made three sources of truth for one decision.</summary>
+        public static GripMeasure Default => new GripMeasure
+        {
+            width = 0.85f,
+            heightOnBox = 0.78f,
+            inset = 0.02f,
+            toward = 0.06f,
+            maxWidth = 0.55f
+        };
+    }
+
     [Header("Grip - how the hands take hold of THIS item")]
-    [Tooltip("Auto measures the object's bounds. Custom uses the two points " +
+    [Tooltip("Auto measures this object's bounds. Custom uses the two points " +
              "below, placed by hand and saved with this prefab.")]
     public GripMode gripMode = GripMode.Auto;
 
     public HandGrip leftGrip = new HandGrip();
     public HandGrip rightGrip = new HandGrip();
 
+    [Tooltip("Use THIS item's own measurements below instead of the " +
+             "character's. " +
+             "For when Auto is nearly right and just needs the hands a little " +
+             "higher or wider on this one object - which is most cases, and " +
+             "far less work than placing two points by hand.")]
+    public bool overrideMeasure = false;
+
+    public GripMeasure measure = GripMeasure.Default;
+
     [Tooltip("Draw the grip points on this item in the Scene view even when " +
              "it is not selected.")]
     public bool alwaysDrawGrips = false;
 
+    // ====================================================================
+    // WHICH PREFAB THIS CAME FROM.
+    //
+    // Stamped by LootSpawner the moment it instantiates one. Before this, the
+    // Grip Library matched a held object back to its prefab by NAME with
+    // "(Clone)" stripped - because runtime Object.Instantiate produces a plain
+    // clone with no prefab connection for PrefabUtility to find.
+    //
+    // Name matching works right up until two prefabs share a name, or one is
+    // renamed, and then it silently saves your tuning onto the wrong item. A
+    // direct reference cannot be wrong.
+    // ====================================================================
+
+    [Tooltip("The prefab this instance was spawned from. Set automatically at " +
+             "spawn - leave it alone. It is what lets the Grip Library save " +
+             "your tuning back to the right asset.")]
+    public GameObject sourcePrefab;
+
     public bool HasCustomGrip => gripMode == GripMode.Custom;
 
-    /// <summary>This item's grip points in WORLD space, for whoever is holding
-    /// it. Only meaningful in Custom mode.</summary>
+    /// <summary>The measurements for this item: its own if it has been given
+    /// any, the character's otherwise.</summary>
+    public GripMeasure MeasureOr(GripMeasure characterDefault) =>
+        overrideMeasure ? measure : characterDefault;
+
+    /// <summary>This item's grip points in WORLD space. Only meaningful in
+    /// Custom mode.</summary>
     public void WorldGrips(out Vector3 lPos, out Quaternion lRot,
                            out Vector3 rPos, out Quaternion rRot)
     {
@@ -211,57 +291,70 @@ public class Carryable : MonoBehaviour
         rRot = transform.rotation * Quaternion.Euler(rightGrip.localEuler);
     }
 
-    /// <summary>
-    /// Fill the two Custom points from the measured bounds, so switching an
-    /// item to Custom starts from the Auto answer instead of from nothing.
-    ///
-    /// ---- WORKED OUT IN WORLD SPACE, THEN CONVERTED ONCE ----
-    ///
-    /// The first version did the arithmetic in the item's LOCAL space, and it
-    /// produced nonsense on any prefab with a scale other than 1: local units
-    /// are world units divided by that scale, so a crate at scale 0.1 got
-    /// every distance multiplied by ten and the hands landed metres away. That
-    /// is where "Left Position X 4.3" came from - 4.3 local units on a small
-    /// prefab, not 4.3 metres.
-    ///
-    /// Every number here is in real metres because it is computed in world
-    /// space against the real bounds. The conversion to local happens once, at
-    /// the very end, where TransformPoint handles scale for us.
-    ///
-    /// Uses the ITEM'S OWN axes rather than a player's, because there is no
-    /// player involved when you press the button in the prefab view. If left
-    /// and right come out swapped for a model, swap the two X values - which
-    /// way round they land depends on how that model was authored and there is
-    /// nothing to detect it from.
-    /// </summary>
-    public void SeedGripsFromBounds(float heightOnBox, float widthFraction,
-                                    float maxHalfWidth, float toward)
-    {
-        Bounds w = WorldBounds;
+    // ====================================================================
+    // THE MEASUREMENT, WRITTEN ONCE.
+    //
+    // PlayerCarryArms.Grips() and SeedGripsFromBounds each used to carry their
+    // own copy of this arithmetic. They agreed on the day they were written
+    // and had already started to drift: the seed clamped a minimum half-width,
+    // the runtime one subtracted the inset, and neither knew about the other.
+    //
+    // A grip that PREVIEWS differently from how it PLAYS is the worst kind of
+    // authoring bug, because the tool tells you it is fine. One function now,
+    // called by both.
+    // ====================================================================
 
-        Vector3 side = transform.right;
-        Vector3 back = -transform.forward;
+    /// <summary>
+    /// Where the two hands go on this object, measured from its bounds.
+    ///
+    /// WORLD SPACE throughout, so every number is real metres. The caller
+    /// supplies the axes because they differ by caller: the player's right and
+    /// forward at runtime, the item's own in the prefab view where there is no
+    /// player to ask.
+    /// </summary>
+    public void MeasuredGrips(Vector3 side, Vector3 toward, GripMeasure m,
+                              out Vector3 left, out Vector3 right)
+    {
+        Bounds b = WorldBounds;
 
         if (side.sqrMagnitude < 1e-8f) side = Vector3.right;
-        if (back.sqrMagnitude < 1e-8f) back = Vector3.back;
+        if (toward.sqrMagnitude < 1e-8f) toward = Vector3.back;
 
         side.Normalize();
-        back.Normalize();
+        toward.Normalize();
 
-        float half = Mathf.Min(Mathf.Max(w.extents.x, w.extents.z) * widthFraction,
-                               maxHalfWidth);
-        half = Mathf.Max(0.03f, half);
+        float half = Mathf.Max(b.extents.x, b.extents.z) * m.width;
+        half = Mathf.Min(half, m.maxWidth);
+        half = Mathf.Max(0.05f, half - m.inset);
 
-        float y = Mathf.Lerp(w.min.y, w.max.y, Mathf.Clamp01(heightOnBox));
+        float y = Mathf.Lerp(b.min.y, b.max.y, Mathf.Clamp01(m.heightOnBox));
 
-        Vector3 centre = new Vector3(w.center.x, y, w.center.z) + back * toward;
+        Vector3 centre = new Vector3(b.center.x, y, b.center.z) + toward * m.toward;
 
-        leftGrip.localPosition = transform.InverseTransformPoint(centre - side * half);
-        rightGrip.localPosition = transform.InverseTransformPoint(centre + side * half);
+        left = centre - side * half;
+        right = centre + side * half;
+    }
+
+    /// <summary>
+    /// Fill the two Custom points from the measured bounds, so switching an
+    /// item to Custom starts from the Auto answer rather than from nothing.
+    ///
+    /// Uses the ITEM'S OWN axes, because there is no player involved when you
+    /// press the button in the prefab view. If left and right come out swapped
+    /// for a model, swap the two X values - which way round they land depends
+    /// on how that model was authored and there is nothing to detect it from.
+    /// </summary>
+    public void SeedGripsFromBounds(GripMeasure m)
+    {
+        MeasuredGrips(transform.right, -transform.forward, m,
+                      out Vector3 lw, out Vector3 rw);
+
+        leftGrip.localPosition = transform.InverseTransformPoint(lw);
+        rightGrip.localPosition = transform.InverseTransformPoint(rw);
 
         // Palms facing each other across the object: the left hand looks
         // right, the right hand looks left. Whatever the hand bone's own axes
-        // turn out to be, this at least starts them mirrored rather than
+        // turn out to be, this at least starts them MIRRORED rather than
         // identical - two identical rotations is what makes one hand look
         // right and the other inside out.
         leftGrip.localEuler = new Vector3(0f, 90f, 0f);
@@ -269,6 +362,46 @@ public class Carryable : MonoBehaviour
 
         leftGrip.used = rightGrip.used = true;
     }
+
+    /// <summary>Seed with this item's own measurements if it has them, the
+    /// known-good defaults otherwise.</summary>
+    public void SeedGripsFromBounds() =>
+        SeedGripsFromBounds(overrideMeasure ? measure : GripMeasure.Default);
+
+    /// <summary>
+    /// Copy another Carryable's grip configuration onto this one, verbatim.
+    ///
+    /// This is what the Grip Library's save uses: the FIELDS as they stand,
+    /// never the world points they happened to produce this frame. Saving
+    /// computed points is how the character's palm angle got baked into an
+    /// item and then applied a second time on the next pickup, rotating the
+    /// saved grip another 90 degrees on every press of the button.
+    /// </summary>
+    public void CopyGripFrom(Carryable from)
+    {
+        if (from == null) return;
+
+        gripMode = from.gripMode;
+        leftGrip = Clone(from.leftGrip);
+        rightGrip = Clone(from.rightGrip);
+        overrideMeasure = from.overrideMeasure;
+        measure = from.measure;
+    }
+
+    /// <summary>A real copy. HandGrip is a class, so assigning it would leave
+    /// a prefab asset sharing one object with a scene instance that is about
+    /// to be destroyed.</summary>
+    static HandGrip Clone(HandGrip g) => new HandGrip
+    {
+        localPosition = g.localPosition,
+        localEuler = g.localEuler,
+        used = g.used,
+        thumb = g.thumb,
+        index = g.index,
+        middle = g.middle,
+        ring = g.ring,
+        little = g.little
+    };
 
     int lootLayer = -1;
 

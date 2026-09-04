@@ -59,33 +59,22 @@ using UnityEngine;
 [RequireComponent(typeof(Animator))]
 public class PlayerCarryArms : MonoBehaviour
 {
-    [Header("Auto grip - used unless the item overrides it")]
-    [Tooltip("How far out toward the item's edges the hands sit, 0 to 1. " +
-             "1 puts them at the corners, which looks like a struggle; a little " +
-             "inside reads as a confident hold.")]
-    [Range(0.3f, 1.2f)] public float gripWidth = 0.85f;
+    // ====================================================================
+    // THE CHARACTER'S DEFAULT MEASUREMENTS.
+    //
+    // Used for any item that has not been given its own. An item that HAS -
+    // Carryable.overrideMeasure - wins, because "each box has her own
+    // dimension" cannot be answered from here.
+    //
+    // The five numbers live on Carryable.GripMeasure so that there is exactly
+    // one definition of what they mean, one function that measures with them,
+    // and one set of known-good defaults. They used to be five loose fields
+    // here plus a second copy of the arithmetic on Carryable plus the same
+    // four constants hardcoded in two editor tools.
+    // ====================================================================
 
-    [Tooltip("WHERE ON THE ITEM'S SIDE the fingers grip, 0 at the bottom edge " +
-             "and 1 at the top. " +
-             "Near the top, because that is how a person picks a crate up: " +
-             "fingers hooked over the upper part of each side, and the box " +
-             "HANGS from them. Palms flat underneath is a waiter with a tray, " +
-             "and a tray has to be held up at chest height to be reachable at " +
-             "all - which is why it kept ending up in the character's face.")]
-    [Range(0f, 1f)] public float gripHeightOnBox = 0.78f;
-
-    [Tooltip("How far INTO the item's side face the hands sit, in metres.")]
-    public float gripInset = 0.02f;
-
-    [Tooltip("How far toward the player the hands sit from the item's centre, " +
-             "in metres. People carry a box with their hands on the NEAR half " +
-             "of it, not reaching around the far side.")]
-    public float gripToward = 0.06f;
-
-    [Tooltip("Widest the hands will ever be placed apart, in metres. A vending " +
-             "machine is wider than a person's arms and asking for its true " +
-             "corners would just stretch them.")]
-    public float maxGripWidth = 0.55f;
+    [Header("Default measurements - an item may override these")]
+    public Carryable.GripMeasure measure = Carryable.GripMeasure.Default;
 
     [Tooltip("Centre the grip on the BODY rather than on the item's renderer " +
              "bounds. " +
@@ -96,12 +85,36 @@ public class PlayerCarryArms : MonoBehaviour
              "reason.")]
     public bool centreOnBody = true;
 
-    [Header("Per hand - this character's own grip")]
+    // ====================================================================
+    // CHARACTER-LEVEL NUDGES - AUTO MODE ONLY.
+    //
+    // These do NOT apply to an item with a Custom grip, and that restriction
+    // is the point rather than an oversight.
+    //
+    // They used to be added on top of every grip including Custom ones, which
+    // broke the promise that Item A's grip belongs to Item A: changing the
+    // character's palm angle silently re-posed every hand-placed item in the
+    // game.
+    //
+    // It was also a corruption bug. The Grip Library saved the COMPUTED world
+    // points, which already included these - so a save baked leftPalmEuler
+    // into the item, and the next pickup multiplied it in again. Every press
+    // of the button rotated that item's saved palms another 90 degrees. Two
+    // presses and they were inside out.
+    //
+    // Fixed at both ends: these are Auto-only, and the save writes fields
+    // verbatim.
+    // ====================================================================
+
+    [Header("Auto-mode nudges - NOT applied to a Custom grip")]
     [Tooltip("Extra offset for the LEFT hand only, in the PLAYER'S space: " +
-             "X sideways, Y up, Z forward, in metres.")]
+             "X sideways, Y up, Z forward, in metres. " +
+             "AUTO MODE ONLY - an item with a Custom grip is placed exactly " +
+             "where its own points say, so that its grip stays its own.")]
     public Vector3 leftHandOffset = Vector3.zero;
 
-    [Tooltip("Extra offset for the RIGHT hand only, in the PLAYER'S space.")]
+    [Tooltip("Extra offset for the RIGHT hand only, in the PLAYER'S space. " +
+             "Auto mode only.")]
     public Vector3 rightHandOffset = Vector3.zero;
 
     [Header("Palms")]
@@ -111,14 +124,16 @@ public class PlayerCarryArms : MonoBehaviour
              "inside out.")]
     public bool useHandRotation = true;
 
-    [Tooltip("Palm angle correction for the LEFT hand, in degrees, on top of " +
-             "facing the item. " +
-             "Hand bone axes differ per rig, so this is the number you tune " +
-             "by eye - the same way palmEuler was tuned for the push. Nudge " +
-             "one axis at a time.")]
+    [Tooltip("Palm angle correction for the LEFT hand, in degrees. " +
+             "AUTO MODE ONLY. A Custom grip carries its own palm angle per " +
+             "hand, and mixing this in on top is what used to rotate a saved " +
+             "grip by another 90 degrees every time it was saved.\n\n" +
+             "Hand bone axes differ per rig, so this is a tune-by-eye number. " +
+             "Nudge one axis at a time.")]
     public Vector3 leftPalmEuler = new Vector3(-90f, 0f, 0f);
 
-    [Tooltip("Palm angle correction for the RIGHT hand, in degrees.")]
+    [Tooltip("Palm angle correction for the RIGHT hand, in degrees. Auto " +
+             "mode only.")]
     public Vector3 rightPalmEuler = new Vector3(-90f, 0f, 0f);
 
     [Tooltip("How strongly the palms are turned, 0 to 1. Drop it below 1 to " +
@@ -169,11 +184,7 @@ public class PlayerCarryArms : MonoBehaviour
     [ContextMenu("Restore recommended settings")]
     public void RestoreRecommended()
     {
-        gripWidth = 0.85f;
-        gripHeightOnBox = 0.78f;
-        gripInset = 0.02f;
-        gripToward = 0.06f;
-        maxGripWidth = 0.55f;
+        measure = Carryable.GripMeasure.Default;
         centreOnBody = true;
 
         leftHandOffset = Vector3.zero;
@@ -212,31 +223,19 @@ public class PlayerCarryArms : MonoBehaviour
     bool haveGrips;
 
     // ====================================================================
-    // WHAT THE HANDS ARE DOING RIGHT NOW, READABLE FROM OUTSIDE.
+    // WHAT IS IN THE HANDS, READABLE FROM OUTSIDE.
     //
-    // "i can just click play test and see what the best position and change
-    //  parametre in inspector and later i can push this parametres directly
-    //  to library"
+    // Deliberately ONE accessor. There used to be six more - the computed
+    // world positions and rotations of both hands - so the Grip Library could
+    // save what it saw back onto the prefab.
     //
-    // That workflow needs one thing this class was not offering: the grip it
-    // COMPUTED this frame, in world space, so the Grip Library can convert it
-    // into the item's own space and write it into the prefab.
-    //
-    // Without this the loop is broken in the middle. You can tune in play
-    // mode, it looks right, you press Stop, and Unity throws every value away
-    // - which is the same trap the viewmodel settings fell into before they
-    // became an asset.
+    // That was the corruption bug. The computed points already had this
+    // character's offsets and palm angles folded in, so saving them baked
+    // those into the item and the next pickup folded them in again. The Grip
+    // Library saves FIELDS now, verbatim, and has no reason to ask what the
+    // hands worked out - so the accessors that let it ask are gone rather than
+    // left lying around to be used again by mistake.
     // ====================================================================
-
-    /// <summary>True while the hands are actually placed on something.</summary>
-    public bool HasLiveGrips => haveGrips && live > 0.001f;
-
-    public Vector3 LiveLeftPosition => posL;
-    public Vector3 LiveRightPosition => posR;
-    public Quaternion LiveLeftRotation => rotL;
-    public Quaternion LiveRightRotation => rotR;
-    public bool LiveLeftUsed => useL;
-    public bool LiveRightUsed => useR;
 
     /// <summary>What is in the hands this frame, or null.</summary>
     public Carryable LiveItem => carry != null ? carry.Held : null;
@@ -253,11 +252,7 @@ public class PlayerCarryArms : MonoBehaviour
     {
         if (from == null) return;
 
-        gripWidth = from.gripWidth;
-        gripHeightOnBox = from.gripHeightOnBox;
-        gripInset = from.gripInset;
-        gripToward = from.gripToward;
-        maxGripWidth = from.maxGripWidth;
+        measure = from.measure;
         centreOnBody = from.centreOnBody;
 
         leftHandOffset = from.leftHandOffset;
@@ -387,34 +382,36 @@ public class PlayerCarryArms : MonoBehaviour
         var item = carry.Held;
         if (item == null) return false;
 
-        // ---- THE ITEM KNOWS BEST, IF IT WAS TOLD ----
-        //
-        // Custom points live in the item's own space, so they follow it
-        // however it is turned and however it is scaled. Nothing to measure
-        // and nothing to guess.
-        if (item.HasCustomGrip)
-        {
-            item.WorldGrips(out posL, out rotL, out posR, out rotR);
+        return item.HasCustomGrip ? CustomGrip(item) : MeasuredGrip(item);
+    }
 
-            useL = item.leftGrip.used;
-            useR = item.rightGrip.used;
+    /// <summary>
+    /// The item's own hand-placed grip, used EXACTLY as saved.
+    ///
+    /// Nothing from this character is mixed in - no offsets, no palm angles.
+    /// That is the whole contract of a Custom grip: Item A's grip belongs to
+    /// Item A, so tuning the character cannot silently re-pose it, and saving
+    /// it back cannot accumulate anything that was not in the fields.
+    /// </summary>
+    bool CustomGrip(Carryable item)
+    {
+        item.WorldGrips(out posL, out rotL, out posR, out rotR);
 
-            posL += Offset(leftHandOffset);
-            posR += Offset(rightHandOffset);
+        useL = item.leftGrip.used;
+        useR = item.rightGrip.used;
 
-            if (useHandRotation)
-            {
-                rotL = rotL * Quaternion.Euler(leftPalmEuler);
-                rotR = rotR * Quaternion.Euler(rightPalmEuler);
-            }
+        return useL || useR;
+    }
 
-            return useL || useR;
-        }
-
-        // ---- OTHERWISE, MEASURE IT ----
-
-        var b = item.WorldBounds;
-
+    /// <summary>
+    /// Measured from the item's bounds, for anything not hand-placed.
+    ///
+    /// The numbers come from the ITEM if it was given its own, and from this
+    /// character otherwise - so a single crate can be nudged without moving
+    /// every other crate in the building.
+    /// </summary>
+    bool MeasuredGrip(Carryable item)
+    {
         // Sideways is the PLAYER'S right, flattened - the hands go to the
         // sides of the box as the player sees it, not to whichever way the
         // world's X axis happens to point.
@@ -425,15 +422,11 @@ public class PlayerCarryArms : MonoBehaviour
 
         Vector3 toward = motor != null ? -motor.transform.forward : -transform.forward;
         toward.y = 0f;
-        if (toward.sqrMagnitude > 0.0001f) toward.Normalize();
 
-        float half = Mathf.Max(b.extents.x, b.extents.z) * gripWidth;
-        half = Mathf.Min(half, maxGripWidth);
-        half = Mathf.Max(0.05f, half - gripInset);
-
-        float gripY = Mathf.Lerp(b.min.y, b.max.y, gripHeightOnBox);
-
-        Vector3 centre = new Vector3(b.center.x, gripY, b.center.z);
+        // ONE implementation of the measurement, shared with the editor's
+        // seed button - so what you preview is what you play.
+        item.MeasuredGrips(side, toward, item.MeasureOr(measure),
+                           out posL, out posR);
 
         // ---- THE ASYMMETRY FIX ----
         //
@@ -446,22 +439,22 @@ public class PlayerCarryArms : MonoBehaviour
         if (centreOnBody)
         {
             Vector3 anchor = carry.HoldAnchor();
-            float drift = Vector3.Dot(centre - anchor, side);
-            centre -= side * drift;
+            Vector3 mid = (posL + posR) * 0.5f;
+            float drift = Vector3.Dot(mid - anchor, side);
+
+            posL -= side * drift;
+            posR -= side * drift;
         }
 
-        centre += toward * gripToward;
-
-        posL = centre - side * half + Offset(leftHandOffset);
-        posR = centre + side * half + Offset(rightHandOffset);
+        posL += Offset(leftHandOffset);
+        posR += Offset(rightHandOffset);
 
         // Palms face each other across the object - the left hand looks right,
         // the right hand looks left - then each gets its own correction on
         // top, because a left hand is a right hand reflected and one shared
         // angle turns one of them inside out.
-        Vector3 up = Vector3.up;
-        rotL = Quaternion.LookRotation(side, up) * Quaternion.Euler(leftPalmEuler);
-        rotR = Quaternion.LookRotation(-side, up) * Quaternion.Euler(rightPalmEuler);
+        rotL = Quaternion.LookRotation(side, Vector3.up) * Quaternion.Euler(leftPalmEuler);
+        rotR = Quaternion.LookRotation(-side, Vector3.up) * Quaternion.Euler(rightPalmEuler);
 
         useL = useR = true;
         return true;

@@ -50,16 +50,24 @@ public class PlayerCarryArmsEditor : Editor
                 "You do not have to fill anything in. Auto mode measures every " +
                 "item from its own bounds - a new prop is grippable with no " +
                 "setup.\n\n" +
+                "PER-ITEM GRIPS LIVE ON THE ITEM, not here. To tune one crate: " +
+                "Play, pick it up, and edit it in the Grip Library's Live " +
+                "panel, then Save to prefab. What follows is the fallback used " +
+                "by everything that has not been given its own.\n\n" +
                 "TO TEST, IN THIS ORDER:\n\n" +
                 "1. Tick Draw Grips, press Play, pick something up, and press P " +
                 "for third person. Two spheres appear where the hands are being " +
                 "SENT, each with a short line showing which way the palm faces.\n\n" +
-                "2. If the spheres are in the wrong PLACE, the position numbers " +
-                "are wrong: Grip Height On Box first, then Grip Width.\n\n" +
-                "3. If the spheres are right but the hands look wrong, it is the " +
-                "ANGLE: nudge Left/Right Palm Euler one axis at a time, 15 " +
-                "degrees at a time. This is the number that depends on your rig " +
-                "and cannot be derived.\n\n" +
+                "2. Spheres in the wrong PLACE? Measure > Height On Box " +
+                "first, then Measure > Width. These are this CHARACTER'S " +
+                "defaults - to change one item only, tick Override Measure on " +
+                "that item instead.\n\n" +
+                "3. Spheres right but the hands look wrong? It is the ANGLE: " +
+                "nudge Left/Right Palm Euler one axis at a time, 15 degrees at " +
+                "a time. Depends on your rig and cannot be derived.\n\n" +
+                "   AUTO MODE ONLY. An item with a Custom grip carries its own " +
+                "palm angles and ignores these entirely - which is what makes " +
+                "its grip its own.\n\n" +
                 "4. Fingers not closing at all? Curl Fingers must be ticked, and " +
                 "HandFingerCurl must be on this same object.\n\n" +
                 "Every one of these can be dragged WHILE PLAYING. Unity throws " +

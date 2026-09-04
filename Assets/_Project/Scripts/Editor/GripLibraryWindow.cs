@@ -3,41 +3,50 @@
 // Open with: SAFE DEPOSIT / Player / Grip Library
 //
 // ========================================================================
-// TUNE IT WHILE PLAYING, THEN KEEP IT.
+// AN AUTHORING TOOL. NOT PART OF THE GAME.
 //
-// "i can just click play test and see what the best position and change
-//  parametre in inspector and later i can push this parametres directly to
-//  library, with all grip details"
+// Nothing in here runs in a build. It edits data that lives on Carryable, and
+// PlayerCarryArms reads that data whether this window has ever been opened or
+// not. Worth stating at the top, because a tool that quietly becomes a second
+// gameplay system is exactly the thing this project has been pulling apart.
 //
-// That is the right workflow and it was broken in the middle. Unity throws
-// away every play-mode change on Stop, so the only way to keep a value you
-// found by feel was to write it on paper, stop, and type it in again. Nobody
-// does that more than twice, which is how the numbers in the Inspector drifted
-// so far from anything deliberate.
+//     PlayerCarry      what am I holding
+//     Carryable        how is THIS item held
+//     PlayerCarryArms  where do my hands go
+//     HandFingerCurl   how closed are my fingers
 //
-// So this window has a PUSH. While the game is running it can read what the
-// hands are actually doing and write it into the prefab - which survives Stop,
-// because a prefab is an asset and not a scene object.
+// One question, one owner. This window only edits the middle one.
 //
-//     press Play  ->  pick something up  ->  drag values in the Inspector
-//                 ->  Push, here         ->  press Stop, and it is still there
+// ---- THE WORKFLOW ----
 //
-// TWO SEPARATE PUSHES, because they are two separate scopes and confusing them
-// is how you overwrite twenty items to fix one:
+//     select item -> Play -> grab it -> adjust -> see it change
+//                 -> Save to prefab -> Stop -> still saved
 //
-//   Push this ITEM's grip        writes the two hand points and ten finger
-//                                curls into THAT loot prefab. Affects one item.
+// ---- WHY THE LIVE PANEL EDITS THE CLONE, NOT THE PREFAB ----
 //
-//   Push the CHARACTER settings  writes the eighteen PlayerCarryArms values
-//                                into Player.prefab. Affects everything you
-//                                pick up.
+// This is the part that did not work before and the reason is worth writing
+// down, because it looked like it worked.
 //
-// ---- WHY IT LOOKS LIKE THE INSPECTOR ----
+// LootSpawner creates items with runtime Object.Instantiate, which produces a
+// plain clone carrying its OWN copy of the grip data. PlayerCarryArms reads
+// that clone. So editing the prefab row while playing changed the asset and
+// moved nothing on screen - a live preview that previewed nothing, which is
+// worse than no preview because you trust it.
 //
-// Because it IS the Inspector's drawing code. Every row draws its fields with
-// PropertyField over a SerializedObject, so the sliders, the ranges, the
-// tooltips and the headers are the real ones off the class - not a
-// hand-rebuilt imitation that drifts the first time a field is added.
+// So while playing, the panel binds to the HELD CLONE. Every field is live,
+// because PlayerCarryArms re-reads it every frame. Save then copies clone ->
+// prefab.
+//
+// ---- AND WHY IT SAVES FIELDS, NOT COMPUTED POINTS ----
+//
+// The old save wrote the world positions the hands were actually at. Those
+// already had the character's leftHandOffset added and leftPalmEuler
+// multiplied in, so saving baked them into the item - and the next pickup
+// applied them AGAIN. Every press of the button rotated that item's saved
+// palms another 90 degrees.
+//
+// CopyGripFrom copies the fields as they stand. Saving twice does nothing the
+// second time, which is what "save" should mean.
 // ========================================================================
 
 using System.Collections.Generic;
@@ -50,7 +59,7 @@ public class GripLibraryWindow : EditorWindow
     public static void Open()
     {
         var w = GetWindow<GripLibraryWindow>("Grip Library");
-        w.minSize = new Vector2(460f, 360f);
+        w.minSize = new Vector2(470f, 380f);
         w.Rescan();
     }
 
@@ -65,6 +74,13 @@ public class GripLibraryWindow : EditorWindow
     }
 
     readonly List<Row> rows = new List<Row>();
+
+    // Bound to the HELD CLONE while playing. Rebuilt whenever what is in the
+    // hands changes, because a SerializedObject pointing at a destroyed clone
+    // throws the moment it is drawn.
+    SerializedObject liveSo;
+    Carryable liveBound;
+
     Vector2 scroll;
     string filter = "";
     bool onlyAuto = false;
@@ -73,17 +89,11 @@ public class GripLibraryWindow : EditorWindow
     void OnEnable()
     {
         Rescan();
-
-        // Play mode changes what this window can do, and a window that only
-        // repaints when the mouse moves over it will show a stale "nothing
-        // held" for as long as you are looking at it.
-        EditorApplication.playModeStateChanged += _ => Repaint();
+        EditorApplication.playModeStateChanged += _ => { liveSo = null; liveBound = null; Repaint(); };
     }
 
     void OnInspectorUpdate()
     {
-        // Ten times a second while playing, so the live panel tracks what is
-        // actually in the hands without needing the mouse.
         if (Application.isPlaying) Repaint();
     }
 
@@ -135,6 +145,11 @@ public class GripLibraryWindow : EditorWindow
             return;
         }
 
+        EditorGUILayout.LabelField(
+            "Saved grips, straight off each prefab. Auto items are measured " +
+            "from their own bounds and need no setup.",
+            EditorStyles.wordWrappedMiniLabel);
+
         scroll = EditorGUILayout.BeginScrollView(scroll);
 
         foreach (var row in rows)
@@ -154,7 +169,7 @@ public class GripLibraryWindow : EditorWindow
     }
 
     // ------------------------------------------------------------------
-    // THE LIVE PANEL - the half that makes play-mode tuning worth doing
+    // LIVE - the held item itself, editable, with a save
     // ------------------------------------------------------------------
 
     void DrawLivePanel()
@@ -166,8 +181,9 @@ public class GripLibraryWindow : EditorWindow
             if (!Application.isPlaying)
             {
                 EditorGUILayout.LabelField(
-                    "Press Play, pick something up, tune PlayerCarryArms in the " +
-                    "Inspector, then push the result down here before you Stop.",
+                    "Press Play and pick something up. Its grip appears here, " +
+                    "fully editable, and every change shows on the hands the " +
+                    "same frame. Save to prefab when it looks right.",
                     EditorStyles.wordWrappedMiniLabel);
                 return;
             }
@@ -181,69 +197,100 @@ public class GripLibraryWindow : EditorWindow
                 return;
             }
 
-            // ---- the character's own settings, which apply to everything ----
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField("Character settings", GUILayout.Width(130f));
-
-                if (GUILayout.Button("Push to Player prefab"))
-                    PushCharacterSettings(arms);
-            }
-
             var item = arms.LiveItem;
 
             if (item == null)
             {
                 EditorGUILayout.LabelField("Holding: nothing", EditorStyles.miniLabel);
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField("Character defaults", GUILayout.Width(120f));
+                    if (GUILayout.Button("Save to Player prefab"))
+                        PushCharacterSettings(arms);
+                }
+
                 return;
             }
 
-            var row = RowFor(item);
-
-            EditorGUILayout.LabelField(
-                "Holding: " + item.name + "   (" + item.Weight + ", " +
-                (item.HasCustomGrip ? "Custom" : "Auto") + ")",
-                EditorStyles.miniLabel);
-
-            if (!arms.HasLiveGrips)
+            // Rebound whenever the held item changes. A SerializedObject
+            // pointing at a dropped clone throws when drawn.
+            if (liveBound != item)
             {
-                EditorGUILayout.LabelField("Hands are not placed yet.", EditorStyles.miniLabel);
-                return;
+                liveBound = item;
+                liveSo = new SerializedObject(item);
             }
 
-            if (row == null)
-            {
-                EditorGUILayout.HelpBox(
-                    "This object could not be matched back to a prefab, so there " +
-                    "is nowhere to save it. Spawned from code with no prefab " +
-                    "link, most likely.",
-                    MessageType.Warning);
-                return;
-            }
+            GameObject source = SourcePrefabOf(item);
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("This item's grip", GUILayout.Width(130f));
+                EditorGUILayout.LabelField(
+                    "Holding: " + item.name + "  (" + item.Weight + ")",
+                    EditorStyles.miniBoldLabel);
 
-                if (GUILayout.Button("Push into " + row.prefab.name))
-                    PushItemGrip(arms, item, row);
+                GUILayout.FlexibleSpace();
+
+                using (new EditorGUI.DisabledScope(source == null))
+                {
+                    var was = GUI.backgroundColor;
+                    GUI.backgroundColor = new Color(0.55f, 0.85f, 0.55f);
+
+                    if (GUILayout.Button(source != null
+                                             ? "Save to " + source.name
+                                             : "Save to prefab",
+                                         GUILayout.Width(170f)))
+                        SaveToPrefab(item, source);
+
+                    GUI.backgroundColor = was;
+                }
+            }
+
+            if (source == null)
+                EditorGUILayout.HelpBox(
+                    "This object does not know which prefab it came from, so " +
+                    "there is nowhere to save it. LootSpawner stamps that on " +
+                    "spawn - an item placed in the scene by hand will not have " +
+                    "it, and can be edited directly in its own Inspector " +
+                    "instead.",
+                    MessageType.Warning);
+
+            liveSo.Update();
+
+            EditorGUI.indentLevel++;
+            DrawGripFields(liveSo);
+            EditorGUI.indentLevel--;
+
+            // No SetDirty and no asset save: this is a scene clone. The point
+            // is that PlayerCarryArms re-reads it every frame, so the change
+            // is on the hands immediately - and the explicit Save is what
+            // makes it outlive Stop.
+            liveSo.ApplyModifiedProperties();
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Seed from bounds"))
+                {
+                    item.gripMode = Carryable.GripMode.Custom;
+                    item.SeedGripsFromBounds();
+                    liveSo = new SerializedObject(item);
+                }
+
+                if (GUILayout.Button("Mirror left onto right"))
+                {
+                    Mirror(item.leftGrip, item.rightGrip);
+                    liveSo = new SerializedObject(item);
+                }
             }
 
             EditorGUILayout.LabelField(
-                "Pushing converts where the hands ACTUALLY are into the item's " +
-                "own space and sets it to Custom - so it keeps exactly what you " +
-                "are looking at, including the finger curls.",
+                "Editing the item in your hands. Changes are live but belong " +
+                "to this one spawned copy - Save writes them to the prefab so " +
+                "every future one starts here.",
                 EditorStyles.wordWrappedMiniLabel);
         }
     }
 
-    /// <summary>
-    /// The local player's carry arms, whatever they are called this session.
-    ///
-    /// Searched rather than cached: entering play mode destroys and rebuilds
-    /// everything, and a cached reference across that boundary is a stale
-    /// pointer that reports "no player" forever.
-    /// </summary>
     static PlayerCarryArms FindLiveArms()
     {
         foreach (var a in Object.FindObjectsByType<PlayerCarryArms>(
@@ -253,110 +300,71 @@ public class GripLibraryWindow : EditorWindow
             if (motor != null && PlayerRegistry.IsLocalFor(motor)) return a;
         }
 
-        // No local player identified - the first one is still more useful than
-        // refusing to show anything, and in single-player testing it is the
-        // right one anyway.
         return Object.FindFirstObjectByType<PlayerCarryArms>();
     }
 
     /// <summary>
-    /// Match a scene object back to the prefab it came from.
+    /// Which prefab this instance came from.
     ///
-    /// Tries the real prefab link first. Falls back to matching by name with
-    /// "(Clone)" stripped, because loot instantiated at runtime does not always
-    /// carry a link back to its source, and a workflow that silently refuses to
-    /// save is worse than one that matches by name.
+    /// The stamp LootSpawner writes at spawn is the answer, and it is exact.
+    /// PrefabUtility is tried as a fallback for objects placed in a scene by
+    /// hand, which ARE real prefab instances.
+    ///
+    /// Matching by name is deliberately gone: it worked until two prefabs
+    /// shared a name or one was renamed, and then it saved your tuning onto
+    /// the wrong asset without saying so.
     /// </summary>
-    Row RowFor(Carryable item)
+    static GameObject SourcePrefabOf(Carryable item)
     {
-        var source = PrefabUtility.GetCorrespondingObjectFromSource(item.gameObject);
+        if (item.sourcePrefab != null) return item.sourcePrefab;
 
-        if (source != null)
-            foreach (var r in rows)
-                if (r.prefab == source) return r;
-
-        string name = item.name.Replace("(Clone)", "").Trim();
-
-        foreach (var r in rows)
-            if (string.Equals(r.prefab.name, name,
-                              System.StringComparison.OrdinalIgnoreCase)) return r;
-
-        return null;
+        var src = PrefabUtility.GetCorrespondingObjectFromSource(item.gameObject);
+        return src as GameObject;
     }
 
     // ------------------------------------------------------------------
-    // THE TWO PUSHES
+    // SAVE
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Write the live hand placement into the item's prefab.
+    /// Copy the held clone's grip onto its prefab, verbatim.
     ///
-    /// Takes the WORLD points the component computed this frame and converts
-    /// them through the item's own transform, so whatever produced them -
-    /// measurement, an offset you dragged, a palm angle you nudged - is baked
-    /// in as the item's Custom grip. What you were looking at is what gets
-    /// saved.
+    /// CopyGripFrom takes the FIELDS, not the world points the hands happened
+    /// to be at - so saving twice does nothing the second time. The old
+    /// version saved computed points that already had the character's palm
+    /// angle folded in, and the next pickup folded it in again.
     /// </summary>
-    static void PushItemGrip(PlayerCarryArms arms, Carryable live, Row row)
+    void SaveToPrefab(Carryable live, GameObject prefab)
     {
-        var target = row.item;
+        if (prefab == null) return;
 
-        Undo.RecordObject(target, "Push grip to library");
+        var target = prefab.GetComponent<Carryable>();
 
-        Transform t = live.transform;
-
-        target.gripMode = Carryable.GripMode.Custom;
-
-        target.leftGrip.used = arms.LiveLeftUsed;
-        target.rightGrip.used = arms.LiveRightUsed;
-
-        if (arms.LiveLeftUsed)
+        if (target == null)
         {
-            target.leftGrip.localPosition = t.InverseTransformPoint(arms.LiveLeftPosition);
-            target.leftGrip.localEuler =
-                (Quaternion.Inverse(t.rotation) * arms.LiveLeftRotation).eulerAngles;
+            Debug.LogError("[Grip] " + prefab.name + " has no Carryable to save onto.");
+            return;
         }
 
-        if (arms.LiveRightUsed)
-        {
-            target.rightGrip.localPosition = t.InverseTransformPoint(arms.LiveRightPosition);
-            target.rightGrip.localEuler =
-                (Quaternion.Inverse(t.rotation) * arms.LiveRightRotation).eulerAngles;
-        }
+        Undo.RecordObject(target, "Save grip to prefab");
 
-        // Fingers come from the character's current values, because that is
-        // what you were watching close. If the item already had its own, they
-        // are what the hands were using and this is a no-op.
-        if (!live.HasCustomGrip)
-        {
-            Copy(target.leftGrip, arms);
-            Copy(target.rightGrip, arms);
-        }
+        target.CopyGripFrom(live);
 
         EditorUtility.SetDirty(target);
-        AssetDatabase.SaveAssetIfDirty(row.prefab);
+        AssetDatabase.SaveAssetIfDirty(prefab);
 
-        row.so = new SerializedObject(target);   // the old one now shows stale values
+        foreach (var r in rows)
+            if (r.prefab == prefab) r.so = new SerializedObject(target);
 
-        Debug.Log("[Grip] Pushed live grip into " + row.prefab.name +
-                  " and set it to Custom. It survives Stop.");
-    }
-
-    static void Copy(Carryable.HandGrip g, PlayerCarryArms arms)
-    {
-        g.thumb = arms.thumbCurl;
-        g.index = arms.indexCurl;
-        g.middle = arms.middleCurl;
-        g.ring = arms.ringCurl;
-        g.little = arms.littleCurl;
+        Debug.Log("[Grip] Saved " + live.name + "'s grip to " + prefab.name +
+                  " (" + target.gripMode + "). It survives Stop.");
     }
 
     /// <summary>
-    /// Write the live character settings onto the Player prefab.
+    /// Write the live character defaults onto the Player prefab.
     ///
-    /// Opened through PrefabUtility rather than edited in the scene, because
-    /// the thing in the scene is an instance that stops existing the moment you
-    /// press Stop - which is the entire problem this window exists to solve.
+    /// Still needs the LoadPrefabContents dance, unlike an item, because this
+    /// component lives on a scene instance that stops existing on Stop.
     /// </summary>
     static void PushCharacterSettings(PlayerCarryArms live)
     {
@@ -384,8 +392,7 @@ public class GripLibraryWindow : EditorWindow
             PrefabUtility.SaveAsPrefabAsset(root, PlayerPrefabPath);
             AssetDatabase.SaveAssets();
 
-            Debug.Log("[Grip] Pushed PlayerCarryArms settings onto Player.prefab. " +
-                      "They survive Stop.");
+            Debug.Log("[Grip] Character defaults saved to Player.prefab.");
         }
         finally
         {
@@ -394,7 +401,7 @@ public class GripLibraryWindow : EditorWindow
     }
 
     // ------------------------------------------------------------------
-    // ROWS - drawn with the Inspector's own code, not an imitation of it
+    // ROWS
     // ------------------------------------------------------------------
 
     void DrawRow(Row row)
@@ -419,7 +426,7 @@ public class GripLibraryWindow : EditorWindow
                     GUILayout.Button("Reseed", EditorStyles.miniButton, GUILayout.Width(56f)))
                 {
                     Undo.RecordObject(item, "Reseed grip");
-                    item.SeedGripsFromBounds(0.78f, 0.85f, 0.55f, 0.06f);
+                    item.SeedGripsFromBounds();
                     Save(row);
                 }
 
@@ -438,29 +445,15 @@ public class GripLibraryWindow : EditorWindow
 
             EditorGUI.indentLevel++;
 
-            // PropertyField, not hand-drawn fields: the sliders, ranges,
-            // tooltips and headers are the real ones off Carryable, so adding
-            // a field to the class shows up here with no work.
-            Field(row.so, "gripMode");
+            if (item.HasCustomGrip &&
+                (Implausible(item.leftGrip) || Implausible(item.rightGrip)))
+                EditorGUILayout.HelpBox(
+                    "These grip points are more than a metre from the item's " +
+                    "origin - almost certainly seeded before the scale bug was " +
+                    "fixed. Press Reseed.",
+                    MessageType.Warning);
 
-            if (item.HasCustomGrip)
-            {
-                if (Implausible(item.leftGrip) || Implausible(item.rightGrip))
-                    EditorGUILayout.HelpBox(
-                        "These grip points are more than a metre from the item's " +
-                        "origin - almost certainly seeded before the scale bug " +
-                        "was fixed. Press Reseed.",
-                        MessageType.Warning);
-
-                Field(row.so, "leftGrip");
-                Field(row.so, "rightGrip");
-            }
-            else
-            {
-                EditorGUILayout.LabelField(
-                    "Measured from bounds: " + item.WorldBounds.size.ToString("F2"),
-                    EditorStyles.miniLabel);
-            }
+            DrawGripFields(row.so);
 
             EditorGUI.indentLevel--;
 
@@ -469,10 +462,49 @@ public class GripLibraryWindow : EditorWindow
         }
     }
 
-    static void Field(SerializedObject so, string path)
+    /// <summary>
+    /// Every grip field, in one place.
+    ///
+    /// Shared between the live clone and the prefab rows so the two can never
+    /// show a different set - and drawn with PropertyField, so the sliders,
+    /// ranges, tooltips and headers are the real ones off Carryable and a new
+    /// field appears here with no work.
+    /// </summary>
+    static void DrawGripFields(SerializedObject so)
     {
-        var p = so.FindProperty(path);
-        if (p != null) EditorGUILayout.PropertyField(p, true);
+        foreach (string f in new[] { "gripMode", "leftGrip", "rightGrip",
+                                     "overrideMeasure", "measure" })
+        {
+            var p = so.FindProperty(f);
+            if (p == null) continue;
+
+            // The measurements only do anything when the item opts into them.
+            if (f == "measure")
+            {
+                var over = so.FindProperty("overrideMeasure");
+                if (over != null && !over.boolValue) continue;
+            }
+
+            EditorGUILayout.PropertyField(p, true);
+        }
+    }
+
+    static void Mirror(Carryable.HandGrip from, Carryable.HandGrip to)
+    {
+        to.localPosition = new Vector3(-from.localPosition.x,
+                                        from.localPosition.y,
+                                        from.localPosition.z);
+
+        to.localEuler = new Vector3(from.localEuler.x,
+                                    -from.localEuler.y,
+                                    -from.localEuler.z);
+
+        to.thumb = from.thumb;
+        to.index = from.index;
+        to.middle = from.middle;
+        to.ring = from.ring;
+        to.little = from.little;
+        to.used = from.used;
     }
 
     static void Save(Row row)

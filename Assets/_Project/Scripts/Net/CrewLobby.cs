@@ -155,6 +155,18 @@ public class CrewLobby : MonoBehaviour
     /// with Steam running you want the relay, and without it you want two
     /// windows on one machine, which is still how this gets tested alone.
     /// </remarks>
+    /// <summary>
+    /// Unity Transport, always. The local path has to be able to say "local"
+    /// without Steam overruling it - that is the whole point of having one.
+    /// </summary>
+    void UseLocalTransport()
+    {
+        if (net == null) return;
+
+        var utp = GetComponent<Unity.Netcode.Transports.UTP.UnityTransport>();
+        if (utp != null) net.NetworkConfig.NetworkTransport = utp;
+    }
+
     void UseRightTransport()
     {
         if (net == null) return;
@@ -289,7 +301,20 @@ public class CrewLobby : MonoBehaviour
     {
         if (net == null || net.IsListening) return;
 
-        UseRightTransport();
+        // ---- LOCAL MEANS LOCAL, NOT "WHATEVER UseRightTransport PICKS" ----
+        //
+        // This called UseRightTransport, which chooses Steam whenever
+        // SteamAPI.Init succeeded - and it succeeds in every instance on a
+        // machine where Steam is running. So pressing JOIN A RUN sent the
+        // join over SteamTransport with no host set, and the console said
+        //
+        //   [SteamTransport] no host to connect to - join through a friend
+        //   [Netcode] Client is shutting down due to network transport start
+        //             failure of SteamTransport!
+        //
+        // The comment above this method already said "over Unity Transport,
+        // and it stays regardless of Steam". The code did not. Now it does.
+        UseLocalTransport();
 
         if (net.StartClient()) { Where = Stage.Joining; Say("joining locally..."); }
         else Say("nothing is hosting on this machine");

@@ -262,6 +262,9 @@ public class FirstPersonViewmodel : MonoBehaviour
     public float pushSpread = 0.04f;
 
     /// <summary>0 hidden, 1 fully raised. Eased, never snapped.</summary>
+    /// <summary>So the warning above is said once, not every frame.</summary>
+    bool moanedAboutDerive;
+
     float raised;
 
     /// <summary>When the hands were last doing something, for holdAfter.</summary>
@@ -466,8 +469,39 @@ public class FirstPersonViewmodel : MonoBehaviour
         // so changing scale or the camera's eye height corrects itself.
         Vector3 place = localPosition;
 
+        // ---- A TICKED OPTION THAT SILENTLY DOES NOTHING ----
+        //
+        // rigArmHeight is measured from the arms rig, and on this model it
+        // comes out NEGATIVE: "hands sit -0.33m above the arms rig origin".
+        // The guard wants it positive, so with Derive Height From Eye ticked
+        // the branch never runs, handsBelowEye has no effect whatsoever, and
+        // place.y quietly falls back to localPosition.y.
+        //
+        // That cost real time. Both of us were tuning handsBelowEye and
+        // reading the result as "not enough" when it was "not connected" - and
+        // nothing said so, because a skipped branch looks exactly like a
+        // branch whose numbers are wrong.
+        //
+        // The guard stays as it is, because a negative measurement is a rig I
+        // cannot test against. What changes is that it now SAYS so, once, so
+        // the next person tuning a number that does nothing finds out in a
+        // second rather than an evening.
         if (deriveHeightFromEye && rigArmHeight > 0f)
+        {
             place.y = -handsBelowEye - rigArmHeight * localScale;
+        }
+        else if (deriveHeightFromEye && !moanedAboutDerive)
+        {
+            moanedAboutDerive = true;
+
+            Debug.LogWarning(
+                "[Viewmodel] Derive Height From Eye is ON but the measured arm " +
+                "height is " + rigArmHeight.ToString("0.00") + "m, which is not " +
+                "usable - so handsBelowEye is doing NOTHING and the height is " +
+                "coming from localPosition.y (" + localPosition.y.ToString("0.00") +
+                "m). Tune localPosition.y, or untick Derive Height From Eye to " +
+                "make that explicit.");
+        }
 
         // ---- THE SHOVE MOVES THE WHOLE RIG, NOT THE HAND BONES ----
         //

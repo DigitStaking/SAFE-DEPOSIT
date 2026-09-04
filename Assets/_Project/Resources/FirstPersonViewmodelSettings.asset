@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: FirstPersonViewmodelSettings
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonViewmodelSettings
   visible: 1
-  localPosition: {x: 0, y: -0.09, z: 0.87}
+  localPosition: {x: 0, y: -0.57, z: 0.87}
   deriveHeightFromEye: 1
-  handsBelowEye: 0.78
+  handsBelowEye: 0.3
   localEulerAngles: {x: -123.5, y: 0, z: 0}
   localScale: 0.54
   leftHandOffset: {x: -0.06, y: 0, z: 0}

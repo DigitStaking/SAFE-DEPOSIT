@@ -22,6 +22,12 @@
 //
 // THE ORDER TO TEST IN is the part that was missing, so it is written on the
 // component now rather than living in a chat log.
+//
+// AND THE VALUES CAN BE KEPT. Unity discards play-mode changes on Stop, which
+// is why these numbers drifted in the first place - the only way to hold onto
+// something found by feel was to write it on paper, stop, and type it back.
+// While playing there is now a button that writes them onto the PREFAB, which
+// is an asset and survives Stop.
 // ========================================================================
 
 using UnityEditor;
@@ -56,9 +62,10 @@ public class PlayerCarryArmsEditor : Editor
                 "and cannot be derived.\n\n" +
                 "4. Fingers not closing at all? Curl Fingers must be ticked, and " +
                 "HandFingerCurl must be on this same object.\n\n" +
-                "Every one of these can be dragged WHILE PLAYING - but Unity " +
-                "throws away play-mode changes on Stop, so write down anything " +
-                "you like before you stop.",
+                "Every one of these can be dragged WHILE PLAYING. Unity throws " +
+                "play-mode changes away on Stop, so when you find values you " +
+                "like, press 'Push these settings to Player.prefab' BEFORE you " +
+                "stop - the button only appears while playing.",
                 MessageType.None);
         }
 
@@ -97,6 +104,39 @@ public class PlayerCarryArmsEditor : Editor
 
         var wide = new GUIStyle(GUI.skin.button) { fixedHeight = 26f };
 
+        // ---- THE PLAY-MODE ESCAPE HATCH ----
+        //
+        // "i can just click play test and see what the best position and
+        //  change parametre in inspector and later i can push this parametres
+        //  directly to library"
+        //
+        // Unity throws away every play-mode change on Stop. That is why the
+        // numbers on this component drifted so far from anything deliberate:
+        // the only way to keep a value found by feel was to write it on paper,
+        // stop, and type it back in. Nobody does that more than twice.
+        //
+        // This writes them onto the PREFAB instead, which is an asset and
+        // survives Stop. Same button as the Grip Library's, put here as well
+        // because this is where you are already looking when you find the
+        // value worth keeping.
+        if (Application.isPlaying && PrefabUtility.IsPartOfPrefabInstance(arms.gameObject))
+        {
+            EditorGUILayout.HelpBox(
+                "Playing. Anything you change here is lost on Stop unless you " +
+                "push it to the prefab first.",
+                MessageType.Info);
+
+            var green = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.55f, 0.85f, 0.55f);
+
+            if (GUILayout.Button("Push these settings to Player.prefab", wide))
+                PushToPrefab(arms);
+
+            GUI.backgroundColor = green;
+
+            EditorGUILayout.Space();
+        }
+
         if (GUILayout.Button("Restore recommended settings", wide))
         {
             Undo.RecordObject(arms, "Restore carry grip settings");
@@ -107,5 +147,51 @@ public class PlayerCarryArmsEditor : Editor
         EditorGUILayout.Space();
 
         DrawDefaultInspector();
+    }
+
+    /// <summary>
+    /// Copy the live values onto the Player prefab.
+    ///
+    /// Opened through PrefabUtility rather than edited via the instance,
+    /// because the instance stops existing on Stop - which is the entire
+    /// problem being solved. Field-by-field rather than a whole-component
+    /// copy, because this component also holds runtime state (the eased
+    /// weight, the cached Animator) that has no business in an asset.
+    /// </summary>
+    static void PushToPrefab(PlayerCarryArms live)
+    {
+        const string path = "Assets/_Project/Prefabs/Player.prefab";
+
+        var root = PrefabUtility.LoadPrefabContents(path);
+
+        if (root == null)
+        {
+            Debug.LogError("[Grip] Could not open " + path);
+            return;
+        }
+
+        try
+        {
+            var target = root.GetComponentInChildren<PlayerCarryArms>(true);
+
+            if (target == null)
+            {
+                Debug.LogError("[Grip] No PlayerCarryArms on the Player prefab - run " +
+                               "Repair Player Prefab Components first.");
+                return;
+            }
+
+            target.CopySettingsFrom(live);
+
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log("[Grip] PlayerCarryArms settings saved to Player.prefab. " +
+                      "They survive Stop.");
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
     }
 }

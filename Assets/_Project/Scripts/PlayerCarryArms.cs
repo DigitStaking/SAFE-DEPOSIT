@@ -211,6 +211,75 @@ public class PlayerCarryArms : MonoBehaviour
     bool useL, useR;
     bool haveGrips;
 
+    // ====================================================================
+    // WHAT THE HANDS ARE DOING RIGHT NOW, READABLE FROM OUTSIDE.
+    //
+    // "i can just click play test and see what the best position and change
+    //  parametre in inspector and later i can push this parametres directly
+    //  to library"
+    //
+    // That workflow needs one thing this class was not offering: the grip it
+    // COMPUTED this frame, in world space, so the Grip Library can convert it
+    // into the item's own space and write it into the prefab.
+    //
+    // Without this the loop is broken in the middle. You can tune in play
+    // mode, it looks right, you press Stop, and Unity throws every value away
+    // - which is the same trap the viewmodel settings fell into before they
+    // became an asset.
+    // ====================================================================
+
+    /// <summary>True while the hands are actually placed on something.</summary>
+    public bool HasLiveGrips => haveGrips && live > 0.001f;
+
+    public Vector3 LiveLeftPosition => posL;
+    public Vector3 LiveRightPosition => posR;
+    public Quaternion LiveLeftRotation => rotL;
+    public Quaternion LiveRightRotation => rotR;
+    public bool LiveLeftUsed => useL;
+    public bool LiveRightUsed => useR;
+
+    /// <summary>What is in the hands this frame, or null.</summary>
+    public Carryable LiveItem => carry != null ? carry.Held : null;
+
+    /// <summary>
+    /// Copy every tunable value off another instance.
+    ///
+    /// Exists so a play-mode instance can be written back onto the prefab -
+    /// field by field rather than by serialising the whole component, because
+    /// the component also holds runtime state (the eased weight, the cached
+    /// Animator) that has no business being saved into an asset.
+    /// </summary>
+    public void CopySettingsFrom(PlayerCarryArms from)
+    {
+        if (from == null) return;
+
+        gripWidth = from.gripWidth;
+        gripHeightOnBox = from.gripHeightOnBox;
+        gripInset = from.gripInset;
+        gripToward = from.gripToward;
+        maxGripWidth = from.maxGripWidth;
+        centreOnBody = from.centreOnBody;
+
+        leftHandOffset = from.leftHandOffset;
+        rightHandOffset = from.rightHandOffset;
+
+        useHandRotation = from.useHandRotation;
+        leftPalmEuler = from.leftPalmEuler;
+        rightPalmEuler = from.rightPalmEuler;
+        rotationWeight = from.rotationWeight;
+
+        curlFingers = from.curlFingers;
+        thumbCurl = from.thumbCurl;
+        indexCurl = from.indexCurl;
+        middleCurl = from.middleCurl;
+        ringCurl = from.ringCurl;
+        littleCurl = from.littleCurl;
+
+        blendTime = from.blendTime;
+        weight = from.weight;
+        drawGrips = from.drawGrips;
+    }
+
     void Awake()
     {
         anim = GetComponent<Animator>();

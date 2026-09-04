@@ -125,12 +125,30 @@ public class HandFingerCurl : MonoBehaviour
         }
     };
 
-    void Awake()
+    bool cached;
+
+    void Awake() => TryCache();
+
+    /// <summary>
+    /// Cache the bones, and be willing to try again.
+    ///
+    /// On the real body Awake is plenty. On the VIEWMODEL clone this component
+    /// is added while the rig is still being assembled, so the Animator may not
+    /// have its avatar yet and isHuman comes back false - cache once in Awake
+    /// and those fingers never move again, with nothing in the failure pointing
+    /// at construction order. So it retries until it succeeds, then stops
+    /// asking.
+    /// </summary>
+    bool TryCache()
     {
-        anim = GetComponent<Animator>();
-        if (anim == null || !anim.isHuman) return;
+        if (cached) return true;
+
+        if (anim == null) anim = GetComponent<Animator>();
+        if (anim == null || !anim.isHuman) return false;
 
         Cache();
+        cached = true;
+        return true;
     }
 
     /// <summary>
@@ -258,6 +276,8 @@ public class HandFingerCurl : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!TryCache()) return;
+
         float step = blendTime <= 0f ? 1f : Time.deltaTime / blendTime;
 
         for (int h = 0; h < 2; h++)

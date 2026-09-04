@@ -187,6 +187,16 @@ public class PlayerPush : NetworkBehaviour
             Connect();
         }
 
+        // ---- A TEST PROFILE LASTS EXACTLY ONE SWING ----
+        //
+        // Without this it would last forever: press Test once while tuning,
+        // and every real shove for the rest of the session quietly uses the
+        // profile you were experimenting with. That is the kind of bug that
+        // survives a whole playtest and gets blamed on the wrong system,
+        // because nothing about it looks like a leftover.
+        if (previewOverride != null && PushProgress < 0f)
+            previewOverride = null;
+
         ReadKey();
     }
 
@@ -229,10 +239,83 @@ public class PlayerPush : NetworkBehaviour
             AnnounceSwingServerRpc();
     }
 
+    // ====================================================================
+    // WHICH GESTURE THIS SHOVE USES.
+    //
+    // "This object -> Heavy Door Push Profile -> load these hand settings"
+    //
+    // Resolved when the SWING STARTS, not when it CONNECTS. Those are 0.62 of
+    // armTime apart, and the hands begin moving at the first of them - a
+    // profile picked at contact would change the gesture two thirds of the way
+    // through it, which is the definition of a snap.
+    //
+    // It does mean the gesture can be for a door you then miss. That is the
+    // correct trade and the same one the whiff already makes: you commit to a
+    // shove when you throw it, not when it lands.
+    // ====================================================================
+
+    /// <summary>The profile this swing is using, or null for the default.
+    /// Read by the viewmodel every frame while the hands are moving.</summary>
+    public PushProfile ActiveProfile { get; private set; }
+
+    /// <summary>
+    /// Forces the next swing to use this profile regardless of what is in
+    /// front of you. Set by the Push Library's Test button so a gesture can be
+    /// tuned without finding a door first, and cleared the moment the swing
+    /// ends.
+    /// </summary>
+    [System.NonSerialized] public PushProfile previewOverride;
+
+    /// <summary>
+    /// Swing the arms with no physics and no networking.
+    ///
+    /// For tuning only. It deliberately skips the cooldown and the carrying
+    /// check, because being unable to test a gesture until the game agrees you
+    /// are allowed to shove is how tuning sessions turn into ten minutes of
+    /// walking around.
+    /// </summary>
+    public void TestSwing(PushProfile profile)
+    {
+        previewOverride = profile;
+        ActiveProfile = profile;
+
+        lastPush = Time.time;
+        contacted = true;          // already "connected", so Connect never probes
+    }
+
     void StartSwing()
     {
         lastPush = Time.time;
         contacted = false;
+
+        ActiveProfile = previewOverride != null ? previewOverride : LookUpProfile();
+    }
+
+    /// <summary>
+    /// What is in front of the eye right now, and what gesture it wants.
+    ///
+    /// A second spherecast, on the keypress only, with the same shape as the
+    /// one Connect uses - so the thing whose profile you get is the thing you
+    /// would have hit had you connected this instant.
+    /// </summary>
+    PushProfile LookUpProfile()
+    {
+        Transform eye = motor != null ? motor.Eye : null;
+        if (eye == null) return null;
+
+        if (!Physics.SphereCast(eye.position, radius, eye.forward,
+                                out RaycastHit hit, range, mask,
+                                QueryTriggerInteraction.Ignore))
+            return null;
+
+        if (hit.collider == null) return null;
+
+        // Never yourself, same as Connect - the probe starts inside your own
+        // capsule and you do not have a push profile.
+        if (hit.transform == transform || hit.transform.IsChildOf(transform))
+            return null;
+
+        return Pushable.For(hit.collider);
     }
 
     /// <summary>

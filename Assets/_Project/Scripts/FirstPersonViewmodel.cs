@@ -486,17 +486,85 @@ public class FirstPersonViewmodel : MonoBehaviour
             armsIK.space = anchor;
 
             armsIK.pushElapsed = pushNow;
-            armsIK.pushForward = pushForward;
-            armsIK.pushDuration = pushDuration;
-            armsIK.pushHold = pushHold;
-            armsIK.pushReturn = pushReturn;
-            armsIK.pushSpread = pushSpread;
-            armsIK.pushHandRotation = pushHandRotation;
+
+            FeedPushProfile();
         }
         clone.localRotation = Quaternion.Euler(localEulerAngles);
         clone.localScale = Vector3.one * Mathf.Max(0.01f, localScale);
 
         if (vmCam != null && !visible) vmCam.enabled = false;
+    }
+
+    // ====================================================================
+    // THIS OBJECT -> THAT PROFILE -> THESE HANDS.
+    //
+    // Copied onto the rig EVERY FRAME, not once when the shove starts.
+    //
+    // That is what makes the Push Library's live preview work: a PushProfile
+    // is a ScriptableObject asset, so dragging one of its sliders mid-push
+    // changes the file, and the very next frame reads the new value. Cache it
+    // at swing start and you get a system where tuning does nothing until you
+    // let go of G and press it again - which is exactly how the viewmodel
+    // numbers became untunable before they were moved into an asset.
+    //
+    // The fallback chain is: the object's profile, then the default profile,
+    // then the flat fields off FirstPersonViewmodelSettings. An object with no
+    // Pushable still gets shoved, and a project with no profiles at all still
+    // behaves exactly as it did before any of this existed.
+    // ====================================================================
+
+    [Header("Push profiles")]
+    [Tooltip("Used when the thing being shoved has no Pushable, or its " +
+             "Pushable has no profile. Leave empty to fall back to the flat " +
+             "push numbers on the viewmodel settings asset.")]
+    public PushProfile defaultPushProfile;
+
+    void FeedPushProfile()
+    {
+        var p = realPush != null ? realPush.ActiveProfile : null;
+        if (p == null) p = defaultPushProfile;
+
+        if (p == null)
+        {
+            // No profiles anywhere - behave exactly as before they existed, so
+            // adding this system to a project mid-flight changes nothing until
+            // a profile is actually assigned.
+            armsIK.pushLeftUsed = armsIK.pushRightUsed = true;
+            armsIK.pushLeftOffset = new Vector3(0f, 0f, pushForward);
+            armsIK.pushRightOffset = new Vector3(0f, 0f, pushForward);
+            armsIK.pushLeftRotation = armsIK.pushRightRotation = Vector3.zero;
+            armsIK.pushPalmRotation = pushHandRotation;
+            armsIK.pushSpread = pushSpread;
+            armsIK.pushDuration = pushDuration;
+            armsIK.pushHold = pushHold;
+            armsIK.pushReturn = pushReturn;
+            armsIK.pushCurlFingers = false;
+            return;
+        }
+
+        armsIK.pushLeftUsed = p.left.used;
+        armsIK.pushRightUsed = p.right.used;
+
+        armsIK.pushLeftOffset = p.left.offset;
+        armsIK.pushRightOffset = p.right.offset;
+
+        armsIK.pushLeftRotation = p.left.rotation;
+        armsIK.pushRightRotation = p.right.rotation;
+
+        armsIK.pushPalmRotation = p.palmRotation;
+        armsIK.pushSpread = p.spread;
+
+        armsIK.pushDuration = p.duration;
+        armsIK.pushHold = p.hold;
+        armsIK.pushReturn = p.returnTime;
+
+        armsIK.pushCurlFingers = true;
+        armsIK.pushLeftFingers =
+            new Vector4(p.left.thumb, p.left.index, p.left.middle, p.left.ring);
+        armsIK.pushLeftLittle = p.left.little;
+        armsIK.pushRightFingers =
+            new Vector4(p.right.thumb, p.right.index, p.right.middle, p.right.ring);
+        armsIK.pushRightLittle = p.right.little;
     }
 
     /// <summary>
@@ -796,6 +864,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         armsIK = go.GetComponent<ViewmodelArmsIK>();
         if (armsIK == null) armsIK = go.AddComponent<ViewmodelArmsIK>();
         armsIK.space = anchor;
+
+        // Fingers on the viewmodel too. HandFingerCurl works off the rig's own
+        // geometry rather than anything about the body it came from, so the
+        // clone can carry its own copy and needs no wiring - ViewmodelArmsIK
+        // finds it with GetComponent.
+        if (go.GetComponent<HandFingerCurl>() == null)
+            go.AddComponent<HandFingerCurl>();
         SetLayerRecursively(go, LayerMask.NameToLayer(ViewmodelLayerName));
 
         clone = t;
@@ -879,6 +954,16 @@ public class FirstPersonViewmodel : MonoBehaviour
         DestroyAllOfType<FirstPersonHands>(go);
         DestroyAllOfType<ProceduralLegsIK>(go);
         DestroyAllOfType<PlayerPushArms>(go);
+
+        // PlayerCarryArms reaches up for PlayerCarry, finds the viewmodel
+        // camera instead, and then zeroes both hand IK weights every frame
+        // forever - which ViewmodelArmsIK overwrites at order 40, so it never
+        // showed. A discarded solve per frame is still one worth not doing,
+        // and it was one more thing writing goals nobody could account for.
+        DestroyAllOfType<PlayerCarryArms>(go);
+
+        // HandFingerCurl is deliberately NOT stripped: it works off the rig's
+        // own geometry and the viewmodel wants fingers of its own.
 
         // Defensive: this is a visual FBX child and should carry none of
         // these, but a clone that could physically collide with the world or

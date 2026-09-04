@@ -5,43 +5,43 @@
 // ========================================================================
 // REST -> FORWARD, FLAT PALMS -> REST. NOTHING ELSE.
 //
-// "when I trigger PUSH, the hands suddenly teleport/jump upward before the
-//  push animation starts... the push animation must start exactly from the
-//  current/default first-person hand position"
+// "There must be NO teleporting or snapping when the push starts. The
+//  animation must start from the exact current first-person resting hand
+//  position."
 //
-// TWO separate causes were producing that, and only one of them was in this
-// file.
+// That is guaranteed here by construction rather than by care, and the
+// distinction matters because two earlier versions were careful and still
+// snapped.
 //
-// The first was in FirstPersonViewmodel: pushing counted as "hands busy",
-// which raised the whole rig by hiddenOffset - 45cm straight up - the instant
-// G was pressed. That is fixed there; a shove no longer moves the rig at all.
+// EVERY VALUE IS AN OFFSET FROM THE LIVE POSE:
 //
-// The second was here, and it would have survived that fix. The gesture used
-// to lerp from a FROZEN SNAPSHOT of the rest pose, taken the frame before the
-// push began. Anything that moved the hands during the push - the rig
-// rising, the walk cycle swinging, the idle breathing - was then fighting a
-// stale target, and the hands were dragged back to where they used to be.
+//     world = wherever the animation has this hand THIS FRAME + offset(t)
 //
-// So the gesture is ADDITIVE now. It is an offset from wherever the animation
-// has the hand THIS frame, and that offset is zero at the start:
-//
-//     world = live bone position + offset(elapsed)
-//
-// At elapsed 0 the offset is exactly zero, so the hand does not move at all on
-// the first frame. It cannot snap, because there is nothing to snap FROM - it
-// is already where it was. And because the baseline is read live rather than
+// At t = 0 the offset is exactly zero, so the hand does not move at all on the
+// first frame. It cannot snap because there is nothing to snap FROM - it is
+// already where it was. And because the baseline is read live rather than
 // frozen, a shove thrown mid-walk rides the walk cycle instead of cancelling
 // it.
 //
-// The shape is the plain one that was asked for, in real seconds rather than
-// fractions of a mystery duration:
+// ---- THE TWO WAYS THIS PREVIOUSLY SNAPPED, BOTH FIXED ----
 //
-//     pushDuration   reach out and turn the palms flat
-//     pushHold       stay there
-//     pushReturn     ease back, longer than the reach, because arms are
-//                    thrown out and then relax
+// v1 lerped from a FROZEN SNAPSHOT of the rest pose taken the frame before the
+// push. Anything that moved the hands during the push - the rig rising, the
+// walk swing, idle breathing - fought a stale target and dragged them back.
 //
-// No wind-up, no draw-back. Those were my additions and they are gone.
+// v2 was additive, but FirstPersonViewmodel counted pushing as "hands busy",
+// which raised the whole rig by hiddenOffset - 45cm straight up - the instant
+// G was pressed. Fixed there; a shove no longer moves the rig at all.
+//
+// Neither is reachable now: there is no snapshot to go stale, and no absolute
+// position anywhere in this file.
+//
+// ---- DRIVEN BY A PUSH PROFILE ----
+//
+// The numbers arrive per-hand and are replaced every frame by
+// FirstPersonViewmodel from whichever PushProfile the current shove resolved
+// to. Editing that asset mid-push shows up on the next frame - which is the
+// entire point of the Push Library, and is why nothing here is cached.
 // ========================================================================
 
 using UnityEngine;
@@ -60,19 +60,61 @@ public class ViewmodelArmsIK : MonoBehaviour
     /// because that is the space the person tuning them looks through.</summary>
     [HideInInspector] public Transform space;
 
-    // ---- the shove ----
+    // ---- the shove, from the active PushProfile ----
 
     /// <summary>Seconds since the shove began. Negative means idle.</summary>
     [HideInInspector] public float pushElapsed = -1f;
 
-    [HideInInspector] public float pushForward = 0.2f;
+    [HideInInspector] public bool pushLeftUsed = true;
+    [HideInInspector] public bool pushRightUsed = true;
+
+    /// <summary>Where each hand travels to at full push, in CAMERA space,
+    /// as an offset from wherever it already is.</summary>
+    [HideInInspector] public Vector3 pushLeftOffset = new Vector3(0f, 0f, 0.2f);
+    [HideInInspector] public Vector3 pushRightOffset = new Vector3(0f, 0f, 0.2f);
+
+    /// <summary>Per-hand rotation at full push, additive on the live pose.</summary>
+    [HideInInspector] public Vector3 pushLeftRotation;
+    [HideInInspector] public Vector3 pushRightRotation;
+
+    /// <summary>The mirrored "palms go flat" gesture, on top of the per-hand
+    /// rotations above.</summary>
+    [HideInInspector] public Vector3 pushPalmRotation = new Vector3(0f, 0f, 55f);
+
+    [HideInInspector] public float pushSpread = 0.04f;
     [HideInInspector] public float pushDuration = 0.18f;
     [HideInInspector] public float pushHold = 0.08f;
     [HideInInspector] public float pushReturn = 0.3f;
-    [HideInInspector] public float pushSpread = 0.04f;
-    [HideInInspector] public Vector3 pushHandRotation = new Vector3(0f, 0f, 55f);
+
+    // ---- fingers, driven through HandFingerCurl if it is present ----
+
+    [HideInInspector] public bool pushCurlFingers = true;
+    [HideInInspector] public Vector4 pushLeftFingers;    // thumb, index, middle, ring
+    [HideInInspector] public float pushLeftLittle;
+    [HideInInspector] public Vector4 pushRightFingers;
+    [HideInInspector] public float pushRightLittle;
 
     Animator anim;
+    HandFingerCurl fingersCached;
+
+    /// <summary>
+    /// Found on demand rather than in Awake.
+    ///
+    /// FirstPersonViewmodel builds the clone by adding components one after
+    /// another, and AddComponent runs Awake IMMEDIATELY - so this component's
+    /// Awake fires before HandFingerCurl has been added, caches null, and the
+    /// fingers never move again. Nothing about that failure points at
+    /// construction order, which is what makes it worth avoiding rather than
+    /// debugging.
+    /// </summary>
+    HandFingerCurl Fingers
+    {
+        get
+        {
+            if (fingersCached == null) fingersCached = GetComponent<HandFingerCurl>();
+            return fingersCached;
+        }
+    }
 
     void Awake() => anim = GetComponent<Animator>();
 
@@ -83,23 +125,37 @@ public class ViewmodelArmsIK : MonoBehaviour
         float push = PushAmount();
 
         // Nothing to do: write NOTHING, not even a zero weight. Nothing else
-        // writes these goals, so leaving them alone is correct - and it saves
-        // a pointless solve on a rig the animation is already posing properly.
-        if (push <= 0.0001f && !Nudged()) return;
+        // writes these goals on the clone, so leaving them alone is correct -
+        // and it saves a pointless solve on a rig the animation already poses.
+        if (push <= 0.0001f && !Nudged())
+        {
+            Curl(0f);
+            return;
+        }
 
-        Apply(AvatarIKGoal.LeftHand, HumanBodyBones.LeftHand, leftOffset, -1f, push);
-        Apply(AvatarIKGoal.RightHand, HumanBodyBones.RightHand, rightOffset, +1f, push);
+        Apply(AvatarIKGoal.LeftHand, HumanBodyBones.LeftHand,
+              leftOffset, pushLeftOffset, pushLeftRotation, pushLeftUsed, -1f, push);
+
+        Apply(AvatarIKGoal.RightHand, HumanBodyBones.RightHand,
+              rightOffset, pushRightOffset, pushRightRotation, pushRightUsed, +1f, push);
+
+        Curl(push);
     }
 
     bool Nudged() =>
         leftOffset != Vector3.zero || rightOffset != Vector3.zero ||
         !Mathf.Approximately(spread, 0f) || !Mathf.Approximately(reach, 0f);
 
-    void Apply(AvatarIKGoal goal, HumanBodyBones bone, Vector3 offset,
+    void Apply(AvatarIKGoal goal, HumanBodyBones bone, Vector3 rest,
+               Vector3 pushOffset, Vector3 pushRotation, bool used,
                float side, float push)
     {
         var t = anim.GetBoneTransform(bone);
         if (t == null) return;
+
+        // A hand this profile does not use still gets its RESTING nudge - it
+        // is only excluded from the shove, not from existing.
+        if (!used) pushOffset = Vector3.zero;
 
         Vector3 right = space != null ? space.right : Vector3.right;
         Vector3 up = space != null ? space.up : Vector3.up;
@@ -112,25 +168,69 @@ public class ViewmodelArmsIK : MonoBehaviour
         // keeps driving underneath - walk swing, idle breathing - rather than
         // being replaced by a pose of our own.
         Vector3 world = t.position
-                      + right * (offset.x + spread * side + pushSpread * side * push)
-                      + up * offset.y
-                      + fwd * (offset.z + reach + pushForward * push);
+                      + right * (rest.x + spread * side
+                                 + (pushOffset.x + pushSpread * side) * push)
+                      + up * (rest.y + pushOffset.y * push)
+                      + fwd * (rest.z + reach + pushOffset.z * push);
 
         anim.SetIKPositionWeight(goal, 1f);
         anim.SetIKPosition(goal, world);
 
-        if (push <= 0.0001f) return;
+        if (push <= 0.0001f || !used)
+        {
+            anim.SetIKRotationWeight(goal, 0f);
+            return;
+        }
 
-        // Palms go flat INTO the push and unwind out of it, rotated from the
-        // pose the animation is holding. Mirrored between the hands, because a
-        // left hand is a right hand reflected and one shared angle would put a
-        // palm inside out.
-        Quaternion flat = Quaternion.Euler(pushHandRotation.x,
-                                           pushHandRotation.y,
-                                           pushHandRotation.z * side);
+        // Two rotations, both additive on the pose the animation is holding:
+        //
+        //   palmRotation   MIRRORED between the hands - the shared "palms go
+        //                  flat" gesture. A left hand is a right hand
+        //                  reflected, so one shared angle would turn one palm
+        //                  inside out; the sign flip is what stops that.
+        //
+        //   pushRotation   this hand's own correction, NOT mirrored, because
+        //                  the whole reason it exists is fixing one hand that
+        //                  the mirrored version got wrong.
+        Quaternion flat = Quaternion.Euler(pushPalmRotation.x,
+                                           pushPalmRotation.y,
+                                           pushPalmRotation.z * side);
+
+        Quaternion own = Quaternion.Euler(pushRotation);
 
         anim.SetIKRotationWeight(goal, push);
-        anim.SetIKRotation(goal, Quaternion.Slerp(t.rotation, t.rotation * flat, push));
+        anim.SetIKRotation(goal,
+            Quaternion.Slerp(t.rotation, t.rotation * flat * own, push));
+    }
+
+    /// <summary>
+    /// Open or close the fingers with the shove.
+    ///
+    /// Scaled by the push amount so they open as the arms return, which means
+    /// they too are zero at both ends and cannot pop. Written to zero rather
+    /// than skipped when idle, because a finger curl persists exactly like an
+    /// IK weight does.
+    /// </summary>
+    void Curl(float push)
+    {
+        var fingers = Fingers;
+        if (fingers == null) return;
+
+        if (!pushCurlFingers || push <= 0.0001f)
+        {
+            fingers.ClearAll();
+            return;
+        }
+
+        fingers.SetCurl(true,
+            pushLeftFingers.x * push, pushLeftFingers.y * push,
+            pushLeftFingers.z * push, pushLeftFingers.w * push,
+            pushLeftLittle * push);
+
+        fingers.SetCurl(false,
+            pushRightFingers.x * push, pushRightFingers.y * push,
+            pushRightFingers.z * push, pushRightFingers.w * push,
+            pushRightLittle * push);
     }
 
     /// <summary>

@@ -355,33 +355,68 @@ public class PlayerCarryArms : MonoBehaviour
         anim.SetIKRotation(goal, rot);
     }
 
+    // ====================================================================
+    // ELBOW DIAGNOSTICS - read by ElbowAudit, written every frame.
+    //
+    // Public because "the elbow does nothing" is not a claim anybody should
+    // have to settle by reading code. It was settled by arithmetic in the end,
+    // and these are the numbers that show it.
+    // ====================================================================
+
+    public struct ElbowReport
+    {
+        public bool asked;         // the item wants this elbow steered
+        public float angle;
+        public float weight;       // what the item asked for
+        public float appliedWeight; // what the solver actually received
+        public Vector3 hint;
+        public float span;         // shoulder to hand, metres
+        public float reach;        // upper arm + forearm, metres
+        public bool overstretched; // span >= reach: no bend left to steer
+    }
+
+    public ElbowReport LeftElbowReport;
+    public ElbowReport RightElbowReport;
+
     /// <summary>
     /// Swing one elbow around the arm, if the item asked for it.
     ///
-    /// ---- WHY AN ANGLE AND NOT A POINT ----
+    /// ---- WHY THE FIRST VERSION DID NOTHING ----
     ///
-    /// With the shoulder fixed and the hand already placed by the grip, the
-    /// elbow has exactly one degree of freedom: it rotates around the line from
-    /// shoulder to hand. A 3D hint offered three numbers for a one-number
-    /// problem, and the two spare ones only moved the target somewhere
-    /// unreachable.
+    /// It rotated the elbow's CURRENT offset from the shoulder:
     ///
-    /// So the angle is turned into a hint HERE, from the arm's live geometry:
-    /// take where the elbow currently is, spin it around the shoulder-to-hand
-    /// axis, and hand the solver that point. Same channel, same solver, but the
-    /// control has the shape of the thing it controls.
+    ///     fromShoulder = elbow.position - shoulder.position
+    ///     swung        = AngleAxis(degrees, axis) * fromShoulder
     ///
-    /// ---- THE SAME SOLVER, NOT A SECOND ONE ----
+    /// which is correct right up until the arm is straight - and then
+    /// fromShoulder is PARALLEL to axis, and rotating a vector about an axis it
+    /// is parallel to is the identity. Same hint position at 20 degrees and at
+    /// 160. Not a small effect: exactly zero.
     ///
-    /// AvatarIKHint is part of Unity's humanoid IK - the same solver that
-    /// places the hand, in the same OnAnimatorIK pass. The hand does not move;
-    /// only the bend between shoulder and hand changes.
+    /// The arms were straight because the hand targets were metres away. An
+    /// unreachable IK goal makes the solver extend the limb fully toward it, a
+    /// fully extended arm has its elbow ON the shoulder-to-hand line, and an
+    /// elbow on that line has no bend left for a hint to steer. So the elbow
+    /// control was disabled by a grip bug two systems away, silently.
+    ///
+    /// ---- SO THE HINT NO LONGER DEPENDS ON WHERE THE ELBOW IS ----
+    ///
+    /// It is built from a reference direction PERPENDICULAR to the arm, swept
+    /// around it by the angle. That describes a real circle for any angle on
+    /// any arm, straight or bent, so the control is always well defined even
+    /// when the arm cannot currently act on it.
+    ///
+    /// Still AvatarIKHint, still the same humanoid solver that places the hand,
+    /// still the same OnAnimatorIK pass. No second arm solver.
     /// </summary>
     void Elbow(AvatarIKHint hint, bool leftHand, Carryable item, bool used)
     {
+        ref ElbowReport report = ref (leftHand ? ref LeftElbowReport
+                                               : ref RightElbowReport);
+        report = default;
+
         if (!used || item == null ||
-            !item.ElbowSwing(leftHand, out float degrees, out float w) ||
-            Mathf.Abs(degrees) < 0.01f)
+            !item.ElbowSwing(leftHand, out float degrees, out float w))
         {
             anim.SetIKHintPositionWeight(hint, 0f);
             return;
@@ -401,23 +436,73 @@ public class PlayerCarryArms : MonoBehaviour
         }
 
         Vector3 axis = hand.position - shoulder.position;
+        float span = axis.magnitude;
 
         // A fully folded arm has the hand back at the shoulder and no axis to
-        // rotate about. Rare, but the cross product would be noise and the
-        // elbow would jitter.
-        if (axis.sqrMagnitude < 1e-6f)
+        // rotate about at all.
+        if (span < 1e-4f)
         {
             anim.SetIKHintPositionWeight(hint, 0f);
             return;
         }
 
-        // Where the elbow is now, spun around the arm. Read live rather than
-        // cached, so the swing rides the walk cycle instead of fighting it.
-        Vector3 fromShoulder = elbow.position - shoulder.position;
-        Vector3 swung = Quaternion.AngleAxis(degrees, axis.normalized) * fromShoulder;
+        axis /= span;
 
-        anim.SetIKHintPositionWeight(hint, live * w);
-        anim.SetIKHintPosition(hint, shoulder.position + swung);
+        float upper = Vector3.Distance(shoulder.position, elbow.position);
+        float lower = Vector3.Distance(elbow.position, hand.position);
+        float reach = upper + lower;
+
+        // ---- A REFERENCE THAT DOES NOT DEPEND ON THE CURRENT BEND ----
+        //
+        // Straight down the body, flattened against the arm axis. That is
+        // where a relaxed elbow hangs, so angle 0 reads as "normal" and the
+        // sweep goes out from there.
+        Transform body = motor != null ? motor.transform : transform;
+
+        Vector3 reference = Vector3.ProjectOnPlane(-body.up, axis);
+
+        // Arm pointing straight down: "down" has no perpendicular component
+        // left, so fall back to behind the body, which does.
+        if (reference.sqrMagnitude < 1e-6f)
+            reference = Vector3.ProjectOnPlane(-body.forward, axis);
+
+        if (reference.sqrMagnitude < 1e-6f)
+        {
+            anim.SetIKHintPositionWeight(hint, 0f);
+            return;
+        }
+
+        reference.Normalize();
+
+        Vector3 dir = Quaternion.AngleAxis(degrees, axis) * reference;
+
+        // Half way along the arm, out by a quarter of its reach. Far enough
+        // that the solver has something clear to aim at, near enough that it is
+        // a hint rather than a second goal.
+        Vector3 mid = shoulder.position + axis * (span * 0.5f);
+        Vector3 hintPos = mid + dir * (reach * 0.25f);
+
+        float applied = live * w;
+
+        anim.SetIKHintPositionWeight(hint, applied);
+        anim.SetIKHintPosition(hint, hintPos);
+
+        report.asked = true;
+        report.angle = degrees;
+        report.weight = w;
+        report.appliedWeight = applied;
+        report.hint = hintPos;
+        report.span = span;
+        report.reach = reach;
+
+        // ---- THE CONDITION THAT SILENTLY DISABLES ALL OF THIS ----
+        //
+        // If the hand goal is further away than the arm is long, the solver
+        // extends the arm fully and there is no bend left for any hint to
+        // steer. Reported rather than worked around, because the fix is to the
+        // GRIP, not to the elbow - and a system that quietly compensated would
+        // hide the thing actually worth fixing.
+        report.overstretched = span >= reach * 0.995f;
     }
 
     /// <summary>

@@ -505,23 +505,6 @@ public class LootSpawner : MonoBehaviour
 
         GameObject go = t.prefab != null ? Instantiate(t.prefab) : null;
 
-        // ---- TELL THE ITEM WHERE IT CAME FROM ----
-        //
-        // Object.Instantiate produces a plain clone with no prefab connection,
-        // so PrefabUtility cannot trace it back and the Grip Library was
-        // reduced to matching by NAME with "(Clone)" stripped. That works
-        // until two prefabs share a name or one gets renamed, and then it
-        // silently saves your tuning onto the wrong asset - the kind of bug
-        // you discover by finding a crate holding a filing cabinet's grip.
-        //
-        // One assignment removes the guesswork entirely. Editor-facing only;
-        // nothing in a build reads it.
-        if (go != null && t.prefab != null)
-        {
-            var carryable = go.GetComponent<Carryable>();
-            if (carryable != null) carryable.sourcePrefab = t.prefab;
-        }
-
         if (go == null)
         {
             go = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -586,6 +569,24 @@ public class LootSpawner : MonoBehaviour
         var carryable = go.GetComponent<Carryable>();
         if (carryable == null) carryable = go.AddComponent<Carryable>();
         carryable.value = value;
+
+        // ---- TELL THE ITEM WHERE IT CAME FROM ----
+        //
+        // Object.Instantiate produces a plain clone with no prefab connection,
+        // so PrefabUtility cannot trace it back and the Grip Library was
+        // reduced to matching by NAME with "(Clone)" stripped. That works
+        // until two prefabs share a name or one is renamed, and then it
+        // silently saves your tuning onto the wrong asset - the kind of bug
+        // you find by noticing a crate holding a filing cabinet's grip.
+        //
+        // Here rather than beside the Instantiate, because the Carryable is
+        // already in hand at this point. A second GetComponent for something
+        // fetched three lines later is the sort of thing that looks harmless
+        // and then quietly disagrees with the first one.
+        //
+        // Null for the fallback primitive cube, which came from no prefab -
+        // correct, and the Grip Library says so rather than guessing.
+        carryable.sourcePrefab = t.prefab;
 
         // The tag that survives the campaign. Tier and mass are what a
         // Carryable cannot tell you, and both are needed to rebuild this

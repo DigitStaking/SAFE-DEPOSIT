@@ -186,35 +186,50 @@ public class Carryable : MonoBehaviour
                  "the hand every time you want a different wrist angle.")]
         public Vector3 palmRotation;
 
-        // ---- ELBOW ----
+        // ---- ELBOW: ONE ANGLE, AROUND THE ARM ----
         //
-        // Unity's humanoid IK already has an elbow channel: AvatarIKHint.
-        // LeftElbow / RightElbow, solved by the SAME solver that places the
-        // hand, in the same OnAnimatorIK pass. Nothing extra is created here -
-        // a second arm solver fighting the first is exactly the class of bug
-        // this project has spent days pulling apart.
+        // "i need just rotation for the elbow, rotation in one axe the axe
+        //  where is the direction of arm"
         //
-        // A hint is a point the elbow is pulled TOWARD, not a position it is
-        // moved to. The hand stays exactly where it was put; only the bend of
-        // the arm between shoulder and hand changes. So this cannot break a
-        // grip you have already tuned - which is why it is safe to add after
-        // the hands are right.
+        // Right, and it is not a simplification - it is the actual shape of
+        // the problem. With the shoulder fixed and the hand already placed by
+        // the grip, the elbow has exactly ONE degree of freedom left: it swings
+        // around the line from shoulder to hand, like a hinge on a door whose
+        // top and bottom are pinned. Everything else is decided by the two
+        // ends and the length of the arm.
+        //
+        // So a 3D point was the wrong control. It offered three numbers for a
+        // one-number problem, and two of them did nothing except move the
+        // target somewhere unreachable - which is what a hint of
+        // (237, 50, 74) is: a point 250 metres away, in a direction so far off
+        // that nudging it changes nothing you can see.
+        //
+        // One angle, in degrees. 0 leaves the arm where the animation had it;
+        // positive and negative swing the elbow out and in.
+        //
+        // Still driven through AvatarIKHint - the elbow channel of the SAME
+        // humanoid solver that places the hand, in the same OnAnimatorIK pass.
+        // No second arm solver, and the hand does not move: only the bend
+        // between shoulder and hand changes, which is why this is safe to add
+        // to grips that are already tuned.
 
         [Header("Elbow")]
         [Tooltip("Steer this arm's elbow. Off leaves the bend to the solver's " +
                  "own default, which is fine for most things.")]
         public bool useElbowHint = false;
 
-        [Tooltip("A point the elbow is pulled TOWARD, in the ITEM'S space. " +
-                 "The hand does not move - only the bend of the arm between " +
-                 "shoulder and hand.\n\n" +
-                 "Out to the side and back for a wide box; in toward the ribs " +
-                 "for a radio or a flashlight.")]
-        public Vector3 elbowHint;
+        [Tooltip("How far the elbow swings AROUND THE ARM, in degrees. " +
+                 "The axis is the line from shoulder to hand, so this is the " +
+                 "one direction the elbow can actually move once the hand is " +
+                 "placed.\n\n" +
+                 "0 leaves it where the animation had it. Positive swings it " +
+                 "one way, negative the other - which way depends on the arm, " +
+                 "so drag it and watch rather than working it out.\n\n" +
+                 "Out for a wide box, in toward the ribs for a radio.")]
+        [Range(-180f, 180f)] public float elbowAngle = 0f;
 
-        [Tooltip("How strongly the elbow is pulled, 0 to 1. Part-way is " +
-                 "usually better than all the way - it nudges the bend rather " +
-                 "than dictating it.")]
+        [Tooltip("How strongly the elbow is steered, 0 to 1. Part-way nudges " +
+                 "the bend rather than dictating it.")]
         [Range(0f, 1f)] public float elbowWeight = 1f;
 
         [Header("Fingers - 0 straight, 1 fully curled")]
@@ -356,13 +371,13 @@ public class Carryable : MonoBehaviour
                                   * Quaternion.Euler(rightGrip.palmRotation);
     }
 
-    /// <summary>Where this hand's elbow should be pulled, in world space, or
-    /// null-equivalent via the bool.</summary>
-    public bool ElbowHint(bool leftHand, out Vector3 world, out float weight)
+    /// <summary>How far this hand's elbow should swing around the arm, and how
+    /// strongly. False means leave the elbow alone entirely.</summary>
+    public bool ElbowSwing(bool leftHand, out float degrees, out float weight)
     {
         HandGrip g = leftHand ? leftGrip : rightGrip;
 
-        world = transform.TransformPoint(g.elbowHint);
+        degrees = g.elbowAngle;
         weight = g.elbowWeight;
 
         return g.used && g.useElbowHint && weight > 0.001f;
@@ -478,7 +493,7 @@ public class Carryable : MonoBehaviour
         used = g.used,
         palmRotation = g.palmRotation,
         useElbowHint = g.useElbowHint,
-        elbowHint = g.elbowHint,
+        elbowAngle = g.elbowAngle,
         elbowWeight = g.elbowWeight,
         thumb = g.thumb,
         index = g.index,

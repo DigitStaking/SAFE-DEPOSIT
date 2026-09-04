@@ -356,31 +356,68 @@ public class PlayerCarryArms : MonoBehaviour
     }
 
     /// <summary>
-    /// Steer one elbow, if the item asked for it.
+    /// Swing one elbow around the arm, if the item asked for it.
+    ///
+    /// ---- WHY AN ANGLE AND NOT A POINT ----
+    ///
+    /// With the shoulder fixed and the hand already placed by the grip, the
+    /// elbow has exactly one degree of freedom: it rotates around the line from
+    /// shoulder to hand. A 3D hint offered three numbers for a one-number
+    /// problem, and the two spare ones only moved the target somewhere
+    /// unreachable.
+    ///
+    /// So the angle is turned into a hint HERE, from the arm's live geometry:
+    /// take where the elbow currently is, spin it around the shoulder-to-hand
+    /// axis, and hand the solver that point. Same channel, same solver, but the
+    /// control has the shape of the thing it controls.
     ///
     /// ---- THE SAME SOLVER, NOT A SECOND ONE ----
     ///
     /// AvatarIKHint is part of Unity's humanoid IK - the same solver that
-    /// places the hand, in the same OnAnimatorIK pass. Nothing new is created
-    /// here, which matters: a second arm solver fighting the first is exactly
-    /// the class of bug this project has spent days pulling apart.
-    ///
-    /// A hint is a point the elbow is pulled TOWARD, not a position it is moved
-    /// to. The hand stays exactly where it was put; only the bend between
-    /// shoulder and hand changes. So this cannot disturb a grip already tuned,
-    /// which is why it is safe to add on top of finished hands.
+    /// places the hand, in the same OnAnimatorIK pass. The hand does not move;
+    /// only the bend between shoulder and hand changes.
     /// </summary>
     void Elbow(AvatarIKHint hint, bool leftHand, Carryable item, bool used)
     {
         if (!used || item == null ||
-            !item.ElbowHint(leftHand, out Vector3 world, out float w))
+            !item.ElbowSwing(leftHand, out float degrees, out float w) ||
+            Mathf.Abs(degrees) < 0.01f)
         {
             anim.SetIKHintPositionWeight(hint, 0f);
             return;
         }
 
+        Transform shoulder = anim.GetBoneTransform(
+            leftHand ? HumanBodyBones.LeftUpperArm : HumanBodyBones.RightUpperArm);
+        Transform elbow = anim.GetBoneTransform(
+            leftHand ? HumanBodyBones.LeftLowerArm : HumanBodyBones.RightLowerArm);
+        Transform hand = anim.GetBoneTransform(
+            leftHand ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
+
+        if (shoulder == null || elbow == null || hand == null)
+        {
+            anim.SetIKHintPositionWeight(hint, 0f);
+            return;
+        }
+
+        Vector3 axis = hand.position - shoulder.position;
+
+        // A fully folded arm has the hand back at the shoulder and no axis to
+        // rotate about. Rare, but the cross product would be noise and the
+        // elbow would jitter.
+        if (axis.sqrMagnitude < 1e-6f)
+        {
+            anim.SetIKHintPositionWeight(hint, 0f);
+            return;
+        }
+
+        // Where the elbow is now, spun around the arm. Read live rather than
+        // cached, so the swing rides the walk cycle instead of fighting it.
+        Vector3 fromShoulder = elbow.position - shoulder.position;
+        Vector3 swung = Quaternion.AngleAxis(degrees, axis.normalized) * fromShoulder;
+
         anim.SetIKHintPositionWeight(hint, live * w);
-        anim.SetIKHintPosition(hint, world);
+        anim.SetIKHintPosition(hint, shoulder.position + swung);
     }
 
     /// <summary>

@@ -503,8 +503,8 @@ public class GripLibraryWindow : EditorWindow
 
             if (custom)
             {
-                Field(so, "leftGrip");
-                Field(so, "rightGrip");
+                Hand(so, "leftGrip", "Left Hand");
+                Hand(so, "rightGrip", "Right Hand");
             }
             else
             {
@@ -545,9 +545,11 @@ public class GripLibraryWindow : EditorWindow
             else
             {
                 EditorGUILayout.LabelField(
-                    "A hint PULLS the elbow toward a point. The hand does not " +
-                    "move - only the bend of the arm. Out and back for a wide " +
-                    "box, in toward the ribs for a radio.",
+                    "The elbow swings AROUND THE ARM - the axis is the line " +
+                    "from shoulder to hand, which is the only direction it can " +
+                    "move once the hand is placed. The hand does not move.\n" +
+                    "0 leaves it as animated. Drag and watch: which way is " +
+                    "positive depends on the arm.",
                     EditorStyles.wordWrappedMiniLabel);
 
                 Elbow(so, "leftGrip", "Left Elbow");
@@ -574,15 +576,55 @@ public class GripLibraryWindow : EditorWindow
         }
     }
 
-    /// <summary>The three elbow fields off one hand's grip, without dragging
-    /// the whole HandGrip along with them.</summary>
+    // ------------------------------------------------------------------
+    // ONE HAND, SPLIT BETWEEN TWO SECTIONS
+    //
+    // "why there is two function in grip library with same name elbow"
+    //
+    // Because HAND GRIP used to draw each HandGrip whole with PropertyField,
+    // and a HandGrip CONTAINS its elbow fields - so they appeared there, and
+    // then again in the ELBOW section drawing the same three properties. Two
+    // controls, one value, and no way to tell from looking which one was real.
+    // They both were.
+    //
+    // So the hand is drawn field by field now, and the split is explicit:
+    // everything except the elbow here, the elbow only in its own section.
+    // Slightly more code, and it is the only way the section layout can mean
+    // anything.
+    // ------------------------------------------------------------------
+
+    static readonly string[] HandFields =
+    {
+        "used", "localPosition", "localEuler", "palmRotation",
+        "thumb", "index", "middle", "ring", "little"
+    };
+
+    static void Hand(SerializedObject so, string handProperty, string label)
+    {
+        var hand = so.FindProperty(handProperty);
+        if (hand == null) return;
+
+        EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+        EditorGUI.indentLevel++;
+
+        foreach (string f in HandFields)
+        {
+            var prop = hand.FindPropertyRelative(f);
+            if (prop != null) EditorGUILayout.PropertyField(prop, true);
+        }
+
+        EditorGUI.indentLevel--;
+    }
+
+    /// <summary>The elbow, and ONLY the elbow. Its own section, because "the
+    /// arm bends wrong" is a different thought from "the hand is in the wrong
+    /// place" and you go looking for it separately.</summary>
     static void Elbow(SerializedObject so, string handProperty, string label)
     {
         var hand = so.FindProperty(handProperty);
         if (hand == null) return;
 
         EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
-
         EditorGUI.indentLevel++;
 
         var use = hand.FindPropertyRelative("useElbowHint");
@@ -590,10 +632,10 @@ public class GripLibraryWindow : EditorWindow
 
         if (use == null || use.boolValue)
         {
-            var hint = hand.FindPropertyRelative("elbowHint");
+            var angle = hand.FindPropertyRelative("elbowAngle");
             var w = hand.FindPropertyRelative("elbowWeight");
 
-            if (hint != null) EditorGUILayout.PropertyField(hint);
+            if (angle != null) EditorGUILayout.PropertyField(angle);
             if (w != null) EditorGUILayout.PropertyField(w);
         }
 
@@ -620,13 +662,13 @@ public class GripLibraryWindow : EditorWindow
                                       -from.palmRotation.y,
                                       -from.palmRotation.z);
 
-        // The elbow mirrors across the item's X too - an elbow held out to the
-        // left belongs out to the right on the other arm, and copying it
-        // unreflected puts both elbows on the same side of the body.
+        // The elbow angle NEGATES rather than copies. The swing is measured
+        // around each arm's own shoulder-to-hand axis, and those two axes point
+        // roughly opposite ways across the body - so the same number swings one
+        // elbow out and the other in, which is the asymmetry you would then
+        // spend ten minutes hunting.
         to.useElbowHint = from.useElbowHint;
-        to.elbowHint = new Vector3(-from.elbowHint.x,
-                                    from.elbowHint.y,
-                                    from.elbowHint.z);
+        to.elbowAngle = -from.elbowAngle;
         to.elbowWeight = from.elbowWeight;
 
         to.thumb = from.thumb;

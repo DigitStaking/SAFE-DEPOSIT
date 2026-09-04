@@ -147,6 +147,15 @@ public class GripLibraryWindow : EditorWindow
                 GUILayout.Label(item.HasCustomGrip ? "Custom" : "Auto",
                                 EditorStyles.miniBoldLabel, GUILayout.Width(55f));
 
+                if (item.HasCustomGrip &&
+                    GUILayout.Button("Reseed", EditorStyles.miniButton, GUILayout.Width(58f)))
+                {
+                    Undo.RecordObject(item, "Reseed grip");
+                    item.SeedGripsFromBounds(0.78f, 0.85f, 0.55f, 0.06f);
+                    EditorUtility.SetDirty(item);
+                    AssetDatabase.SaveAssetIfDirty(row.prefab);
+                }
+
                 if (GUILayout.Button("Select", EditorStyles.miniButton, GUILayout.Width(55f)))
                 {
                     Selection.activeObject = row.prefab;
@@ -177,6 +186,18 @@ public class GripLibraryWindow : EditorWindow
 
             if (item.HasCustomGrip)
             {
+                // The first version of SeedGripsFromBounds did its arithmetic
+                // in local space, so on any scaled prefab it produced hand
+                // positions metres away from the object. Those are still sitting
+                // in whatever was seeded before the fix, and a stray 4.3 in a
+                // column of decimals is easy to read straight past.
+                if (Implausible(item.leftGrip) || Implausible(item.rightGrip))
+                    EditorGUILayout.HelpBox(
+                        "These grip points are further than a metre from the " +
+                        "item's origin, which almost certainly means they were " +
+                        "seeded before the scale bug was fixed. Press Reseed.",
+                        MessageType.Warning);
+
                 Hand("Left", item.leftGrip);
                 Hand("Right", item.rightGrip);
             }
@@ -198,6 +219,11 @@ public class GripLibraryWindow : EditorWindow
             EditorGUI.indentLevel--;
         }
     }
+
+    /// <summary>A hand more than a metre from the item's own origin is not a
+    /// grip on it, whatever the numbers say.</summary>
+    static bool Implausible(Carryable.HandGrip g) =>
+        g.used && g.localPosition.magnitude > 1f;
 
     static void Hand(string label, Carryable.HandGrip g)
     {

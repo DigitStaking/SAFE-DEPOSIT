@@ -215,32 +215,49 @@ public class Carryable : MonoBehaviour
     /// Fill the two Custom points from the measured bounds, so switching an
     /// item to Custom starts from the Auto answer instead of from nothing.
     ///
+    /// ---- WORKED OUT IN WORLD SPACE, THEN CONVERTED ONCE ----
+    ///
+    /// The first version did the arithmetic in the item's LOCAL space, and it
+    /// produced nonsense on any prefab with a scale other than 1: local units
+    /// are world units divided by that scale, so a crate at scale 0.1 got
+    /// every distance multiplied by ten and the hands landed metres away. That
+    /// is where "Left Position X 4.3" came from - 4.3 local units on a small
+    /// prefab, not 4.3 metres.
+    ///
+    /// Every number here is in real metres because it is computed in world
+    /// space against the real bounds. The conversion to local happens once, at
+    /// the very end, where TransformPoint handles scale for us.
+    ///
     /// Uses the ITEM'S OWN axes rather than a player's, because there is no
-    /// player involved when you press the button in the prefab view. Which
-    /// way round "left" and "right" come out depends on how the model was
-    /// authored - if they are swapped, swap the two X values.
+    /// player involved when you press the button in the prefab view. If left
+    /// and right come out swapped for a model, swap the two X values - which
+    /// way round they land depends on how that model was authored and there is
+    /// nothing to detect it from.
     /// </summary>
     public void SeedGripsFromBounds(float heightOnBox, float widthFraction,
                                     float maxHalfWidth, float toward)
     {
         Bounds w = WorldBounds;
 
-        Vector3 localCentre = transform.InverseTransformPoint(w.center);
-        Vector3 localExtent = transform.InverseTransformVector(w.extents);
-        localExtent = new Vector3(Mathf.Abs(localExtent.x),
-                                  Mathf.Abs(localExtent.y),
-                                  Mathf.Abs(localExtent.z));
+        Vector3 side = transform.right;
+        Vector3 back = -transform.forward;
 
-        float half = Mathf.Min(Mathf.Max(localExtent.x, localExtent.z) * widthFraction,
+        if (side.sqrMagnitude < 1e-8f) side = Vector3.right;
+        if (back.sqrMagnitude < 1e-8f) back = Vector3.back;
+
+        side.Normalize();
+        back.Normalize();
+
+        float half = Mathf.Min(Mathf.Max(w.extents.x, w.extents.z) * widthFraction,
                                maxHalfWidth);
+        half = Mathf.Max(0.03f, half);
 
-        float y = localCentre.y - localExtent.y
-                + Mathf.Clamp01(heightOnBox) * localExtent.y * 2f;
+        float y = Mathf.Lerp(w.min.y, w.max.y, Mathf.Clamp01(heightOnBox));
 
-        float z = localCentre.z - toward;
+        Vector3 centre = new Vector3(w.center.x, y, w.center.z) + back * toward;
 
-        leftGrip.localPosition = new Vector3(localCentre.x - half, y, z);
-        rightGrip.localPosition = new Vector3(localCentre.x + half, y, z);
+        leftGrip.localPosition = transform.InverseTransformPoint(centre - side * half);
+        rightGrip.localPosition = transform.InverseTransformPoint(centre + side * half);
 
         // Palms facing each other across the object: the left hand looks
         // right, the right hand looks left. Whatever the hand bone's own axes

@@ -33,16 +33,28 @@
 // and backwards fingers are the kind of thing you notice in a screenshot
 // three weeks later.
 //
-// So the axis is MEASURED, not assumed:
+// So the axis is MEASURED, not assumed. It is built from the PALM:
 //
-//   the flexion axis is across the knuckles, index -> little
-//   the correct SIGN is the one that moves the fingertip TOWARD the wrist,
-//   because that is what closing a hand does
+//   palm normal  =  across the knuckles  x  along the fingers
+//   bend axis    =  along this joint     x  palm normal
 //
-// Both are worked out once, from the rig's own geometry, by trying a test
-// rotation and keeping whichever sign shortened the tip-to-wrist distance.
-// Nothing to tune, nothing to get wrong on a new model, and it survives the
-// rig being replaced.
+// and rotating a positive amount about that axis always moves the fingertip
+// toward the palm, which is the definition of closing a hand.
+//
+// ---- THE FIRST VERSION OF THIS WAS WRONG, AND WORTH KEEPING WRITTEN DOWN ----
+//
+// It found the sign by rotating a fingertip 20 degrees each way and keeping
+// whichever ended up closer to the WRIST. That reasoning sounds fine and is
+// geometrically degenerate: the bend axis is perpendicular to the
+// wrist-to-knuckle line, so both directions land almost exactly the same
+// distance from the wrist. The comparison was decided by floating-point noise
+// - which is exactly why it came out right on one hand and wrong on the
+// other, and why it looked like a left/right bug rather than a maths bug.
+//
+// The palm normal has no such degeneracy. Its only subtlety is that a left
+// hand is a right hand reflected, so the cross product lands on the BACK of
+// one and the PALM of the other - handled by one sign flip, which is a fact
+// about mirrored geometry rather than a fact about this particular rig.
 //
 // ---- RUNS IN LateUpdate, ON PURPOSE ----
 //
@@ -95,10 +107,9 @@ public class HandFingerCurl : MonoBehaviour
     Transform[] hands = new Transform[2];
     bool[] ready = new bool[2];
 
-    // Measured per hand, once.
-    Vector3[] axisLocal = new Vector3[2];   // in the HAND bone's space, so it
-                                            // stays correct as the arm moves
-    float[] sign = new float[2];
+    // Measured per hand, once: which way the palm faces, in the HAND bone's
+    // own space so it stays correct wherever the arm swings.
+    Vector3[] palmLocal = new Vector3[2];
 
     static readonly HumanBodyBones[,] Map = new HumanBodyBones[2, 5]
     {
@@ -176,39 +187,31 @@ public class HandFingerCurl : MonoBehaviour
         if (indexP != null && littleP != null)
             across = littleP.position - indexP.position;
         else if (indexP != null && middleP != null)
-            across = (middleP.position - indexP.position) * 3f;   // rough, but a direction
+            across = middleP.position - indexP.position;   // rough, but a direction
         else
             return false;
 
-        if (across.sqrMagnitude < 1e-8f) return false;
-        across.Normalize();
+        Transform anyKnuckle = Pick(middleP, indexP, littleP);
+        if (anyKnuckle == null) return false;
 
-        // Pick a finger with a real tip to test against - middle if we have
-        // it, index otherwise.
-        Transform tip = Pick(bones[h, 2, 2], bones[h, 2, 1],
-                             bones[h, 1, 2], bones[h, 1, 1]);
-        Transform root = Pick(bones[h, 2, 0], bones[h, 1, 0]);
-        if (tip == null || root == null) return false;
+        Vector3 alongFingers = anyKnuckle.position - hand.position;
 
-        // Rotate the tip 20 degrees each way about the axis, pivoting at the
-        // knuckle, and keep the sign that ends up closer to the wrist.
-        Vector3 rel = tip.position - root.position;
-        float plus = (root.position + Quaternion.AngleAxis(20f, across) * rel
-                      - hand.position).sqrMagnitude;
-        float minus = (root.position + Quaternion.AngleAxis(-20f, across) * rel
-                       - hand.position).sqrMagnitude;
+        if (across.sqrMagnitude < 1e-10f || alongFingers.sqrMagnitude < 1e-10f)
+            return false;
 
-        sign[h] = plus < minus ? 1f : -1f;
+        // Perpendicular to the plane of the hand. Which FACE of the hand it
+        // lands on depends only on handedness - a left hand is a right hand
+        // reflected - so one flip covers it, on every rig, forever.
+        Vector3 palm = Vector3.Cross(across.normalized, alongFingers.normalized);
+        if (palm.sqrMagnitude < 1e-10f) return false;
 
-        // Stored in the HAND'S space. The arm swings constantly, so a world
-        // axis measured at startup would be wrong by the second frame; the
-        // hand-local one stays true wherever the arm goes.
-        axisLocal[h] = hand.InverseTransformDirection(across);
+        if (h == 0) palm = -palm;          // left hand: the cross lands on the back
+
+        palmLocal[h] = hand.InverseTransformDirection(palm.normalized);
 
         if (logCalibration)
             Debug.Log("[Fingers] " + (h == 0 ? "Left" : "Right") +
-                      " axis(local)=" + axisLocal[h].ToString("F3") +
-                      " sign=" + sign[h]);
+                      " palm(local)=" + palmLocal[h].ToString("F3"));
 
         return true;
     }
@@ -274,34 +277,53 @@ public class HandFingerCurl : MonoBehaviour
 
             // Back into world space from the hand's CURRENT orientation, so
             // the fingers close correctly whatever the arm is doing.
-            Vector3 axis = hands[h].TransformDirection(axisLocal[h]).normalized;
-            if (axis.sqrMagnitude < 1e-6f) continue;
+            Vector3 palm = hands[h].TransformDirection(palmLocal[h]);
+            if (palm.sqrMagnitude < 1e-8f) continue;
+            palm.Normalize();
 
             for (int f = 0; f < 5; f++)
             {
                 if (live[f] <= 0.001f) continue;
 
-                float scale = (f == 0 ? thumbScale : 1f) * live[f] * sign[h];
+                float scale = (f == 0 ? thumbScale : 1f) * live[f];
 
-                Bend(bones[h, f, 0], axis, proximalDegrees * scale);
-                Bend(bones[h, f, 1], axis, intermediateDegrees * scale);
-                Bend(bones[h, f, 2], axis, distalDegrees * scale);
+                Bend(bones[h, f, 0], bones[h, f, 1], palm, proximalDegrees * scale);
+                Bend(bones[h, f, 1], bones[h, f, 2], palm, intermediateDegrees * scale);
+                Bend(bones[h, f, 2], null, palm, distalDegrees * scale);
             }
         }
     }
 
     /// <summary>
-    /// Rotate one joint about the world flexion axis.
+    /// Fold one joint toward the palm.
     ///
-    /// Order matters and it is why this reads the bone's rotation live rather
-    /// than from a cache: bending the knuckle drags the whole finger with it,
-    /// so by the time the middle joint is reached its rotation already
-    /// includes the knuckle's bend. Reading it fresh makes the three bends
-    /// accumulate down the finger the way a real one folds.
+    /// The axis is built PER JOINT from that joint's own live direction, so it
+    /// stays correct as the finger folds - by the time the fingertip joint is
+    /// reached it is pointing somewhere quite different from where it started,
+    /// and a single axis measured at the knuckle would splay it sideways.
+    ///
+    /// Reading the rotation live is what makes the three bends accumulate down
+    /// the finger the way a real one folds: bending the knuckle drags the whole
+    /// finger with it, so the middle joint's rotation already includes it.
     /// </summary>
-    static void Bend(Transform bone, Vector3 axis, float degrees)
+    static void Bend(Transform bone, Transform next, Vector3 palm, float degrees)
     {
         if (bone == null || Mathf.Abs(degrees) < 0.01f) return;
-        bone.rotation = Quaternion.AngleAxis(degrees, axis) * bone.rotation;
+
+        // Which way this joint points. The fingertip joint has no child bone,
+        // so it borrows its direction from the joint above it.
+        Vector3 dir = next != null
+            ? next.position - bone.position
+            : (bone.parent != null ? bone.position - bone.parent.position : Vector3.zero);
+
+        if (dir.sqrMagnitude < 1e-10f) return;
+
+        Vector3 axis = Vector3.Cross(dir.normalized, palm);
+        if (axis.sqrMagnitude < 1e-8f) return;
+
+        // Positive, always. Rotating this way about this axis moves the tip
+        // toward the palm - that is what the cross product was built to
+        // guarantee, and it is why there is no sign to get wrong any more.
+        bone.rotation = Quaternion.AngleAxis(degrees, axis.normalized) * bone.rotation;
     }
 }

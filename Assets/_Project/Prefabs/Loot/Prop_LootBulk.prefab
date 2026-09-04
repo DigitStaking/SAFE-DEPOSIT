@@ -189,6 +189,26 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Carryable
   value: 100
+  gripMode: 1
+  leftGrip:
+    localPosition: {x: 4.3, y: 0.8, z: -0.06}
+    localEuler: {x: 0, y: 90, z: 0}
+    used: 1
+    thumb: 0.341
+    index: 0.722
+    middle: 0.722
+    ring: 0.597
+    little: 0.278
+  rightGrip:
+    localPosition: {x: 0.3419192, y: 0.585, z: -0.06}
+    localEuler: {x: 0, y: -90, z: 0}
+    used: 1
+    thumb: 0.35
+    index: 0.744
+    middle: 0.85
+    ring: 0.85
+    little: 0.8
+  alwaysDrawGrips: 0
 --- !u!1 &1854043609443495353
 GameObject:
   m_ObjectHideFlags: 0

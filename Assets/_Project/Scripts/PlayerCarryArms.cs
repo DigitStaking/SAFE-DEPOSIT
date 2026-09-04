@@ -151,6 +151,55 @@ public class PlayerCarryArms : MonoBehaviour
              "in the wrong PLACE or at the wrong ANGLE.")]
     public bool drawGrips = false;
 
+    // ====================================================================
+    // BACK TO KNOWN-GOOD.
+    //
+    // "parametre are different i don't know how i can test and fill this"
+    //
+    // Fair. There are eighteen numbers here and no way to tell from looking
+    // whether the one in front of you is a considered value or something a
+    // slider got dragged past on the way somewhere else - and several of them
+    // had drifted a long way from where they started.
+    //
+    // So there is a floor to come back to. Nothing here needs to be filled in
+    // by hand to get a working grip: these values ARE the working grip, and
+    // Auto mode uses them on every item with no per-item setup at all.
+    // ====================================================================
+
+    [ContextMenu("Restore recommended settings")]
+    public void RestoreRecommended()
+    {
+        gripWidth = 0.85f;
+        gripHeightOnBox = 0.78f;
+        gripInset = 0.02f;
+        gripToward = 0.06f;
+        maxGripWidth = 0.55f;
+        centreOnBody = true;
+
+        leftHandOffset = Vector3.zero;
+        rightHandOffset = Vector3.zero;
+
+        useHandRotation = true;
+        leftPalmEuler = new Vector3(-90f, 0f, 0f);
+        rightPalmEuler = new Vector3(-90f, 0f, 0f);
+        rotationWeight = 1f;
+
+        curlFingers = true;
+        thumbCurl = 0.35f;
+        indexCurl = 0.8f;
+        middleCurl = 0.85f;
+        ringCurl = 0.85f;
+        littleCurl = 0.8f;
+
+        blendTime = 0.18f;
+        weight = 1f;
+    }
+
+    /// <summary>Unity calls this when the component is first added, and from
+    /// the gear menu's Reset. Same numbers, so both routes land in the same
+    /// place.</summary>
+    void Reset() => RestoreRecommended();
+
     Animator anim;
     PlayerCarry carry;
     PlayerMotor motor;

@@ -148,3 +148,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Carryable
   value: 220
+  gripMode: 1
+  leftGrip:
+    localPosition: {x: -0.3077, y: 0.54599994, z: -0.06}
+    localEuler: {x: 0, y: 90, z: 0}
+    used: 1
+    thumb: 0.35
+    index: 0.8
+    middle: 0.85
+    ring: 0.85
+    little: 0.8
+  rightGrip:
+    localPosition: {x: 0.3077, y: 0.54599994, z: -0.06}
+    localEuler: {x: 0, y: -90, z: 0}
+    used: 1
+    thumb: 0.35
+    index: 0.8
+    middle: 0.85
+    ring: 0.85
+    little: 0.8
+  alwaysDrawGrips: 0

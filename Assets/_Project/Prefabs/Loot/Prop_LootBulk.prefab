@@ -189,7 +189,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Carryable
   value: 100
-  gripMode: 0
+  gripMode: 1
   leftGrip:
     localPosition: {x: -0.88, y: -0.31, z: 0.12}
     localEuler: {x: 78.9, y: 96.7, z: 202.1}

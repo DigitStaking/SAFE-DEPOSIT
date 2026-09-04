@@ -138,9 +138,6 @@ public class FirstPersonViewmodel : MonoBehaviour
              "second. The hide behaviour is built and waiting; switch it on " +
              "once the arms sit where you want them.")]
     public bool showOnlyWhenBusy = true;
-    public bool showWhenCarrying = false;
-    public bool showWhenPushing = true;
-    public bool showWhenAnimating = false;
 
     [Tooltip("Where the arms rest while idle, as an offset from their normal " +
              "position. Straight down by default, so they lower out of frame " +
@@ -215,9 +212,6 @@ public class FirstPersonViewmodel : MonoBehaviour
         pushHandRotation = settings.pushHandRotation;
         pushSpread = settings.pushSpread;
         showOnlyWhenBusy = settings.showOnlyWhenBusy;
-        showWhenCarrying = settings.showWhenCarrying;
-        showWhenPushing = settings.showWhenPushing;
-        showWhenAnimating = settings.showWhenAnimating;
         hiddenOffset = settings.hiddenOffset;
         raiseTime = settings.raiseTime;
         holdAfter = settings.holdAfter;
@@ -595,32 +589,18 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     bool HandsBusy()
     {
-        // ---- CARRYING ----
-        //
-        // Off by default now. The viewmodel has no carry grip system - that is
-        // still on the list - so raising the hands during a carry shows two
-        // hands conspicuously not holding the crate that is floating in front
-        // of them. Better to show nothing than to show the wrong thing.
-        if (showWhenCarrying && realCarry != null && realCarry.IsCarrying)
-            return true;
+        if (realCarry != null && realCarry.IsCarrying) return true;
 
-        // ---- PUSHING ----
+        // PUSH IS DELIBERATELY NOT HERE ANY MORE.
         //
-        // Back, and deliberately.
+        // It used to count as busy, which raised the rig by hiddenOffset - 45cm
+        // straight up - the instant G was pressed. That was the "hands teleport
+        // upward before the push starts": the hide feature firing, not the
+        // shove. The gesture itself was still at 0,0,0 and contributing
+        // nothing, so the jump was the ONLY thing happening.
         //
-        // It was removed because raising the rig by hiddenOffset - 45cm - the
-        // instant G was pressed read as the hands teleporting upward BEFORE
-        // the shove. That was true when the hands were already on screen and
-        // simply jumped.
-        //
-        // It is the wanted behaviour when they start hidden: the hands come up
-        // out of frame to shove and drop back afterwards, which is the whole
-        // point of hiding them. Same mechanism, opposite reading, because the
-        // starting state is different.
-        if (showWhenPushing && realPush != null && realPush.PushProgress >= 0f)
-            return true;
-
-        if (!showWhenAnimating) return false;
+        // A shove now happens exactly where the hands already are. Nothing
+        // repositions the rig for it.
 
         if (realAnim == null || realAnim.runtimeAnimatorController == null) return false;
 

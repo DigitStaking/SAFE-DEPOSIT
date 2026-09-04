@@ -22,9 +22,6 @@ MonoBehaviour:
   rightHandOffset: {x: 0.06, y: 0, z: 0}
   handSpread: 0.03
   handReach: -0.03
-  showWhenCarrying: 0
-  showWhenPushing: 1
-  showWhenAnimating: 0
   showOnlyWhenBusy: 1
   hiddenOffset: {x: 0, y: -0.48, z: 0}
   raiseTime: 0.22

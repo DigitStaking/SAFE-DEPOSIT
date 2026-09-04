@@ -71,7 +71,11 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("H damages you. Shift+H restores you. Kept past Step 3 because " +
              "falling cannot put you at an exact HP value on demand, and " +
              "tuning the limp needs exactly that.")]
-    public bool debugKeys = true;
+    // Default FALSE. It was true, so the flag was on for every Player ever
+    // created and the "sink / hips" developer line was drawn in the game.
+    // Fixing the value saved on the prefab was only half of it - a default of
+    // true brings it straight back on the next Player made from scratch.
+    public bool debugKeys = false;
     public int debugDamage = 10;
 
     /// <summary>Health as the spec's states. Drives SpeedFactor below;

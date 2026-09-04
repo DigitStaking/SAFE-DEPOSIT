@@ -54,10 +54,23 @@ public class NetworkBootstrap : MonoBehaviour
 
     public ushort port = 7777;
 
-    [Tooltip("The old corner HOST/JOIN panel. OFF by default since Step 11 - " +
-             "CrewLobby replaced it. Kept because it is still the fastest way " +
-             "to start two local windows when Steam is not running.")]
-    public bool showPanel = false;
+    // ---- NOT SERIALIZED, AND THAT IS THE WHOLE POINT ----
+    //
+    // This was already "false by default" and it was showing anyway, because
+    // the scene had it saved as 1. A C# default only applies to objects created
+    // after the default changes; anything already saved keeps what it was saved
+    // with. Setting it back to 0 in the scene file did not stick either - Unity
+    // had the scene open and wrote its in-memory copy back over the edit.
+    //
+    // NonSerialized ends the argument. There is nowhere left for a stale 1 to
+    // live: the field is not written to the scene, so it starts false every
+    // single run, and the panel cannot appear in the game by accident.
+    //
+    // It is still here and still useful - tick it in the Inspector during play
+    // and it is the fastest way to start two local windows without Steam. It
+    // just cannot survive a restart, which is exactly the behaviour a developer
+    // aid should have.
+    [System.NonSerialized] public bool showPanel = false;
 
     NetworkManager net;
     string lastEvent = "";

@@ -573,7 +573,7 @@ public class GripLibraryWindow : EditorWindow
         // hand - but called out as its own section here, because "the arm
         // bends wrong" is a different thought from "the hand is in the wrong
         // place" and you go looking for it separately.
-        if (Section("ELBOW / ARM POSITION"))
+        if (Section("ELBOW / ARM POSITION  (parked)", false))
         {
             EditorGUI.indentLevel++;
 
@@ -587,6 +587,13 @@ public class GripLibraryWindow : EditorWindow
             }
             else
             {
+                EditorGUILayout.HelpBox(
+                    "PARKED - come back to this once the hands are right.\n\n" +
+                    "It is off on every item and changes nothing while Use " +
+                    "Elbow Hint is unticked. The controls are left here rather " +
+                    "than removed so the work is not lost.",
+                    MessageType.Info);
+
                 EditorGUILayout.LabelField(
                     "The elbow swings around the shoulder-to-hand axis, which " +
                     "is the only direction it can move once the hand is " +

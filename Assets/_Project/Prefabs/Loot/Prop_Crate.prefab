@@ -148,11 +148,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Carryable
   value: 220
-  gripMode: 1
+  gripMode: 0
   leftGrip:
     localPosition: {x: -0.3077, y: 0.54599994, z: -0.06}
     localEuler: {x: 0, y: 90, z: 0}
     used: 1
+    palmRotation: {x: 0, y: 0, z: 0}
+    useElbowHint: 0
+    elbowAngle: 0
+    elbowWeight: 1
     thumb: 0.35
     index: 0.8
     middle: 0.85
@@ -162,9 +166,23 @@ MonoBehaviour:
     localPosition: {x: 0.3077, y: 0.54599994, z: -0.06}
     localEuler: {x: 0, y: -90, z: 0}
     used: 1
+    palmRotation: {x: 0, y: 0, z: 0}
+    useElbowHint: 0
+    elbowAngle: 0
+    elbowWeight: 1
     thumb: 0.35
     index: 0.8
     middle: 0.85
     ring: 0.85
     little: 0.8
+  overrideMeasure: 0
+  measure:
+    width: 0.85
+    heightOnBox: 0.78
+    inset: 0.02
+    toward: 0.06
+    maxWidth: 0.3
+  itemPositionOffset: {x: 0, y: 0, z: 0}
+  itemRotationOffset: {x: 0, y: 0, z: 0}
   alwaysDrawGrips: 0
+  sourcePrefab: {fileID: 0}

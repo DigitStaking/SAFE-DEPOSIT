@@ -285,7 +285,24 @@ public class Carryable : MonoBehaviour
             heightOnBox = 0.78f,
             inset = 0.02f,
             toward = 0.06f,
-            maxWidth = 0.55f
+
+            // ---- 0.30, NOT 0.55, AND THE ARITHMETIC SAYS WHY ----
+            //
+            // 0.55 each side puts the hands 1.10m apart. With shoulders half a
+            // shoulder-width out (0.18m) and the item 0.44m in front, that asks
+            // for a shoulder-to-hand distance of
+            //
+            //     sqrt(0.37^2 + 0.44^2) = 0.57m
+            //
+            // and this rig's arm reaches 0.49m. Every Auto grip on a wide item
+            // was therefore asking for something 8cm out of reach - so the arms
+            // locked out straight, which also left the elbows with no bend for
+            // any hint to steer.
+            //
+            // 0.30 keeps a wide crate within reach on THIS character. It is a
+            // per-character number, not a universal one: a taller model wants
+            // more, and any single item can override it.
+            maxWidth = 0.30f
         };
     }
 

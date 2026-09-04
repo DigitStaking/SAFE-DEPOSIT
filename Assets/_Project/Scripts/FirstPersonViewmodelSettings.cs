@@ -89,6 +89,36 @@ public class FirstPersonViewmodelSettings : ScriptableObject
     [Tooltip("Pushes BOTH hands forward along the camera's forward axis.")]
     public float handReach = 0f;
 
+    // ====================================================================
+    // WHEN THE CAMERA HANDS ARE ALLOWED ON SCREEN.
+    //
+    // "for camera hand for now put it invisible (just in case i push then
+    //  visible)"
+    //
+    // This used to be one hard-coded list inside HandsBusy(), which meant
+    // changing it needed a code edit and a recompile. Three switches instead,
+    // on the asset, so the answer is a tick box and it survives play mode.
+    //
+    // Set for now to: hidden, except while pushing. Carrying and the arm clips
+    // are switched OFF deliberately - the first-person carry has no grip
+    // system yet, so showing the hands during a carry only shows them not
+    // holding anything.
+    // ====================================================================
+
+    [Header("When the camera hands appear")]
+    [Tooltip("Show them while carrying something. OFF for now: the viewmodel " +
+             "has no carry grip yet, so the hands would be visible and not " +
+             "holding the thing you are carrying.")]
+    public bool showWhenCarrying = false;
+
+    [Tooltip("Show them for a shove. This is the one that is ON - a push is " +
+             "the only first-person hand action that is actually finished.")]
+    public bool showWhenPushing = true;
+
+    [Tooltip("Show them whenever the arms layer has a clip, or an emote has " +
+             "claimed the arms. OFF for now, for the same reason as carrying.")]
+    public bool showWhenAnimating = false;
+
     [Header("Only show the hands when they are doing something")]
     [Tooltip("Keep the arms out of sight until you actually use them. " +
              "OFF WHILE YOU ARE PLACING THEM - you cannot position something " +

@@ -239,15 +239,10 @@ public static class FirstPersonFixer
         cull.hideOwnShadow  = true;    // kills the headlamp shadow blob
         log.AppendLine("  LocalFirstPersonBodyCull: head only, shadow off");
 
-        // One shadow system, not two. LocalPlayerNoShadow and the cull both
-        // capture and restore shadowCastingMode, and whichever runs second
-        // captures a value the first one already changed.
-        var noShadow = root.GetComponent<LocalPlayerNoShadow>();
-        if (noShadow != null)
-        {
-            Object.DestroyImmediate(noShadow, true);
-            log.AppendLine("  removed LocalPlayerNoShadow (the cull handles shadow)");
-        }
+        // LocalPlayerNoShadow used to be stripped here - one shadow system,
+        // not two, because both captured and restored shadowCastingMode and
+        // whichever ran second captured a value the first had already changed.
+        // The class is deleted now, so there is nothing left to strip.
 
         // ---- retire the placeholder capsule arms ---------------------
         // PlayerArms itself is gone; the leftover objects may still be in

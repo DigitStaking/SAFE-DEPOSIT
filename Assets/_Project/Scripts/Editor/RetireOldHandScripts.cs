@@ -29,12 +29,13 @@
 //
 // ---- WHY THE COMPONENT AND NOT THE FILE ----
 //
-// The class stays. It is still referenced by AnimatorBuilder, FirstPersonFixer
-// and ArmPoseAudit, and deleting a 472-line file to fix a prefab is how you
-// spend an afternoon chasing compile errors instead of testing a grip.
+// The class stays FOR NOW, and the ordering matters: deleting a MonoBehaviour's
+// script while an instance of it is still on a prefab does not remove the
+// component, it turns it into a "missing script" entry that Unity cannot
+// resolve and will not let you clean up from the Inspector.
 //
-// What gets removed is the COMPONENT, from the prefab, which is the thing
-// actually running. Reversible in one click, and nothing else has to change.
+// So the COMPONENT comes off first, here, in one click. The 472-line file goes
+// afterwards, once this has run and the prefab no longer mentions it.
 //
 // ---- WHAT IS GIVEN UP, HONESTLY ----
 //

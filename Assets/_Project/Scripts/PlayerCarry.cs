@@ -462,7 +462,7 @@ public class PlayerCarry : MonoBehaviour
                 ? $"carrying a crewmate  ({held.Mass:0}kg)   -   TOO HEAVY TO JUMP" +
                   "\nE  put them down"
                 : $"carrying {held.name}  ({held.Mass:0}kg, {held.Weight})" +
-                  (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP") +
+                  (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP OR PUSH") +
                   "\nE  drop it - counts toward the elevator's load once it is inside the car";
 
             colour = held.IsPerson

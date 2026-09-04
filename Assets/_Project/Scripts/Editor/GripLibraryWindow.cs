@@ -733,10 +733,23 @@ public class GripLibraryWindow : EditorWindow
         row.so = new SerializedObject(row.item);
     }
 
-    /// <summary>A hand more than a metre from the item's own origin is not a
-    /// grip on it, whatever the numbers say.</summary>
-    static bool Implausible(Carryable.HandGrip g) =>
-        g.used && g.localPosition.magnitude > 1f;
+    /// <summary>
+    /// A hand more than a metre from the item is not a grip on it.
+    ///
+    /// Measured in METRES, through the item's transform. The first version
+    /// compared localPosition.magnitude directly, which is local units - and
+    /// on a prefab scaled to 0.6 that reads 0.88 for a hand only 0.53m away,
+    /// so it cried wolf on perfectly good grips and stayed quiet on bad ones.
+    /// The same confusion between local units and metres produced the original
+    /// broken seed.
+    /// </summary>
+    static bool Implausible(Carryable item, Carryable.HandGrip g)
+    {
+        if (!g.used) return false;
+
+        Vector3 world = item.transform.TransformPoint(g.localPosition);
+        return Vector3.Distance(world, item.transform.position) > 1f;
+    }
 
     /// <summary>
     /// Say so, loudly, and name the hand.
@@ -757,12 +770,16 @@ public class GripLibraryWindow : EditorWindow
     /// Both are fixed, but the bad numbers are already sitting in prefabs and
     /// nothing rewrites saved data behind your back.
     /// </summary>
+    static float Metres(Carryable item, Carryable.HandGrip g) =>
+        Vector3.Distance(item.transform.TransformPoint(g.localPosition),
+                         item.transform.position);
+
     static void WarnIfImplausible(Carryable item)
     {
         if (!item.HasCustomGrip) return;
 
-        bool l = Implausible(item.leftGrip);
-        bool r = Implausible(item.rightGrip);
+        bool l = Implausible(item, item.leftGrip);
+        bool r = Implausible(item, item.rightGrip);
 
         if (!l && !r) return;
 
@@ -772,8 +789,8 @@ public class GripLibraryWindow : EditorWindow
           : "The RIGHT hand is";
 
         string how =
-            (l ? "  left " + item.leftGrip.localPosition.magnitude.ToString("0.00") + "m" : "") +
-            (r ? "  right " + item.rightGrip.localPosition.magnitude.ToString("0.00") + "m" : "");
+            (l ? "  left " + Metres(item, item.leftGrip).ToString("0.00") + "m" : "") +
+            (r ? "  right " + Metres(item, item.rightGrip).ToString("0.00") + "m" : "");
 
         EditorGUILayout.HelpBox(
             which + " placed more than a metre from this item, which is not a " +

@@ -280,7 +280,34 @@ public class PlayerAnimatorDriver : MonoBehaviour
                 animator.GetCurrentAnimatorClipInfoCount(ArmsLayer) > 0 ||
                 animator.GetNextAnimatorClipInfoCount(ArmsLayer) > 0;
 
-            float target = (emoting || !armsHaveSomethingToPlay) ? 0f : 1f;
+            // ---- AN IK GRIP OWNS THE ARMS OUTRIGHT ----
+            //
+            // "i want the hand in idle mode... i don't want them to look like
+            //  grabbing because sometimes i will need just one hand to grab"
+            //
+            // The Carry clip is a TWO-HANDED pose. While it plays, both arms
+            // are held in a carry shape whether the grip uses them or not - so
+            // a one-handed grab was impossible to express, and unticking Used
+            // left the arm still looking like it was holding something. That
+            // was the clip, not the IK.
+            //
+            // When the held item has a CUSTOM grip, the IK places every hand
+            // it uses and there is nothing left for the clip to contribute
+            // except a fight. Dropping the layer lets the base locomotion play
+            // underneath, so:
+            //
+            //     a hand the grip uses      goes where the grip says
+            //     a hand it does not use    walks, idles and swings normally
+            //
+            // AUTO items keep the clip. They have no authored hand placement,
+            // so the carry pose is still the best thing available for them -
+            // and this way nothing changes for any item that has not been
+            // given a grip of its own.
+            bool ikOwnsArms = carry != null && carry.IsCarrying &&
+                              carry.Held != null && carry.Held.HasCustomGrip;
+
+            float target = (emoting || ikOwnsArms || !armsHaveSomethingToPlay)
+                         ? 0f : 1f;
             armsWeight = Mathf.MoveTowards(armsWeight, target, dt * 6f);
             animator.SetLayerWeight(ArmsLayer, armsWeight);
         }

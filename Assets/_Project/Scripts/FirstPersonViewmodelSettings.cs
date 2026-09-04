@@ -97,10 +97,16 @@ public class FirstPersonViewmodelSettings : ScriptableObject
              "them, and the hide behaviour is waiting exactly as it was.")]
     public bool showOnlyWhenBusy = true;
 
-    [Tooltip("Where the arms rest while idle, as an offset from their normal " +
-             "position. Straight down by default so they lower out of frame " +
-             "and rise back into it rather than blinking on and off.")]
-    public Vector3 hiddenOffset = new Vector3(0f, -0.45f, 0f);
+    [Tooltip("Where the arms rest while idle, as an offset from their " +
+             "normal position. ZERO now, and it should usually stay there. " +
+             "Hiding is done by switching the viewmodel camera off, so the " +
+             "hands do not need moving out of frame - and moving them meant " +
+             "the camera came back on partway through the slide, so a shove " +
+             "appeared to start 48cm below where the hands actually rest. " +
+             "That is the reason a push looked like it changed the hand " +
+             "position: it was mid-travel, not mid-push. " +
+             "Set a value here only if you want them to visibly slide in.")]
+    public Vector3 hiddenOffset = Vector3.zero;
 
     [Tooltip("Seconds for the arms to rise into view or lower back out.")]
     public float raiseTime = 0.22f;

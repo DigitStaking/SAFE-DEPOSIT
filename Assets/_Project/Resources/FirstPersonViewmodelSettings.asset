@@ -23,7 +23,7 @@ MonoBehaviour:
   handSpread: 0.03
   handReach: -0.03
   showOnlyWhenBusy: 1
-  hiddenOffset: {x: 0, y: -0.48, z: 0}
+  hiddenOffset: {x: 0, y: 0, z: 0}
   raiseTime: 0.22
   holdAfter: 0.6
   pushForward: 0.2

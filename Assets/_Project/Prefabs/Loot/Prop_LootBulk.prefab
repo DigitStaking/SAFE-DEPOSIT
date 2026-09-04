@@ -189,22 +189,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Carryable
   value: 100
-  gripMode: 1
+  gripMode: 0
   leftGrip:
-    localPosition: {x: 4.3, y: 0.8, z: -0.06}
-    localEuler: {x: 0, y: 90, z: 0}
+    localPosition: {x: 4.97, y: 0.585, z: -0.06}
+    localEuler: {x: 3.72, y: 90, z: 0}
     used: 1
-    thumb: 0.341
+    thumb: 0.864
     index: 0.722
     middle: 0.722
     ring: 0.597
     little: 0.278
   rightGrip:
-    localPosition: {x: 0.3419192, y: 0.585, z: -0.06}
-    localEuler: {x: 0, y: -90, z: 0}
+    localPosition: {x: 5.78, y: 0.585, z: -0.06}
+    localEuler: {x: 11.52, y: -90, z: 0}
     used: 1
-    thumb: 0.35
-    index: 0.744
+    thumb: 0.807
+    index: 1
     middle: 0.85
     ring: 0.85
     little: 0.8

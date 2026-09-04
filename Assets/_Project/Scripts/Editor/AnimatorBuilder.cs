@@ -765,14 +765,19 @@ public static class AnimatorBuilder
             var anim = root.GetComponentInChildren<Animator>(true);
             bool changed = false;
 
-            // Hand IK must live on the SAME GameObject as the Animator -
-            // OnAnimatorIK is only delivered there.
-            if (anim != null && anim.GetComponent<FirstPersonHands>() == null)
-            {
-                anim.gameObject.AddComponent<FirstPersonHands>();
-                changed = true;
-                Debug.Log("[Anim] added FirstPersonHands to the model.");
-            }
+            // ---- FirstPersonHands IS NO LONGER ADDED HERE ----
+            //
+            // It used to be put on automatically, which is exactly why it kept
+            // coming back after being removed: running this builder silently
+            // reinstated a third writer of the hand IK goals, and the symptom
+            // showed up somewhere else entirely, days later.
+            //
+            // Its job - faking first-person hands by bending the real arms -
+            // belongs to FirstPersonViewmodel now. The hands on the real body
+            // are PlayerCarryArms and PlayerPushArms, and both are installed by
+            // Repair Player Prefab Components.
+            //
+            // See RetireOldHandScripts if a copy is still on your prefab.
 
             // Shadow is handled by LocalFirstPersonBodyCull.hideOwnShadow.
             // Two components both capturing and restoring shadowCastingMode

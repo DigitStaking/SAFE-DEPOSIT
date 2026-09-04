@@ -119,14 +119,24 @@ public static class PlayerPrefabRepair
             }
             else log.Append("HandFingerCurl already present. ");
 
-            // ---- FirstPersonHands: present, and it should STAY disabled ----
+            // ---- FirstPersonHands: RETIRED, and reported if it is back ----
             //
-            // Not removed here. FirstPersonViewmodel switches it off at
-            // runtime once its own arms exist, and leaves it alone when they
-            // do not - that conditional is the fallback that stops a failed
-            // viewmodel leaving the player with no hands at all.
+            // This used to say "intact", which was right when it was the only
+            // thing driving the hands. It is not any more. PlayerCarryArms
+            // runs at execution order 35 and FirstPersonHands at 30, so its
+            // output is overwritten before it reaches the screen - a full IK
+            // solve per frame, discarded.
+            //
+            // Not removed HERE, on purpose. This tool's job is putting things
+            // back; taking something away needs to be a deliberate click with
+            // its own explanation, which is Retire Old Hand Scripts.
             var hands = visual.GetComponent<FirstPersonHands>();
-            log.Append(hands != null ? "FirstPersonHands intact." : "FirstPersonHands MISSING!");
+
+            log.Append(hands != null
+                ? "FirstPersonHands STILL PRESENT - it competes with " +
+                  "PlayerCarryArms for the same IK goals. Run SAFE DEPOSIT / " +
+                  "Player / Retire Old Hand Scripts."
+                : "FirstPersonHands retired (correct).");
 
             if (added > 0)
             {

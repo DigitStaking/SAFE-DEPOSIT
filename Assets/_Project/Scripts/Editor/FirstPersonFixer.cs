@@ -208,22 +208,25 @@ public static class FirstPersonFixer
         log.AppendLine($"  Animator on '{anim.gameObject.name}': controller, avatar, " +
                        "rootMotion off, AlwaysAnimate");
 
-        // ---- hand IK, on the SAME object as the Animator -------------
+        // ---- hand IK -------------------------------------------------
+        //
+        // This used to ADD FirstPersonHands and configure it. It no longer
+        // does, and it no longer will: re-adding a retired component from a
+        // "fixer" is how it kept reappearing after being removed, with the
+        // damage surfacing days later somewhere unrelated.
+        //
+        // The hands on the real body are PlayerCarryArms (places them on what
+        // you are holding) and PlayerPushArms (the shove). First-person hands
+        // are FirstPersonViewmodel's job now. An existing copy is only
+        // reported, never installed - remove it with Retire Old Hand Scripts.
         var hands = anim.GetComponent<FirstPersonHands>();
-        if (hands == null) hands = anim.gameObject.AddComponent<FirstPersonHands>();
 
-        hands.enabled               = true;
-        hands.leftHand              = LeftHand;
-        hands.rightHand             = RightHand;
-        hands.handWeight            = 1f;
-        hands.keepInFrame           = true;
-        hands.frameMargin           = 0.06f;
-        hands.freeArmsDuringActions = false;
-        hands.rotationWeight        = 0.7f;
-        hands.followSpeed           = 16f;
-        hands.weightSpeed           = 6f;
-        hands.cameraTransform       = null;                    // resolves to Camera.main at runtime
-        log.AppendLine($"  FirstPersonHands on '{anim.gameObject.name}': {LeftHand} / {RightHand}");
+        if (hands != null)
+            log.AppendLine($"  FirstPersonHands still on '{anim.gameObject.name}' - it " +
+                           "competes with PlayerCarryArms for the same IK goals. " +
+                           "SAFE DEPOSIT / Player / Retire Old Hand Scripts.");
+        else
+            log.AppendLine("  FirstPersonHands: retired (correct).");
 
         // ---- head cull ----------------------------------------------
         var cull = root.GetComponent<LocalFirstPersonBodyCull>();

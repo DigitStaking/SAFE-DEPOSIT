@@ -900,6 +900,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2734946683707374481}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 417824198872990787}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
 --- !u!4 &4007666841464958271 stripped
 Transform:
@@ -1001,9 +1004,40 @@ MonoBehaviour:
   gripInset: 0.02
   gripToward: 0.06
   maxGripWidth: 0.55
+  centreOnBody: 1
+  leftHandOffset: {x: 0, y: 0, z: 0}
+  rightHandOffset: {x: 0, y: 0, z: 0}
+  useHandRotation: 1
+  leftPalmEuler: {x: -90, y: 0, z: 0}
+  rightPalmEuler: {x: -90, y: 0, z: 0}
+  rotationWeight: 1
+  curlFingers: 1
+  thumbCurl: 0.35
+  indexCurl: 0.8
+  middleCurl: 0.85
+  ringCurl: 0.85
+  littleCurl: 0.8
   blendTime: 0.18
   weight: 1
   drawGrips: 0
+--- !u!114 &417824198872990787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4383629090344744837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ee497c60355ff24d8795122e4605ce9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HandFingerCurl
+  proximalDegrees: 55
+  intermediateDegrees: 65
+  distalDegrees: 35
+  thumbScale: 0.55
+  blendTime: 0.14
+  logCalibration: 0
 --- !u!95 &7025117437554898757 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

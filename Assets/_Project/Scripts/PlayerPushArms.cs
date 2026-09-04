@@ -147,10 +147,10 @@ public class PlayerPushArms : MonoBehaviour
     /// than re-zeroed every idle frame.</summary>
     bool heldGoals;
 
-    /// <summary>The other writer of these same goals. If it is alive it owns
-    /// releasing them; if it has been switched off, this component has to
-    /// clean up after itself.</summary>
-    FirstPersonHands fpHands;
+    // fpHands is gone. This component used to hold a reference to
+    // FirstPersonHands so it could decide whether to release its own IK goals,
+    // and that coupling is exactly what went stale. It releases what it wrote,
+    // unconditionally, and needs to know about nobody.
 
     void LateUpdate()
     {
@@ -175,7 +175,6 @@ public class PlayerPushArms : MonoBehaviour
         // Found upward, like everything else on this model: the push lives on
         // the player root and this lives on the model beneath it.
         push = GetComponentInParent<PlayerPush>();
-        fpHands = GetComponent<FirstPersonHands>();
         body = push != null ? push.transform : transform;
         motor = GetComponentInParent<PlayerMotor>();
     }
@@ -235,28 +234,30 @@ public class PlayerPushArms : MonoBehaviour
 
         float t = push.PushProgress;
 
-        // ---- NOT SWINGING ----
+        // ---- NOT SWINGING: ALWAYS RELEASE WHAT THIS COMPONENT WROTE ----
         //
-        // This used to write NOTHING here, on the stated assumption that
-        // FirstPersonHands had already set the hands this frame and zeroing
-        // them would undo its work.
+        // This has been wrong twice, in opposite directions, and both versions
+        // were wrong for the same underlying reason - they tried to reason
+        // about who ELSE was driving the hands.
         //
-        // THAT ASSUMPTION IS NO LONGER TRUE. FirstPersonViewmodel switches
-        // FirstPersonHands off once the real viewmodel arms exist, so on that
-        // path nothing sets the hand weights at all - and an IK weight
-        // PERSISTS. The last weight-1 goal from a completed shove would stay
-        // applied forever, leaving both hands frozen wherever the push ended.
+        // v1 wrote nothing, assuming FirstPersonHands had already set them.
+        // v2 asked whether FirstPersonHands was still enabled, because the
+        // viewmodel switches it off at runtime.
         //
-        // So it now depends on whether anybody else is still driving them:
-        // if FirstPersonHands is alive it is left to do its job, and if it is
-        // not, this releases the goals it wrote itself. Asked live rather than
-        // cached, because the viewmodel disables that component at runtime
-        // after this one has already started.
+        // The v2 question stopped meaning what it said the moment
+        // PlayerCarryArms arrived at execution order 35. FirstPersonHands runs
+        // at 30, so its output is overwritten before it reaches the screen -
+        // "enabled" became true-but-irrelevant, which is worse than false,
+        // because it is a confident answer to the wrong question.
+        //
+        // The rule that does not rot: RELEASE WHAT YOU WROTE, ALWAYS. An IK
+        // weight persists, so a component that stops having an opinion must
+        // say so. Whoever runs after is free to write their own goals, and
+        // whoever runs before was going to be overwritten regardless. No
+        // component needs to know what any other one is doing.
         if (t < 0f)
         {
-            bool handsDriven = fpHands != null && fpHands.enabled;
-
-            if (!handsDriven && heldGoals)
+            if (heldGoals)
             {
                 anim.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0f);
                 anim.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);

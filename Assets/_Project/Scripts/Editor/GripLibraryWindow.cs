@@ -285,6 +285,33 @@ public class GripLibraryWindow : EditorWindow
             // makes it outlive Stop.
             liveSo.ApplyModifiedProperties();
 
+            // Draw the solve in the SCENE VIEW - never in the game. This is
+            // what makes "is the hint on the right side of the arm" a thing
+            // you look at rather than argue about.
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUI.BeginChangeCheck();
+
+                bool grips = GUILayout.Toggle(arms.drawGrips, "Show hand gizmos",
+                                              EditorStyles.miniButton);
+                bool elbows = GUILayout.Toggle(arms.drawElbows, "Show elbow gizmos",
+                                               EditorStyles.miniButton);
+
+                if (EditorGUI.EndChangeCheck())
+                {
+                    arms.drawGrips = grips;
+                    arms.drawElbows = elbows;
+                    SceneView.RepaintAll();
+                }
+            }
+
+            if (arms.drawElbows)
+                EditorGUILayout.LabelField(
+                    "Scene view: blue = shoulder, yellow = hand goal, magenta = " +
+                    "elbow hint, and the line between shoulder and hand is the " +
+                    "axis the angle sweeps around.",
+                    EditorStyles.wordWrappedMiniLabel);
+
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("Seed from bounds"))
@@ -561,11 +588,13 @@ public class GripLibraryWindow : EditorWindow
             else
             {
                 EditorGUILayout.LabelField(
-                    "The elbow swings AROUND THE ARM - the axis is the line " +
-                    "from shoulder to hand, which is the only direction it can " +
-                    "move once the hand is placed. The hand does not move.\n" +
-                    "0 leaves it as animated. Drag and watch: which way is " +
-                    "positive depends on the arm.",
+                    "The elbow swings around the shoulder-to-hand axis, which " +
+                    "is the only direction it can move once the hand is " +
+                    "placed. The hand, its rotation and the item all stay " +
+                    "exactly where they are.\n\n" +
+                    "0 = down    90 = out    180 = up    -90 = in\n\n" +
+                    "Body-relative, so the same number means the same thing on " +
+                    "both arms: a symmetric grip is the same value twice.",
                     EditorStyles.wordWrappedMiniLabel);
 
                 Elbow(so, "leftGrip", "Left Elbow");
@@ -678,13 +707,15 @@ public class GripLibraryWindow : EditorWindow
                                       -from.palmRotation.y,
                                       -from.palmRotation.z);
 
-        // The elbow angle NEGATES rather than copies. The swing is measured
-        // around each arm's own shoulder-to-hand axis, and those two axes point
-        // roughly opposite ways across the body - so the same number swings one
-        // elbow out and the other in, which is the asymmetry you would then
-        // spend ten minutes hunting.
+        // The elbow angle COPIES now. It used to negate, because the swing was
+        // measured around each arm's own axis and the two arms are mirror
+        // images - so the same number swung one elbow out and the other in.
+        //
+        // The angle is body-relative now (0 down, 90 out, 180 up, -90 in) with
+        // the handedness folded into the frame, so the same number means the
+        // same thing on both arms and a straight copy is the mirror.
         to.useElbowHint = from.useElbowHint;
-        to.elbowAngle = -from.elbowAngle;
+        to.elbowAngle = from.elbowAngle;
         to.elbowWeight = from.elbowWeight;
 
         to.thumb = from.thumb;

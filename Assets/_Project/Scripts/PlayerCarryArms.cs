@@ -176,6 +176,12 @@ public class PlayerCarryArms : MonoBehaviour
              "in the wrong PLACE or at the wrong ANGLE.")]
     public bool drawGrips = false;
 
+    [Tooltip("Draw the elbow solve in the Scene view: shoulder (blue), hand " +
+             "goal (yellow), the axis between them, and the elbow hint " +
+             "(magenta). " +
+             "Scene view only - gizmos are never drawn in a build.")]
+    public bool drawElbows = false;
+
     // ====================================================================
     // BACK TO KNOWN-GOOD.
     //
@@ -368,40 +374,54 @@ public class PlayerCarryArms : MonoBehaviour
     }
 
     /// <summary>True while this arm is stretched so straight that no elbow
-    /// hint can move it. Read by the Grip Library, which is an editor tool -
-    /// nothing in a build looks at these.</summary>
+    /// hint can move it. Read by the Grip Library, which is an editor tool.</summary>
     public bool LeftArmStraight { get; private set; }
     public bool RightArmStraight { get; private set; }
 
+    // Where the last solve put things, for the Scene-view gizmo. Plain field
+    // writes, no allocation, and nothing in a build reads them.
+    [System.NonSerialized] public Vector3 LeftShoulder, LeftHandGoal, LeftHint;
+    [System.NonSerialized] public Vector3 RightShoulder, RightHandGoal, RightHint;
+    [System.NonSerialized] public bool LeftElbowLive, RightElbowLive;
+
     /// <summary>
-    /// Swing one elbow around the arm, if the item asked for it.
+    /// Swing one elbow around the arm.
     ///
-    /// ---- WHY THE FIRST TWO VERSIONS DID NOTHING ----
+    /// ---- THE ANGLE IS BODY-RELATIVE, AND THAT IS THE FIX ----
     ///
-    /// v1 rotated the elbow's CURRENT offset from the shoulder. That is the
-    /// identity whenever the arm is straight, because rotating a vector about
-    /// an axis it is parallel to changes nothing. Same hint at 20 degrees and
-    /// at 160 - exactly zero effect, which is what was reported.
+    /// The previous version rotated the reference about the arm axis with
+    /// Quaternion.AngleAxis. That is mirror-INCORRECT, provably:
     ///
-    /// v2 built the hint from a perpendicular reference, which fixed the
-    /// degenerate case, but placed it only reach*0.25 - about 12cm - off the
-    /// arm line. That is roughly where the elbow already is, so the solver was
-    /// being asked to move it to where it already was. Correct, and invisible.
+    ///     for a reflection M,   M * R(t, a) * Mt  =  R(-t, M a)
     ///
-    /// The hint defines a PLANE. It wants to be clearly off the arm line, far
-    /// enough that the direction is unambiguous. elbowHintRadius is that
-    /// distance and it is tunable, because "far enough to read" depends on the
-    /// character's size.
+    /// The two arms are mirror images, so the same angle applied about each
+    /// arm's own axis swings the elbows in OPPOSITE body-relative directions.
+    /// Both arms at 90 did not mean "both elbows out", it meant one out and one
+    /// in - which is exactly "both bending toward the same side" as seen from
+    /// the front. Mirroring only worked with opposite signs, which is a control
+    /// nobody should have to remember.
+    ///
+    /// So the frame is built explicitly, in the BODY'S terms, with the
+    /// handedness folded in once:
+    ///
+    ///       0   elbow DOWN
+    ///      90   elbow OUT, away from the body's centre line
+    ///     180   elbow UP
+    ///     -90   elbow IN, toward the ribs
+    ///
+    /// The same number now means the same thing on both arms, so a symmetric
+    /// grip is the same value twice and Mirror is a straight copy.
     ///
     /// ---- STILL ONE SOLVER ----
     ///
     /// AvatarIKHint is the elbow channel of the same humanoid IK that places
-    /// the hand, in the same OnAnimatorIK pass. The hand does not move; only
-    /// the bend between shoulder and hand changes.
+    /// the hand, in the same OnAnimatorIK pass. The hand goal and hand rotation
+    /// are untouched: only the plane the arm bends in changes.
     /// </summary>
     void Elbow(AvatarIKHint hint, bool leftHand, Carryable item, bool used)
     {
-        if (leftHand) LeftArmStraight = false; else RightArmStraight = false;
+        if (leftHand) { LeftArmStraight = false; LeftElbowLive = false; }
+        else { RightArmStraight = false; RightElbowLive = false; }
 
         if (!used || item == null ||
             !item.ElbowSwing(leftHand, out float degrees, out float w))
@@ -437,37 +457,62 @@ public class PlayerCarryArms : MonoBehaviour
         float reach = Vector3.Distance(shoulder.position, elbow.position) +
                       Vector3.Distance(elbow.position, hand.position);
 
-        // ---- THE CONDITION THAT SILENTLY DISABLES ALL OF THIS ----
-        //
-        // An arm stretched to within 3% of its full length has no bend left,
-        // and an elbow with no bend sits ON the shoulder-to-hand line where
-        // nothing can steer it. Recorded rather than compensated for, because
-        // the cause is a hand target too far away - a GRIP problem - and
-        // quietly bending the arm anyway would hide it.
+        // An arm within 3% of full extension has no bend left, and an elbow
+        // with no bend sits ON the shoulder-to-hand line where nothing can
+        // steer it. Recorded, not compensated for: the cause is a hand target
+        // too far away, which is a GRIP problem, and bending the arm anyway
+        // would hide it.
         bool straight = span >= reach * 0.97f;
         if (leftHand) LeftArmStraight = straight; else RightArmStraight = straight;
 
-        // A reference that does not depend on the current bend: straight down
-        // the body, flattened against the arm axis. That is where a relaxed
-        // elbow hangs, so 0 reads as normal and the sweep goes out from there.
         Transform body = motor != null ? motor.transform : transform;
 
-        Vector3 reference = Vector3.ProjectOnPlane(-body.up, axis);
+        // ---- TWO AXES OF A BODY-RELATIVE FRAME, PERPENDICULAR TO THE ARM ----
+        Vector3 down = Vector3.ProjectOnPlane(-body.up, axis);
 
-        if (reference.sqrMagnitude < 1e-6f)
-            reference = Vector3.ProjectOnPlane(-body.forward, axis);
-
-        if (reference.sqrMagnitude < 1e-6f)
+        // Arm pointing straight up or down leaves nothing of "down" in the
+        // plane; behind the body always has a component.
+        if (down.sqrMagnitude < 1e-6f) down = Vector3.ProjectOnPlane(-body.forward, axis);
+        if (down.sqrMagnitude < 1e-6f)
         {
             anim.SetIKHintPositionWeight(hint, 0f);
             return;
         }
 
-        Vector3 dir = (Quaternion.AngleAxis(degrees, axis) * reference.normalized);
+        down.Normalize();
+
+        // Perpendicular to both, so it lies in the same plane as down. Its sign
+        // is then FORCED to point away from the body's centre line - and that
+        // one line is where the handedness lives. Everything downstream is
+        // identical for both arms.
+        Vector3 outward = Vector3.Cross(axis, down);
+
+        if (Vector3.Dot(outward, body.right * (leftHand ? -1f : 1f)) < 0f)
+            outward = -outward;
+
+        float rad = degrees * Mathf.Deg2Rad;
+        Vector3 dir = down * Mathf.Cos(rad) + outward * Mathf.Sin(rad);
+
+        Vector3 hintPos = shoulder.position + axis * (span * 0.5f)
+                        + dir * elbowHintRadius;
 
         anim.SetIKHintPositionWeight(hint, live * w);
-        anim.SetIKHintPosition(hint,
-            shoulder.position + axis * (span * 0.5f) + dir * elbowHintRadius);
+        anim.SetIKHintPosition(hint, hintPos);
+
+        if (leftHand)
+        {
+            LeftShoulder = shoulder.position;
+            LeftHandGoal = hand.position;
+            LeftHint = hintPos;
+            LeftElbowLive = true;
+        }
+        else
+        {
+            RightShoulder = shoulder.position;
+            RightHandGoal = hand.position;
+            RightHint = hintPos;
+            RightElbowLive = true;
+        }
     }
 
     /// <summary>
@@ -603,18 +648,67 @@ public class PlayerCarryArms : MonoBehaviour
         return f.right * local.x + Vector3.up * local.y + f.forward * local.z;
     }
 
+    // ------------------------------------------------------------------
+    // SCENE-VIEW ONLY.
+    //
+    // OnDrawGizmos is never called in a built player and never drawn in the
+    // Game view unless gizmos are explicitly switched on there. This is the
+    // right home for "show me where the hint actually went" - the wrong home
+    // was OnGUI, which put diagnostic text on the game screen.
+    // ------------------------------------------------------------------
+
     void OnDrawGizmos()
     {
-        if (!drawGrips || !Application.isPlaying || !haveGrips) return;
+        if (!Application.isPlaying) return;
 
-        Draw(posL, rotL, useL, Color.cyan);
-        Draw(posR, rotR, useR, Color.yellow);
-
-        if (useL && useR)
+        if (drawGrips && haveGrips)
         {
-            Gizmos.color = Color.white;
-            Gizmos.DrawLine(posL, posR);
+            Draw(posL, rotL, useL, Color.cyan);
+            Draw(posR, rotR, useR, Color.yellow);
+
+            if (useL && useR)
+            {
+                Gizmos.color = Color.white;
+                Gizmos.DrawLine(posL, posR);
+            }
         }
+
+        if (drawElbows)
+        {
+            DrawElbow(LeftElbowLive, LeftShoulder, LeftHandGoal, LeftHint);
+            DrawElbow(RightElbowLive, RightShoulder, RightHandGoal, RightHint);
+        }
+    }
+
+    /// <summary>
+    /// Shoulder, hand, the axis between them, and where the hint went.
+    ///
+    /// The one picture that answers "is the hint on the correct side of the
+    /// arm" without argument: if the magenta ball is not where the angle says
+    /// it should be, the maths is wrong; if it is, and the elbow still has not
+    /// moved, the solver is the problem.
+    /// </summary>
+    static void DrawElbow(bool live, Vector3 shoulder, Vector3 hand, Vector3 hint)
+    {
+        if (!live) return;
+
+        // the arm axis the angle sweeps around
+        Gizmos.color = new Color(0.4f, 0.9f, 1f);
+        Gizmos.DrawLine(shoulder, hand);
+
+        Gizmos.color = Color.blue;
+        Gizmos.DrawSphere(shoulder, 0.022f);      // shoulder
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawSphere(hand, 0.022f);          // hand goal
+
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawSphere(hint, 0.03f);           // elbow hint
+
+        // from the middle of the arm out to the hint, which is the direction
+        // the angle actually chose
+        Gizmos.color = new Color(1f, 0.3f, 1f, 0.6f);
+        Gizmos.DrawLine((shoulder + hand) * 0.5f, hint);
     }
 
     static void Draw(Vector3 p, Quaternion r, bool used, Color c)

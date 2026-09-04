@@ -218,14 +218,15 @@ public class Carryable : MonoBehaviour
                  "own default, which is fine for most things.")]
         public bool useElbowHint = false;
 
-        [Tooltip("How far the elbow swings AROUND THE ARM, in degrees. " +
-                 "The axis is the line from shoulder to hand, so this is the " +
-                 "one direction the elbow can actually move once the hand is " +
-                 "placed.\n\n" +
-                 "0 leaves it where the animation had it. Positive swings it " +
-                 "one way, negative the other - which way depends on the arm, " +
-                 "so drag it and watch rather than working it out.\n\n" +
-                 "Out for a wide box, in toward the ribs for a radio.")]
+        [Tooltip("Where the elbow sits, in degrees around the shoulder-to-hand " +
+                 "axis, which is the only direction it can move once the " +
+                 "hand is placed. The hand, its rotation and the item all " +
+                 "stay exactly where they are. " +
+                 "0 = down, 90 = out away from the body, 180 = up, " +
+                 "-90 = in toward the ribs. " +
+                 "BODY-RELATIVE, so the same number means the same thing " +
+                 "on both arms and a symmetric grip is the same value " +
+                 "twice. Out for a wide box, in for a radio.")]
         [Range(-180f, 180f)] public float elbowAngle = 0f;
 
         [Tooltip("How strongly the elbow is steered, 0 to 1. Part-way nudges " +

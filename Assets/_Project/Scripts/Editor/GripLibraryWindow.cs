@@ -257,6 +257,22 @@ public class GripLibraryWindow : EditorWindow
 
             WarnIfImplausible(item);
 
+            // ---- WHY AN ELBOW ANGLE CAN DO NOTHING ----
+            //
+            // An arm stretched to within 3% of its length has no bend left,
+            // and an elbow with no bend sits ON the shoulder-to-hand line
+            // where nothing can steer it. The cause is always a hand target
+            // too far away - a GRIP problem - so it is reported here rather
+            // than compensated for in the solver, which would hide it.
+            if (arms.LeftArmStraight || arms.RightArmStraight)
+                EditorGUILayout.HelpBox(
+                    (arms.LeftArmStraight && arms.RightArmStraight ? "BOTH arms are"
+                     : arms.LeftArmStraight ? "The LEFT arm is" : "The RIGHT arm is") +
+                    " stretched almost straight, so the elbow has no bend left " +
+                    "and no Elbow Angle can move it. Fix the GRIP first - the " +
+                    "hand target is further away than the arm is long.",
+                    MessageType.Warning);
+
             liveSo.Update();
 
             EditorGUI.indentLevel++;

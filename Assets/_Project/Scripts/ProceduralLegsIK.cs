@@ -135,15 +135,6 @@ public class ProceduralLegsIK : MonoBehaviour
              "on landing while that unwound.")]
     public float maxHipDrop = 0.35f;
 
-    [Header("Diagnosis")]
-    [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
-             "The first line is the one that matters: IK WEIGHT. If it reads " +
-             "0.00 the feet are still entirely clip-driven and NO parameter in " +
-             "ProceduralLegs can change anything you see - which is worth " +
-             "knowing before spending an evening tuning numbers that are not " +
-             "connected to the picture.")]
-    public bool showReadout = true;
-
     [Tooltip("Seconds the body must be continuously off the ground before the " +
              "legs are handed back to the clips. The ground SphereCast misses " +
              "for a frame here and there on uneven floors, and without this the " +
@@ -558,8 +549,6 @@ public class ProceduralLegsIK : MonoBehaviour
     // under it is the gait as the code currently understands it.
     // --------------------------------------------------------------------
 
-    GUIStyle style;
-
     // ---- WHAT THE BONE ACTUALLY DID ----
     //
     // Everything above is what the code ASKED for. This is what the skeleton
@@ -576,6 +565,34 @@ public class ProceduralLegsIK : MonoBehaviour
     //
     // Three rounds of tuning went into the first when it might have been the
     // second, because from outside they are the same picture.
+
+#if UNITY_EDITOR
+
+    [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
+             "A DEVELOPMENT AID: off by default, and compiled out of a player " +
+             "build entirely, so it cannot appear in the game however this is " +
+             "left.\n\n" +
+             "The first line is the one that matters: IK WEIGHT. If it reads " +
+             "0.00 the feet are still entirely clip-driven and NO parameter in " +
+             "ProceduralLegs can change anything you see - which is worth " +
+             "knowing before spending an evening tuning numbers that are not " +
+             "connected to the picture.")]
+    public bool showReadout = false;
+
+    GUIStyle style;
+
+    // ------------------------------------------------------------------
+    // THE READOUT IS A DEVELOPMENT AID AND IS COMPILED OUT OF BUILDS.
+    //
+    // It earned its keep - "asked lift 22cm / bone lift 21cm" is what ended
+    // several rounds of guessing about whether the goal or the solve was
+    // wrong. But it is diagnostic text on a game screen, and a shipped build
+    // must not be able to show it however a field is left.
+    //
+    // #if UNITY_EDITOR rather than a bool, because a bool can be ticked by
+    // accident and saved into a prefab. This cannot appear in a player build
+    // at all: the code is not in it.
+    // ------------------------------------------------------------------
 
     float boneLift;      // how far the foot bone is off the floor, metres
     float askedLift;     // how far we asked it to be, metres
@@ -702,4 +719,6 @@ public class ProceduralLegsIK : MonoBehaviour
 
         GUI.Label(new Rect(14f, 90f, 460f, 260f), text.ToString(), style);
     }
+
+#endif
 }

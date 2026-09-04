@@ -21,25 +21,25 @@ public class PlayerCarry : MonoBehaviour
              "This rig is short and stocky - its shoulder is at about 1.42 and " +
              "its eye at 1.55 - so 1.30 was shoulder height and put the crate " +
              "in the character's face. Chest is nearer 1.0.")]
-    public float holdHeightSmall = 1.02f;
+    public float holdHeightSmall = 0.82f;
 
     [Tooltip("Height for a HEAVY item. Lower than small: a heavy thing is " +
              "carried against the body, not held up.")]
-    public float holdHeightHeavy = 0.92f;
+    public float holdHeightHeavy = 0.74f;
 
     [Tooltip("Height for a MASSIVE item - a safe, a vending machine. Lowest of " +
              "the three, because you hug it at waist level.")]
-    public float holdHeightMassive = 0.82f;
+    public float holdHeightMassive = 0.66f;
 
     [Tooltip("How far in FRONT of the body a small item sits, in metres.")]
-    public float holdDistanceSmall = 0.38f;
+    public float holdDistanceSmall = 0.34f;
 
     [Tooltip("How far in front for a heavy item. Further out - a big box " +
              "cannot occupy the same space as your chest.")]
-    public float holdDistanceHeavy = 0.5f;
+    public float holdDistanceHeavy = 0.44f;
 
     [Tooltip("How far in front for a massive item.")]
-    public float holdDistanceMassive = 0.6f;
+    public float holdDistanceMassive = 0.52f;
     public float holdSnapSpeed = 18f;
 
     [Header("Reach")]

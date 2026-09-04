@@ -3,7 +3,7 @@
 // Goes on: PlayerModel_FBX_VISUAL  (the SAME GameObject as the Animator).
 //
 // ========================================================================
-// HANDS THAT GO UNDER WHATEVER YOU ARE ACTUALLY CARRYING.
+// HANDS THAT GRIP THE SIDES OF WHATEVER YOU ARE ACTUALLY CARRYING.
 //
 // "can we do something like when you grab box your hands will go below the box
 //  automatically... or we gonna need an animation for that"
@@ -18,8 +18,8 @@
 //
 // Measured bounds give every item the right grip for free:
 //
-//     item's world bounds  ->  two points, under it and to either side
-//                          ->  IK the hands there
+//     item's world bounds  ->  two points, on its side faces near the top
+//                          ->  IK the hands there, and the box hangs from them
 //
 // This is the same kind of problem the legs solved - "put this hand at that
 // computed point" is GEOMETRY, and IK is excellent at geometry. The push kept
@@ -49,10 +49,19 @@ public class PlayerCarryArms : MonoBehaviour
              "inside reads as a confident hold.")]
     [Range(0.3f, 1.2f)] public float gripWidth = 0.85f;
 
-    [Tooltip("How far ABOVE the underside of the item the hands sit, in " +
-             "metres. Small positive so the palms cup the bottom edge rather " +
-             "than hovering in the air beneath it.")]
-    public float gripLift = 0.04f;
+    [Tooltip("WHERE ON THE BOX'S SIDE the fingers grip, 0 at the bottom edge " +
+             "and 1 at the top. " +
+             "Near the top, because that is how a person actually picks a crate " +
+             "up: fingers hooked over the upper part of each side, and the box " +
+             "HANGS from them. Palms flat underneath - which is what this did " +
+             "first - means presenting the box on a tray at chest height, " +
+             "which is why it ended up in the character's face.")]
+    [Range(0f, 1f)] public float gripHeightOnBox = 0.78f;
+
+    [Tooltip("How far INTO the box's side face the hands sit, in metres. A " +
+             "little inside so the fingers read as gripping the surface rather " +
+             "than floating a centimetre off it.")]
+    public float gripInset = 0.02f;
 
     [Tooltip("How far toward the player the hands sit from the item's centre, " +
              "in metres. People carry a box with their hands on the NEAR half " +
@@ -153,20 +162,29 @@ public class PlayerCarryArms : MonoBehaviour
         toward.y = 0f;
         if (toward.sqrMagnitude > 0.0001f) toward.Normalize();
 
-        // Half-width taken as the larger horizontal extent, because world
-        // bounds are axis-aligned and the box may be turned any way relative
-        // to the player. Clamped, because a vending machine is wider than a
-        // person's arms and asking for its true corners only stretches them.
+        // ---- ON THE SIDES, NOT UNDERNEATH ----
+        //
+        // Nobody carries a crate on flat palms held out in front. You hook
+        // your fingers over each side near the top and the box HANGS from
+        // them, down by your waist. Palms-underneath is a waiter with a tray,
+        // and it forces the box up to chest height to be reachable - which is
+        // exactly how it ended up in the character's face.
+        //
+        // So the grip is at the box's own side faces, at a height taken from
+        // the box itself rather than a fixed offset: a tall cabinet is gripped
+        // near ITS top, a small crate near ITS top, and both look right without
+        // being told which they are.
         float half = Mathf.Max(b.extents.x, b.extents.z) * gripWidth;
         half = Mathf.Min(half, maxGripWidth);
+        half = Mathf.Max(0.05f, half - gripInset);
 
-        // UNDER it: the bottom face, lifted slightly so the palms cup the edge
-        // rather than floating in the air below it.
-        Vector3 under = new Vector3(b.center.x, b.min.y + gripLift, b.center.z)
-                      + toward * gripToward;
+        float gripY = Mathf.Lerp(b.min.y, b.max.y, gripHeightOnBox);
 
-        left = under - side * half;
-        right = under + side * half;
+        Vector3 centre = new Vector3(b.center.x, gripY, b.center.z)
+                       + toward * gripToward;
+
+        left = centre - side * half;
+        right = centre + side * half;
 
         return true;
     }

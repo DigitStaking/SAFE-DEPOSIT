@@ -113,6 +113,13 @@ public class CrewLobby : MonoBehaviour
         crewName = SteamBoot.Running
             ? SteamBoot.MyName + "'s crew"
             : "the crew";
+
+        // The saved choice wins over whatever the scene has, because the
+        // button is the thing people actually use and a build cannot write
+        // the scene back. The serialized field is only the starting value the
+        // first time this machine ever runs it.
+        if (PlayerPrefs.HasKey(LocalPrefKey))
+            forceLocalTransport = PlayerPrefs.GetInt(LocalPrefKey) == 1;
     }
 
     void OnEnable()
@@ -159,6 +166,27 @@ public class CrewLobby : MonoBehaviour
     /// Unity Transport, always. The local path has to be able to say "local"
     /// without Steam overruling it - that is the whole point of having one.
     /// </summary>
+    const string LocalPrefKey = "SAFEDEPOSIT_ForceLocalTransport";
+
+    /// <summary>
+    /// Remember the choice between runs.
+    ///
+    /// PlayerPrefs rather than the serialized field, because the field only
+    /// helps in the Editor - a build cannot save its own scene, so a tester
+    /// would have to click this on every launch. Set once per machine, and it
+    /// stays.
+    /// </summary>
+    void SetLocalTransport(bool local)
+    {
+        forceLocalTransport = local;
+        PlayerPrefs.SetInt(LocalPrefKey, local ? 1 : 0);
+        PlayerPrefs.Save();
+
+        Say(local
+            ? "local testing - HOST A RUN and JOIN A RUN now talk over 127.0.0.1"
+            : "Steam - host creates a lobby, friends join by code or invite");
+    }
+
     /// <summary>Which transport this instance will actually use, in a word.
     /// Shown in the lobby, because "joining locally..." was believable while
     /// the packets were going out over Steam - and nothing on screen
@@ -548,15 +576,41 @@ public class CrewLobby : MonoBehaviour
                       ? "Steam: " + SteamBoot.MyName
                       : "Steam is not running - local play only (127.0.0.1)", body);
 
-        // WHICH TRANSPORT, in the menu itself.
+        // ---- CHOOSE THE CONNECTION HERE, NOT IN THE INSPECTOR ----
         //
-        // "joining locally..." was believable while the packets went out
-        // over Steam, and nothing on screen contradicted it. One word here
-        // would have shown that in a second.
-        GUI.Label(new Rect(x, y + 20f, iw, 18f),
-                  "connection: " + TransportName, body);
+        // This started as a tick on the component, which is the wrong place
+        // for it: find the object, tick it, save the scene AND rebuild before
+        // a test can run. A switch that costs a rebuild is a switch nobody
+        // flips.
+        //
+        // A button in the menu instead, in the Editor and in a build, and it
+        // remembers itself between runs. Only offered while Steam is actually
+        // up - without Steam everything is local anyway and a choice would be
+        // a lie.
+        //
+        // Disabled once a connection exists: changing transport underneath a
+        // live NetworkManager does nothing good.
+        if (SteamBoot.Running)
+        {
+            GUI.enabled = !net.IsListening;
 
-        y += 46f;
+            if (GUI.Button(new Rect(x, y + 20f, iw, 24f),
+                           forceLocalTransport
+                               ? "connection:  LOCAL 127.0.0.1   -   click for Steam"
+                               : "connection:  STEAM   -   click for local testing"))
+                SetLocalTransport(!forceLocalTransport);
+
+            GUI.enabled = true;
+
+            y += 52f;
+        }
+        else
+        {
+            GUI.Label(new Rect(x, y + 20f, iw, 18f),
+                      "connection: local 127.0.0.1  (Steam is not running)", body);
+
+            y += 46f;
+        }
 
         if (!net.IsListening)
         {

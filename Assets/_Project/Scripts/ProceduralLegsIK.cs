@@ -218,9 +218,20 @@ public class ProceduralLegsIK : MonoBehaviour
     /// </summary>
     void OnAnimatorIK(int layerIndex)
     {
+        // ---- LAYER 0 IS CORRECT *HERE*, AND ONLY BECAUSE OF THE MASK ----
+        //
         // Every layer with an IK pass gets this call, and the feet only need
-        // deciding once. Doing it per layer would apply the same goal two or
-        // three times and waste the solve.
+        // deciding once, so this takes the first.
+        //
+        // That is safe for LEGS and was not safe for ARMS. The Arms layer is
+        // Override at weight 1, so it replaces the bones IN ITS MASK with its
+        // own pose - and the mask contains the arms, not the legs. Leg IK
+        // solved into layer 0 therefore survives untouched, while arm IK solved
+        // into layer 0 was being wiped every frame by the layer above.
+        //
+        // So the legs working was never evidence the arms would: the two cases
+        // differ by which bones the mask covers. Worth knowing before adding
+        // any new IK - check what owns those bones first.
         if (layerIndex != 0) return;
         if (anim == null) return;
 

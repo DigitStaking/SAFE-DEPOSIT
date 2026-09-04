@@ -40,7 +40,7 @@
 
 using UnityEngine;
 
-[DefaultExecutionOrder(40)]          // after FirstPersonHands (30), so it wins
+[DefaultExecutionOrder(40)]          // after PlayerCarryArms (35), so a shove wins
 [RequireComponent(typeof(Animator))]
 public class PlayerPushArms : MonoBehaviour
 {
@@ -98,7 +98,7 @@ public class PlayerPushArms : MonoBehaviour
              "shove. The left hand mirrors it on Z. " +
              "This exists because a hand bone has no standard orientation - " +
              "which axis runs along the fingers is a decision the rig made, " +
-             "not something that can be derived. FirstPersonHands solves the " +
+             "not something that can be derived. The old hand system solved the " +
              "same problem the same way with its own Euler(0,0,+-75), and this " +
              "is the number to change if the palms arrive edge-on like a " +
              "karate chop instead of flat like a shove.")]

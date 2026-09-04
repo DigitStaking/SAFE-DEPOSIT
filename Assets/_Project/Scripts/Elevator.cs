@@ -807,7 +807,7 @@ public class Elevator : MonoBehaviour
         string side = activeSide.StartsWith("Side_") ? activeSide.Substring(5) : activeSide;
 
         GUI.Label(new Rect(24f, Screen.height - 52f, 700f, 22f),
-                  $"F at the panel          PageUp / PageDown  (debug)          " +
+                  $"F at the panel          " +
                   $"doors {(DoorsLocked ? "LOCKED" : "open " + side.ToUpper())}", hint);
     }
 

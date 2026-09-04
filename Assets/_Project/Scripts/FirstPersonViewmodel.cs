@@ -230,7 +230,6 @@ public class FirstPersonViewmodel : MonoBehaviour
     Transform anchor;
     Transform clone;
     LocalFirstPersonBodyCull cull;   // on the REAL body, to ask about third person
-    FirstPersonHands realHands;      // on the REAL body, turned off once we work
     PlayerCarry realCarry;           // holding something
     PlayerPush realPush;             // mid-shove
     PlayerPushArms realPushArms;     // the world-space shove, read for its TIMING only
@@ -382,7 +381,6 @@ public class FirstPersonViewmodel : MonoBehaviour
         {
             target = fpCam.target;
             cull = target.GetComponent<LocalFirstPersonBodyCull>();
-            realHands = target.GetComponentInChildren<FirstPersonHands>(true);
             realCarry = target.GetComponent<PlayerCarry>();
             realPush = target.GetComponent<PlayerPush>();
             realPushArms = target.GetComponentInChildren<PlayerPushArms>(true);
@@ -783,7 +781,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         {
             Debug.LogWarning("[Viewmodel] Assets/_Project/Resources/PlayerArmsViewmodel.asset " +
                              "not found. Run SAFE DEPOSIT > Player > Build First-Person Arms " +
-                             "Mesh once. Your real hands (FirstPersonHands) are left running " +
+                             "Mesh once. Your real arms are left animating normally " +
                              "until this exists.");
         }
 
@@ -802,7 +800,6 @@ public class FirstPersonViewmodel : MonoBehaviour
         // Real hands are the fallback until proven otherwise on THIS body.
         // A respawn re-runs Rebuild with a fresh target, so this has to be
         // re-decided every time rather than trusted from the last body.
-        if (realHands != null) realHands.enabled = true;
 
         if (anchor == null)
         {
@@ -922,7 +919,6 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         // Confirmed working on this body - the real skeleton no longer needs
         // to be bent toward the camera to fake hands.
-        if (realHands != null) realHands.enabled = false;
 
         // And stop YOUR camera drawing your own body, now that there are arms
         // to replace it with. Only now - doing it earlier or unconditionally
@@ -933,10 +929,7 @@ public class FirstPersonViewmodel : MonoBehaviour
         // told to draw it. A teammate sees the complete character, unchanged.
         if (cull != null) cull.HideBodyFromOwnCamera(true);
 
-        Report("BUILT on '" + target.name + "'. FirstPersonHands " +
-               (realHands != null ? "disabled" : "NOT FOUND (old hands may still show)") +
-               ". If the arms are not visible, they are in the wrong place rather than " +
-               "missing - select ~FirstPersonViewmodel and move Local Position.");
+        Report("BUILT on '" + target.name + "'.");
     }
 
     /// <summary>
@@ -951,7 +944,6 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// </summary>
     void StripForViewmodel(GameObject go)
     {
-        DestroyAllOfType<FirstPersonHands>(go);
         DestroyAllOfType<ProceduralLegsIK>(go);
         DestroyAllOfType<PlayerPushArms>(go);
 

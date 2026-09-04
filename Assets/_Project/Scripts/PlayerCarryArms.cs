@@ -55,7 +55,7 @@
 
 using UnityEngine;
 
-[DefaultExecutionOrder(35)]          // after FirstPersonHands (30), before PlayerPushArms (40)
+[DefaultExecutionOrder(35)]          // before PlayerPushArms (40) and HandFingerCurl (60)
 [RequireComponent(typeof(Animator))]
 public class PlayerCarryArms : MonoBehaviour
 {

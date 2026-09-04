@@ -39,7 +39,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[DefaultExecutionOrder(60)]      // after Animator and after FirstPersonHands
+[DefaultExecutionOrder(60)]      // after the Animator and every IK writer
 public class LocalFirstPersonBodyCull : MonoBehaviour
 {
     [Header("Head")]

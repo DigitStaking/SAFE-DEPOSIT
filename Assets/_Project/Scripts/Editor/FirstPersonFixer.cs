@@ -178,12 +178,6 @@ public static class FirstPersonFixer
         // there. That one has no avatar, so the script bails on its first line
         // and the IK never runs - while looking perfectly wired in the
         // Inspector. Remove the script first, or the Animator refuses to go.
-        var strayHands = root.GetComponent<FirstPersonHands>();
-        if (strayHands != null)
-        {
-            Object.DestroyImmediate(strayHands, true);
-            log.AppendLine("  removed FirstPersonHands from the Player root (wrong object)");
-        }
 
         var strayAnim = root.GetComponent<Animator>();
         if (strayAnim != null)
@@ -207,26 +201,6 @@ public static class FirstPersonFixer
         anim.enabled = true;
         log.AppendLine($"  Animator on '{anim.gameObject.name}': controller, avatar, " +
                        "rootMotion off, AlwaysAnimate");
-
-        // ---- hand IK -------------------------------------------------
-        //
-        // This used to ADD FirstPersonHands and configure it. It no longer
-        // does, and it no longer will: re-adding a retired component from a
-        // "fixer" is how it kept reappearing after being removed, with the
-        // damage surfacing days later somewhere unrelated.
-        //
-        // The hands on the real body are PlayerCarryArms (places them on what
-        // you are holding) and PlayerPushArms (the shove). First-person hands
-        // are FirstPersonViewmodel's job now. An existing copy is only
-        // reported, never installed - remove it with Retire Old Hand Scripts.
-        var hands = anim.GetComponent<FirstPersonHands>();
-
-        if (hands != null)
-            log.AppendLine($"  FirstPersonHands still on '{anim.gameObject.name}' - it " +
-                           "competes with PlayerCarryArms for the same IK goals. " +
-                           "SAFE DEPOSIT / Player / Retire Old Hand Scripts.");
-        else
-            log.AppendLine("  FirstPersonHands: retired (correct).");
 
         // ---- head cull ----------------------------------------------
         var cull = root.GetComponent<LocalFirstPersonBodyCull>();

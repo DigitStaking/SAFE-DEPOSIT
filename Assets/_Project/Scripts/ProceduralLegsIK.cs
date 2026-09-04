@@ -93,7 +93,7 @@ public class ProceduralLegsIK : MonoBehaviour
              "Emotes are FULL-BODY - a dance is mostly legs - so holding the " +
              "feet on the floor would keep the upper half dancing while the " +
              "lower half stood still. " +
-             "This reads the same FreeArms tag that FirstPersonHands already " +
+             "This reads the same FreeArms tag the arm systems already " +
              "uses to release the HAND ik for the same reason, so an emote is " +
              "released by both halves off one signal and they cannot disagree.")]
     public bool releaseDuringEmotes = true;
@@ -566,159 +566,27 @@ public class ProceduralLegsIK : MonoBehaviour
     // Three rounds of tuning went into the first when it might have been the
     // second, because from outside they are the same picture.
 
-#if UNITY_EDITOR
-
-    [Tooltip("Print the live gait numbers on screen while playing.\n\n" +
-             "A DEVELOPMENT AID: off by default, and compiled out of a player " +
-             "build entirely, so it cannot appear in the game however this is " +
-             "left.\n\n" +
-             "The first line is the one that matters: IK WEIGHT. If it reads " +
-             "0.00 the feet are still entirely clip-driven and NO parameter in " +
-             "ProceduralLegs can change anything you see - which is worth " +
-             "knowing before spending an evening tuning numbers that are not " +
-             "connected to the picture.")]
-    public bool showReadout = false;
-
-    GUIStyle style;
-
-    // ------------------------------------------------------------------
-    // THE READOUT IS A DEVELOPMENT AID AND IS COMPILED OUT OF BUILDS.
+// ---- THE ON-SCREEN READOUT IS GONE ----
     //
-    // It earned its keep - "asked lift 22cm / bone lift 21cm" is what ended
-    // several rounds of guessing about whether the goal or the solve was
-    // wrong. But it is diagnostic text on a game screen, and a shipped build
-    // must not be able to show it however a field is left.
+    // It printed IK WEIGHT, step length, asked lift, bone lift, reach error
+    // and the planted/stepping state, and it earned its keep: "asked lift 22cm
+    // / bone lift 21cm" is what ended several rounds of guessing about whether
+    // the goal or the solve was wrong.
     //
-    // #if UNITY_EDITOR rather than a bool, because a bool can be ticked by
-    // accident and saved into a prefab. This cannot appear in a player build
-    // at all: the code is not in it.
-    // ------------------------------------------------------------------
-
-    float boneLift;      // how far the foot bone is off the floor, metres
-    float askedLift;     // how far we asked it to be, metres
-    float reachError;    // how far the bone ended up from the goal
-
-    void LateUpdate()
-    {
-        if (!showReadout || anim == null || !anim.isHuman) return;
-
-        var leg = right != null ? right : left;
-        if (leg == null) return;
-
-        var goal = leg == right ? HumanBodyBones.RightFoot : HumanBodyBones.LeftFoot;
-        var bone = anim.GetBoneTransform(goal);
-        if (bone == null) return;
-
-        Vector3 want = leg.FootPosition + Vector3.up * ankleHeight;
-
-        boneLift = bone.position.y - leg.GroundHeight;
-        askedLift = want.y - leg.GroundHeight;
-        reachError = Vector3.Distance(bone.position, want);
-    }
-
-    void OnGUI()
-    {
-        if (!showReadout) return;
-        if (motor != null && !motor.IsLocal) return;   // not somebody else's legs
-
-        if (style == null)
-            style = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 13,
-                richText = true,
-                alignment = TextAnchor.UpperLeft
-            };
-
-        var text = new System.Text.StringBuilder();
-
-        bool wired = anim != null && anim.runtimeAnimatorController != null &&
-                     (left != null || right != null);
-
-        // Green when the legs are getting what YOU asked for, orange only
-        // when something is holding them below it. A deliberate 0.55 is not a
-        // fault and must not be coloured like one - I read the first 0.55 as a
-        // flicker when it was a setting, which is exactly the mistake this
-        // colouring should stop anyone else making.
-        bool honoured = live >= weight - 0.02f;
-        string colour = honoured ? "#7CFF7C" : "#FF7C5A";
-        text.Append("<color=").Append(colour).Append("><b>IK WEIGHT  ")
-            .Append(live.ToString("0.00")).Append("</b></color>");
-
-        if (!wired)
-        {
-            if (anim == null || anim.runtimeAnimatorController == null)
-                text.Append("   <color=#FF7C5A>NO ANIMATOR CONTROLLER on this " +
-                            "object - this component is not next to the real " +
-                            "Animator</color>");
-            else
-                text.Append("   <color=#FF7C5A>NO LEGS FOUND on a parent</color>");
-        }
-        else if (live <= 0.01f)
-        {
-            text.Append("   <color=#FF7C5A>feet are still clip-driven</color>");
-        }
-
-        if (!string.IsNullOrEmpty(HeldBack))
-            text.Append("\n<color=#FF7C5A>").Append(HeldBack).Append("</color>");
-
-        var leg = right != null ? right : left;
-
-        if (leg != null)
-        {
-            float length = leg.StepLength;
-            float lift = leg.StepLift;
-            float seconds = leg.StepSeconds;
-
-            text.Append("\n\nspeed        ").Append(leg.Speed.ToString("0.00")).Append(" m/s");
-            text.Append("\nstep length  ").Append(length.ToString("0.00")).Append(" m");
-            text.Append("\nstep lift    ").Append((lift * 100f).ToString("0")).Append(" cm");
-
-            if (length > 0.01f)
-                text.Append("   (").Append((lift / length * 100f).ToString("0"))
-                    .Append("% of length - aim for 15 to 20)");
-
-            text.Append("\nstep time    ").Append(seconds.ToString("0.00")).Append(" s");
-            text.Append("\nstride budget").Append(leg.StrideBudget.ToString("0.00")).Append(" m");
-
-            if (length > 0.01f && seconds > 0.01f)
-                text.Append("\nfootfalls    ")
-                    .Append((2f * leg.Speed / length).ToString("0.0")).Append(" per second");
-
-            if (leg.LoadAmount > 0.01f)
-                text.Append("\nload         ").Append((leg.LoadAmount * 100f).ToString("0")).Append("%");
-
-            if (leg.InjuryAmount > 0.01f)
-                text.Append("\ninjury       ").Append((leg.InjuryAmount * 100f).ToString("0")).Append("%");
-
-            // ---- ASKED FOR versus ACTUALLY HAPPENED ----
-            //
-            // The line that ends the guessing. If the asked lift is healthy
-            // and the bone lift is not, the leg cannot reach and no parameter
-            // in ProceduralLegs will change it.
-            text.Append("\n\n<b>asked lift   ").Append((askedLift * 100f).ToString("0"))
-                .Append(" cm</b>");
-            text.Append("\n<b>bone lift    ").Append((boneLift * 100f).ToString("0"))
-                .Append(" cm</b>");
-
-            if (askedLift > 0.02f && boneLift < askedLift * 0.5f)
-                text.Append("   <color=#FF7C5A>THE LEG IS NOT FOLLOWING - " +
-                            "it cannot reach, so the hips must move (step 4)</color>");
-
-            text.Append("\nreach error  ").Append((reachError * 100f).ToString("0"))
-                .Append(" cm");
-
-            text.Append("\nhip offset   ").Append((hipOffsetY * 100f).ToString("0.0"))
-                .Append(" cm").Append(moveHips ? "" : "   (hips OFF)");
-
-            text.Append("\n\n<color=#9999AA>left  ")
-                .Append(left == null ? "MISSING" : (left.IsStepping ? "stepping" : "planted"))
-                .Append("    right ")
-                .Append(right == null ? "MISSING" : (right.IsStepping ? "stepping" : "planted"))
-                .Append("</color>");
-        }
-
-        GUI.Label(new Rect(14f, 90f, 460f, 260f), text.ToString(), style);
-    }
-
-#endif
+    // Removed rather than switched off, because switching it off did not work
+    // TWICE and both failures are worth recording:
+    //
+    //   #if UNITY_EDITOR is TRUE in play mode. It strips a build, not the
+    //   Editor, so it did nothing for anybody testing in the Editor - which is
+    //   everybody, all the time.
+    //
+    //   Changing the default to false changed nothing either, because
+    //   showReadout was already serialized as 1 on the Player prefab. A script
+    //   default only applies to objects created after it changes; existing
+    //   assets keep what they were saved with. This project has now been
+    //   caught by that twice.
+    //
+    // Deleting the code is the only version that cannot come back. The
+    // orphaned showReadout: 1 left in the prefab is harmless and Unity drops
+    // it the next time the prefab is written.
 }

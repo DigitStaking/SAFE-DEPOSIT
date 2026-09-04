@@ -21660,7 +21660,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NetworkBootstrap
   address: 127.0.0.1
   port: 7777
-  showPanel: 1
+  showPanel: 0
 --- !u!114 &1674611553
 MonoBehaviour:
   m_ObjectHideFlags: 0

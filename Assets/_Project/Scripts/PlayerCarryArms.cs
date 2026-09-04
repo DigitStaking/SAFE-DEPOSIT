@@ -233,6 +233,7 @@ public class PlayerCarryArms : MonoBehaviour
     PlayerMotor motor;
     HandFingerCurl fingers;
 
+    int blendFrame = -1;
     float live;                              // eased weight actually applied
     Vector3 posL, posR;                      // world, this frame
     Quaternion rotL = Quaternion.identity, rotR = Quaternion.identity;
@@ -303,13 +304,48 @@ public class PlayerCarryArms : MonoBehaviour
 
     void OnAnimatorIK(int layerIndex)
     {
-        if (layerIndex != 0 || anim == null || !anim.isHuman) return;
+        // ---- EVERY IK PASS, NOT JUST LAYER 0 ----
+        //
+        // This is the bug that hid every other one.
+        //
+        // AC_PlayerDiver has two layers, both with IK Pass:
+        //
+        //     0  Base Layer   Override   weight 0   no mask
+        //     1  Arms         Override   weight 1   Arms mask
+        //
+        // Unity calls OnAnimatorIK ONCE PER LAYER, and applies what you write
+        // to THAT layer's pose. The old filter accepted only layerIndex 0 - so
+        // every goal was solved into the base layer, and then the Arms layer,
+        // being Override at weight 1 over an arms mask, replaced the arm bones
+        // outright. The IK was computed correctly and thrown away before it
+        // reached the screen, every frame.
+        //
+        // It accounts for all of it: hands that stayed posed when both grips
+        // were marked unused (that was the Carry CLIP, not IK), an elbow hint
+        // that did nothing, and grip points 2.77m away that somehow never
+        // stretched the arms. Fingers kept working because HandFingerCurl
+        // writes bones in LateUpdate, after every layer has had its say - which
+        // is exactly why finger response never proved the IK was live.
+        //
+        // Writing on every pass is the simple fix: the goals are absolute
+        // values, so setting them twice sets them to the same thing, and
+        // whichever layer actually owns the arms now receives them.
+        if (anim == null || !anim.isHuman) return;
 
         haveGrips = Grips();
 
-        float want = haveGrips ? weight : 0f;
-        live = Mathf.MoveTowards(live, want,
-                                 blendTime <= 0f ? 1f : Time.deltaTime / blendTime);
+        // The blend advances ONCE per frame, not once per layer. Easing it on
+        // every pass would run it at twice speed on a two-layer rig and at
+        // three times on a three-layer one - a bug that would scale with the
+        // controller rather than with anything visible.
+        if (blendFrame != Time.frameCount)
+        {
+            blendFrame = Time.frameCount;
+
+            float want = haveGrips ? weight : 0f;
+            live = Mathf.MoveTowards(live, want,
+                                     blendTime <= 0f ? 1f : Time.deltaTime / blendTime);
+        }
 
         // ---- ZEROED, NOT SKIPPED ----
         //

@@ -255,6 +255,8 @@ public class GripLibraryWindow : EditorWindow
                     "instead.",
                     MessageType.Warning);
 
+            WarnIfImplausible(item);
+
             liveSo.Update();
 
             EditorGUI.indentLevel++;
@@ -445,13 +447,7 @@ public class GripLibraryWindow : EditorWindow
 
             EditorGUI.indentLevel++;
 
-            if (item.HasCustomGrip &&
-                (Implausible(item.leftGrip) || Implausible(item.rightGrip)))
-                EditorGUILayout.HelpBox(
-                    "These grip points are more than a metre from the item's " +
-                    "origin - almost certainly seeded before the scale bug was " +
-                    "fixed. Press Reseed.",
-                    MessageType.Warning);
+            WarnIfImplausible(item);
 
             DrawGripFields(row.so);
 
@@ -518,4 +514,51 @@ public class GripLibraryWindow : EditorWindow
     /// grip on it, whatever the numbers say.</summary>
     static bool Implausible(Carryable.HandGrip g) =>
         g.used && g.localPosition.magnitude > 1f;
+
+    /// <summary>
+    /// Say so, loudly, and name the hand.
+    ///
+    /// The old version only appeared on the prefab rows, and only said "these
+    /// grip points" - so a grip corrupted on BOTH hands read as a one-hand
+    /// problem, and the fix went onto the wrong one. Naming each hand and its
+    /// distance turns "the right hand looks weird" into a number you can
+    /// disbelieve.
+    ///
+    /// Two ways to get here, both now closed at the source:
+    ///
+    ///   the local-space seed, which multiplied every distance by 1/scale
+    ///   the old save, which wrote COMPUTED world points with the character's
+    ///   palm angle already folded in - hence the arbitrary eulers that come
+    ///   with these, nothing like the mirrored 0/90/0 a seed produces
+    ///
+    /// Both are fixed, but the bad numbers are already sitting in prefabs and
+    /// nothing rewrites saved data behind your back.
+    /// </summary>
+    static void WarnIfImplausible(Carryable item)
+    {
+        if (!item.HasCustomGrip) return;
+
+        bool l = Implausible(item.leftGrip);
+        bool r = Implausible(item.rightGrip);
+
+        if (!l && !r) return;
+
+        string which =
+            l && r ? "BOTH hands are"
+          : l ? "The LEFT hand is"
+          : "The RIGHT hand is";
+
+        string how =
+            (l ? "  left " + item.leftGrip.localPosition.magnitude.ToString("0.00") + "m" : "") +
+            (r ? "  right " + item.rightGrip.localPosition.magnitude.ToString("0.00") + "m" : "");
+
+        EditorGUILayout.HelpBox(
+            which + " placed more than a metre from this item, which is not a " +
+            "grip on it - the arm just stretches toward a point in space." + how +
+            "\n\nThese were written by the two bugs that are now fixed: the " +
+            "local-space seed, and the save that wrote computed world points. " +
+            "Nothing rewrites saved data on its own, so press Seed From Bounds " +
+            "and then Save.",
+            MessageType.Warning);
+    }
 }

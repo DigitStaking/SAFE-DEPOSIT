@@ -191,24 +191,32 @@ MonoBehaviour:
   value: 100
   gripMode: 1
   leftGrip:
-    localPosition: {x: 1.27, y: 3.01, z: 2.57}
-    localEuler: {x: 2.56, y: 92.89, z: 34.9}
+    localPosition: {x: -2.3, y: -1.45, z: -0.55}
+    localEuler: {x: 112.48, y: 82.9, z: 209.76}
     used: 1
-    thumb: 0.38
-    index: 0.218
-    middle: 0.199
-    ring: 0.181
-    little: 0.148
+    thumb: 0
+    index: 0
+    middle: 0
+    ring: 0
+    little: 0
   rightGrip:
-    localPosition: {x: 0.3419192, y: 0.585, z: -0.06}
-    localEuler: {x: 0, y: -90, z: 0}
+    localPosition: {x: 2.3, y: -1.45, z: -0.55}
+    localEuler: {x: 63.8, y: 7.77, z: 260.9}
     used: 1
-    thumb: 0.807
-    index: 1
-    middle: 0.85
-    ring: 0.85
-    little: 0.8
+    thumb: 0
+    index: 0
+    middle: 0
+    ring: 0
+    little: 0
+  overrideMeasure: 0
+  measure:
+    width: 0.85
+    heightOnBox: 0.78
+    inset: 0.02
+    toward: 0.06
+    maxWidth: 0.55
   alwaysDrawGrips: 0
+  sourcePrefab: {fileID: 0}
 --- !u!1 &1854043609443495353
 GameObject:
   m_ObjectHideFlags: 0

@@ -159,6 +159,12 @@ public class CrewLobby : MonoBehaviour
     /// Unity Transport, always. The local path has to be able to say "local"
     /// without Steam overruling it - that is the whole point of having one.
     /// </summary>
+    /// <summary>Which transport this instance will actually use, in a word.
+    /// Shown in the lobby, because "joining locally..." was believable while
+    /// the packets were going out over Steam - and nothing on screen
+    /// contradicted it.</summary>
+    public string TransportName => UseSteam ? "Steam" : "local 127.0.0.1";
+
     void UseLocalTransport()
     {
         if (net == null) return;
@@ -541,7 +547,16 @@ public class CrewLobby : MonoBehaviour
                   SteamBoot.Running
                       ? "Steam: " + SteamBoot.MyName
                       : "Steam is not running - local play only (127.0.0.1)", body);
-        y += 28f;
+
+        // WHICH TRANSPORT, in the menu itself.
+        //
+        // "joining locally..." was believable while the packets went out
+        // over Steam, and nothing on screen contradicted it. One word here
+        // would have shown that in a second.
+        GUI.Label(new Rect(x, y + 20f, iw, 18f),
+                  "connection: " + TransportName, body);
+
+        y += 46f;
 
         if (!net.IsListening)
         {

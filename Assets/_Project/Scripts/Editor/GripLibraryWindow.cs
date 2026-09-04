@@ -458,31 +458,152 @@ public class GripLibraryWindow : EditorWindow
         }
     }
 
-    /// <summary>
-    /// Every grip field, in one place.
-    ///
-    /// Shared between the live clone and the prefab rows so the two can never
-    /// show a different set - and drawn with PropertyField, so the sliders,
-    /// ranges, tooltips and headers are the real ones off Carryable and a new
-    /// field appears here with no work.
-    /// </summary>
+    // ------------------------------------------------------------------
+    // THE FIELDS, IN SECTIONS
+    //
+    // Three groups, because they answer three different questions and mixing
+    // them into one flat list is how you end up scrolling past the one you
+    // meant to change:
+    //
+    //     HAND GRIP           where the hands are and what the fingers do
+    //     ELBOW / ARM         how the arm BENDS to get there
+    //     HELD ITEM TRANSFORM where the object itself sits
+    //
+    // Drawn once and shared by the live clone and the prefab rows, so the two
+    // can never show a different set of controls - and drawn with
+    // PropertyField, so the sliders, ranges, tooltips and headers are the real
+    // ones off Carryable and a new field appears here with no work.
+    // ------------------------------------------------------------------
+
+    static readonly Dictionary<string, bool> folded = new Dictionary<string, bool>();
+
+    static bool Section(string title, bool openByDefault = true)
+    {
+        if (!folded.TryGetValue(title, out bool open)) open = openByDefault;
+
+        EditorGUILayout.Space(2f);
+        open = EditorGUILayout.Foldout(open, title, true, EditorStyles.foldoutHeader);
+        folded[title] = open;
+
+        return open;
+    }
+
     static void DrawGripFields(SerializedObject so)
     {
-        foreach (string f in new[] { "gripMode", "leftGrip", "rightGrip",
-                                     "overrideMeasure", "measure" })
-        {
-            var p = so.FindProperty(f);
-            if (p == null) continue;
+        Field(so, "gripMode");
 
-            // The measurements only do anything when the item opts into them.
-            if (f == "measure")
+        bool custom = so.FindProperty("gripMode") != null &&
+                      so.FindProperty("gripMode").enumValueIndex ==
+                      (int)Carryable.GripMode.Custom;
+
+        // ---- HAND GRIP ----
+        if (Section("HAND GRIP"))
+        {
+            EditorGUI.indentLevel++;
+
+            if (custom)
             {
-                var over = so.FindProperty("overrideMeasure");
-                if (over != null && !over.boolValue) continue;
+                Field(so, "leftGrip");
+                Field(so, "rightGrip");
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "Auto: the hands are measured from this item's bounds. " +
+                    "Switch Grip Mode to Custom to place them by hand, or tick " +
+                    "Override Measure below to keep Auto but tune its numbers " +
+                    "for this item only.",
+                    MessageType.None);
             }
 
-            EditorGUILayout.PropertyField(p, true);
+            Field(so, "overrideMeasure");
+
+            var over = so.FindProperty("overrideMeasure");
+            if (over != null && over.boolValue) Field(so, "measure");
+
+            EditorGUI.indentLevel--;
         }
+
+        // ---- ELBOW ----
+        //
+        // Inside the hand foldouts in the Inspector, because they belong to a
+        // hand - but called out as its own section here, because "the arm
+        // bends wrong" is a different thought from "the hand is in the wrong
+        // place" and you go looking for it separately.
+        if (Section("ELBOW / ARM POSITION"))
+        {
+            EditorGUI.indentLevel++;
+
+            if (!custom)
+            {
+                EditorGUILayout.HelpBox(
+                    "Elbow hints live on each hand's grip, which Auto mode " +
+                    "does not use. Switch Grip Mode to Custom to steer the " +
+                    "elbows.",
+                    MessageType.None);
+            }
+            else
+            {
+                EditorGUILayout.LabelField(
+                    "A hint PULLS the elbow toward a point. The hand does not " +
+                    "move - only the bend of the arm. Out and back for a wide " +
+                    "box, in toward the ribs for a radio.",
+                    EditorStyles.wordWrappedMiniLabel);
+
+                Elbow(so, "leftGrip", "Left Elbow");
+                Elbow(so, "rightGrip", "Right Elbow");
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        // ---- HELD ITEM TRANSFORM ----
+        if (Section("HELD ITEM TRANSFORM"))
+        {
+            EditorGUI.indentLevel++;
+
+            EditorGUILayout.LabelField(
+                "Offsets from the hold anchor, in the BODY'S space. Zero " +
+                "leaves the item where its weight class puts it.",
+                EditorStyles.wordWrappedMiniLabel);
+
+            Field(so, "itemPositionOffset");
+            Field(so, "itemRotationOffset");
+
+            EditorGUI.indentLevel--;
+        }
+    }
+
+    /// <summary>The three elbow fields off one hand's grip, without dragging
+    /// the whole HandGrip along with them.</summary>
+    static void Elbow(SerializedObject so, string handProperty, string label)
+    {
+        var hand = so.FindProperty(handProperty);
+        if (hand == null) return;
+
+        EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+
+        EditorGUI.indentLevel++;
+
+        var use = hand.FindPropertyRelative("useElbowHint");
+        if (use != null) EditorGUILayout.PropertyField(use);
+
+        if (use == null || use.boolValue)
+        {
+            var hint = hand.FindPropertyRelative("elbowHint");
+            var w = hand.FindPropertyRelative("elbowWeight");
+
+            if (hint != null) EditorGUILayout.PropertyField(hint);
+            if (w != null) EditorGUILayout.PropertyField(w);
+        }
+
+        EditorGUI.indentLevel--;
+    }
+
+    static void Field(SerializedObject so, string path)
+    {
+        var p = so.FindProperty(path);
+        if (p != null) EditorGUILayout.PropertyField(p, true);
     }
 
     static void Mirror(Carryable.HandGrip from, Carryable.HandGrip to)
@@ -494,6 +615,19 @@ public class GripLibraryWindow : EditorWindow
         to.localEuler = new Vector3(from.localEuler.x,
                                     -from.localEuler.y,
                                     -from.localEuler.z);
+
+        to.palmRotation = new Vector3(from.palmRotation.x,
+                                      -from.palmRotation.y,
+                                      -from.palmRotation.z);
+
+        // The elbow mirrors across the item's X too - an elbow held out to the
+        // left belongs out to the right on the other arm, and copying it
+        // unreflected puts both elbows on the same side of the body.
+        to.useElbowHint = from.useElbowHint;
+        to.elbowHint = new Vector3(-from.elbowHint.x,
+                                    from.elbowHint.y,
+                                    from.elbowHint.z);
+        to.elbowWeight = from.elbowWeight;
 
         to.thumb = from.thumb;
         to.index = from.index;

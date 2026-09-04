@@ -178,6 +178,45 @@ public class Carryable : MonoBehaviour
         // Curl is applied to the real finger bones after the animation, so it
         // costs no clips and works on any humanoid rig with fingers mapped.
 
+        [Tooltip("An extra twist for the PALM, in degrees, applied on top of " +
+                 "the rotation above. " +
+                 "Separate because they answer different questions: Rotation " +
+                 "aims the hand at the object, Palm Rotation rolls the palm " +
+                 "against it. Rolling with the Rotation field means re-aiming " +
+                 "the hand every time you want a different wrist angle.")]
+        public Vector3 palmRotation;
+
+        // ---- ELBOW ----
+        //
+        // Unity's humanoid IK already has an elbow channel: AvatarIKHint.
+        // LeftElbow / RightElbow, solved by the SAME solver that places the
+        // hand, in the same OnAnimatorIK pass. Nothing extra is created here -
+        // a second arm solver fighting the first is exactly the class of bug
+        // this project has spent days pulling apart.
+        //
+        // A hint is a point the elbow is pulled TOWARD, not a position it is
+        // moved to. The hand stays exactly where it was put; only the bend of
+        // the arm between shoulder and hand changes. So this cannot break a
+        // grip you have already tuned - which is why it is safe to add after
+        // the hands are right.
+
+        [Header("Elbow")]
+        [Tooltip("Steer this arm's elbow. Off leaves the bend to the solver's " +
+                 "own default, which is fine for most things.")]
+        public bool useElbowHint = false;
+
+        [Tooltip("A point the elbow is pulled TOWARD, in the ITEM'S space. " +
+                 "The hand does not move - only the bend of the arm between " +
+                 "shoulder and hand.\n\n" +
+                 "Out to the side and back for a wide box; in toward the ribs " +
+                 "for a radio or a flashlight.")]
+        public Vector3 elbowHint;
+
+        [Tooltip("How strongly the elbow is pulled, 0 to 1. Part-way is " +
+                 "usually better than all the way - it nudges the bend rather " +
+                 "than dictating it.")]
+        [Range(0f, 1f)] public float elbowWeight = 1f;
+
         [Header("Fingers - 0 straight, 1 fully curled")]
         [Range(0f, 1f)] public float thumb = 0.35f;
         [Range(0f, 1f)] public float index = 0.8f;
@@ -251,6 +290,30 @@ public class Carryable : MonoBehaviour
 
     public GripMeasure measure = GripMeasure.Default;
 
+    // ====================================================================
+    // WHERE THE ITEM ITSELF SITS.
+    //
+    // On top of PlayerCarry's HoldAnchor, which already decides a sensible
+    // height and distance from the item's WEIGHT CLASS. These are the
+    // per-item correction to that: a flashlight wants to sit forward and
+    // tilted, a radio closer in and turned, a crate exactly where the weight
+    // class put it.
+    //
+    // In the BODY'S space, not the world's and not the camera's - X is your
+    // right, Z is your forward - so the offset means the same thing whichever
+    // way you are facing, and every viewer computes the same answer without
+    // anything being sent over the network.
+    // ====================================================================
+
+    [Header("Held item transform - offsets from the hold anchor")]
+    [Tooltip("Nudge the item itself, in metres, in the BODY'S space: X right, " +
+             "Y up, Z forward. Zero leaves it where its weight class puts it.")]
+    public Vector3 itemPositionOffset;
+
+    [Tooltip("Turn the item, in degrees, relative to the way the body faces. " +
+             "For anything whose model was not authored pointing forward.")]
+    public Vector3 itemRotationOffset;
+
     [Tooltip("Draw the grip points on this item in the Scene view even when " +
              "it is not selected.")]
     public bool alwaysDrawGrips = false;
@@ -287,8 +350,22 @@ public class Carryable : MonoBehaviour
     {
         lPos = transform.TransformPoint(leftGrip.localPosition);
         rPos = transform.TransformPoint(rightGrip.localPosition);
-        lRot = transform.rotation * Quaternion.Euler(leftGrip.localEuler);
-        rRot = transform.rotation * Quaternion.Euler(rightGrip.localEuler);
+        lRot = transform.rotation * Quaternion.Euler(leftGrip.localEuler)
+                                  * Quaternion.Euler(leftGrip.palmRotation);
+        rRot = transform.rotation * Quaternion.Euler(rightGrip.localEuler)
+                                  * Quaternion.Euler(rightGrip.palmRotation);
+    }
+
+    /// <summary>Where this hand's elbow should be pulled, in world space, or
+    /// null-equivalent via the bool.</summary>
+    public bool ElbowHint(bool leftHand, out Vector3 world, out float weight)
+    {
+        HandGrip g = leftHand ? leftGrip : rightGrip;
+
+        world = transform.TransformPoint(g.elbowHint);
+        weight = g.elbowWeight;
+
+        return g.used && g.useElbowHint && weight > 0.001f;
     }
 
     // ====================================================================
@@ -386,6 +463,9 @@ public class Carryable : MonoBehaviour
         rightGrip = Clone(from.rightGrip);
         overrideMeasure = from.overrideMeasure;
         measure = from.measure;
+
+        itemPositionOffset = from.itemPositionOffset;
+        itemRotationOffset = from.itemRotationOffset;
     }
 
     /// <summary>A real copy. HandGrip is a class, so assigning it would leave
@@ -396,6 +476,10 @@ public class Carryable : MonoBehaviour
         localPosition = g.localPosition,
         localEuler = g.localEuler,
         used = g.used,
+        palmRotation = g.palmRotation,
+        useElbowHint = g.useElbowHint,
+        elbowHint = g.elbowHint,
+        elbowWeight = g.elbowWeight,
         thumb = g.thumb,
         index = g.index,
         middle = g.middle,

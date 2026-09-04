@@ -312,6 +312,15 @@ public class PlayerCarryArms : MonoBehaviour
         Place(AvatarIKGoal.LeftHand, useL, posL, rotL);
         Place(AvatarIKGoal.RightHand, useR, posR, rotR);
 
+        // Elbows come from the ITEM only. There is deliberately no character
+        // default: an elbow that is wrong is far more noticeable than an elbow
+        // the solver chose for itself, so nothing steers one unless an item
+        // explicitly asks.
+        var held = carry != null ? carry.Held : null;
+
+        Elbow(AvatarIKHint.LeftElbow, true, held, useL);
+        Elbow(AvatarIKHint.RightElbow, false, held, useR);
+
         Curl();
     }
 
@@ -319,6 +328,15 @@ public class PlayerCarryArms : MonoBehaviour
     {
         anim.SetIKPositionWeight(goal, 0f);
         anim.SetIKRotationWeight(goal, 0f);
+
+        // An IK HINT persists exactly like an IK goal does. Letting go of a
+        // crate without releasing the elbow leaves the arm bent around
+        // something that is no longer there - the same bug as the hands, one
+        // channel over, and it would have looked like a broken walk cycle
+        // rather than a carry bug.
+        anim.SetIKHintPositionWeight(
+            goal == AvatarIKGoal.LeftHand ? AvatarIKHint.LeftElbow
+                                          : AvatarIKHint.RightElbow, 0f);
     }
 
     void Place(AvatarIKGoal goal, bool used, Vector3 pos, Quaternion rot)
@@ -335,6 +353,34 @@ public class PlayerCarryArms : MonoBehaviour
 
         anim.SetIKRotationWeight(goal, live * rotationWeight);
         anim.SetIKRotation(goal, rot);
+    }
+
+    /// <summary>
+    /// Steer one elbow, if the item asked for it.
+    ///
+    /// ---- THE SAME SOLVER, NOT A SECOND ONE ----
+    ///
+    /// AvatarIKHint is part of Unity's humanoid IK - the same solver that
+    /// places the hand, in the same OnAnimatorIK pass. Nothing new is created
+    /// here, which matters: a second arm solver fighting the first is exactly
+    /// the class of bug this project has spent days pulling apart.
+    ///
+    /// A hint is a point the elbow is pulled TOWARD, not a position it is moved
+    /// to. The hand stays exactly where it was put; only the bend between
+    /// shoulder and hand changes. So this cannot disturb a grip already tuned,
+    /// which is why it is safe to add on top of finished hands.
+    /// </summary>
+    void Elbow(AvatarIKHint hint, bool leftHand, Carryable item, bool used)
+    {
+        if (!used || item == null ||
+            !item.ElbowHint(leftHand, out Vector3 world, out float w))
+        {
+            anim.SetIKHintPositionWeight(hint, 0f);
+            return;
+        }
+
+        anim.SetIKHintPositionWeight(hint, live * w);
+        anim.SetIKHintPosition(hint, world);
     }
 
     /// <summary>

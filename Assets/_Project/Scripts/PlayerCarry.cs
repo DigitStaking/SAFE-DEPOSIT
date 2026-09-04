@@ -134,7 +134,7 @@ public class PlayerCarry : MonoBehaviour
             // replicated data, so the crate agrees everywhere without being
             // sent, and the hands have something stable to grip.
             held.transform.position = HoldAnchor();
-            held.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            held.transform.rotation = HoldRotation();
             return;
 
         }
@@ -158,7 +158,7 @@ public class PlayerCarry : MonoBehaviour
         // a box carried in two hands does not tilt when you glance at the
         // ceiling.
         Vector3 target = HoldAnchor();
-        Quaternion facing = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        Quaternion facing = HoldRotation();
 
         held.transform.position = Vector3.Lerp(
             held.transform.position, target, holdSnapSpeed * Time.deltaTime);
@@ -208,7 +208,47 @@ public class PlayerCarry : MonoBehaviour
         forward.y = 0f;
         if (forward.sqrMagnitude > 0.0001f) forward.Normalize();
 
-        return transform.position + Vector3.up * up + forward * out_;
+        Vector3 anchor = transform.position + Vector3.up * up + forward * out_;
+
+        // ---- THE ITEM'S OWN CORRECTION ----
+        //
+        // The weight class gets a crate roughly right and a flashlight roughly
+        // wrong, because it only knows how heavy a thing is, not what shape it
+        // is or which way its model points. This is where the item says the
+        // rest.
+        //
+        // In the BODY'S space, so it means the same thing whichever way you
+        // face - and so every machine computes the same answer from replicated
+        // data, with nothing extra sent.
+        Vector3 o = held.itemPositionOffset;
+
+        if (o != Vector3.zero)
+        {
+            Vector3 right = transform.right;
+            right.y = 0f;
+            if (right.sqrMagnitude > 0.0001f) right.Normalize();
+
+            anchor += right * o.x + Vector3.up * o.y + forward * o.z;
+        }
+
+        return anchor;
+    }
+
+    /// <summary>
+    /// Which way the carried thing faces, for EVERY viewer.
+    ///
+    /// The body's YAW, plus whatever the item asks for on top. Yaw because the
+    /// body is welded to the camera horizontally, so the item swings round as
+    /// you look; pitch deliberately excluded, since a box carried in two hands
+    /// does not tilt when you glance at the ceiling.
+    /// </summary>
+    public Quaternion HoldRotation()
+    {
+        Quaternion facing = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+
+        return held == null
+            ? facing
+            : facing * Quaternion.Euler(held.itemRotationOffset);
     }
 
     void OnInteract(InputValue value)

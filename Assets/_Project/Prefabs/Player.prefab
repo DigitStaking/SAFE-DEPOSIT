@@ -209,6 +209,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCarry
   holdOffset: {x: 0.35, y: -0.35, z: 1.15}
+  holdHeightSmall: 0.82
+  holdHeightHeavy: 0.74
+  holdHeightMassive: 0.66
+  holdDistanceSmall: 0.34
+  holdDistanceHeavy: 0.44
+  holdDistanceMassive: 0.52
   holdSnapSpeed: 18
   pickupMask:
     serializedVersion: 2
@@ -891,6 +897,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3009698359235393191}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2734946683707374481}
   m_SourcePrefab: {fileID: 100100000, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}
 --- !u!4 &4007666841464958271 stripped
 Transform:
@@ -975,6 +984,26 @@ MonoBehaviour:
   pitchLimit: 38
   palmEuler: {x: -90, y: 0, z: 0}
   minEyeDistance: 0.38
+--- !u!114 &2734946683707374481
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4383629090344744837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6737721c13191534a8b8d8b59d797c64, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCarryArms
+  gripWidth: 0.85
+  gripHeightOnBox: 0.78
+  gripInset: 0.02
+  gripToward: 0.06
+  maxGripWidth: 0.55
+  blendTime: 0.18
+  weight: 1
+  drawGrips: 0
 --- !u!95 &7025117437554898757 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: f777e67733b979242b5c91c5da0ac2fe, type: 3}

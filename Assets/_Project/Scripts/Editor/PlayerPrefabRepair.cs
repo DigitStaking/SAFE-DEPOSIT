@@ -105,6 +105,20 @@ public static class PlayerPrefabRepair
             }
             else log.Append("PlayerCarryArms already present. ");
 
+            // ---- HandFingerCurl ----
+            //
+            // Placing a hand somewhere is only half a grip - an open flat hand
+            // against a crate reads as pushing it. This closes the fingers,
+            // and PlayerCarryArms looks for it on this same object.
+            var curl = visual.GetComponent<HandFingerCurl>();
+            if (curl == null)
+            {
+                visual.gameObject.AddComponent<HandFingerCurl>();
+                added++;
+                log.Append("HandFingerCurl ADDED. ");
+            }
+            else log.Append("HandFingerCurl already present. ");
+
             // ---- FirstPersonHands: present, and it should STAY disabled ----
             //
             // Not removed here. FirstPersonViewmodel switches it off at

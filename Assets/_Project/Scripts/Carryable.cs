@@ -107,6 +107,152 @@ public class Carryable : MonoBehaviour
         }
     }
 
+    // ====================================================================
+    // HOW THIS PARTICULAR THING IS HELD.
+    //
+    // "each box has her own dimension and way to grab and each item too, so
+    //  can i add like list of items and how i can grab each and save the data"
+    //
+    // Yes, and it belongs HERE rather than in a separate table. This component
+    // is already on every loot prefab, so the grip is saved with the item it
+    // describes: no lookup key to keep in sync, no list to remember to add a
+    // new prop to, and duplicating a prefab duplicates its grip for free.
+    //
+    // TWO LEVELS, and it matters which one you reach for:
+    //
+    //   Auto     measured from the object's bounds. Costs nothing, right for
+    //            most crates, and is what every item gets until you say
+    //            otherwise. A new prop dropped in the level is already
+    //            grippable.
+    //
+    //   Custom   two points you place by hand, one per hand, stored in the
+    //            ITEM'S OWN SPACE so they rotate and move with it. For the
+    //            things Auto cannot know about - a briefcase handle, a
+    //            cabinet's recessed lip, a body carried under the arms.
+    //
+    // Start on Auto. Switch a specific item to Custom when Auto is wrong for
+    // it. Seed the Custom points from the measured ones first (there is a
+    // button) so you are adjusting a decent guess rather than dragging two
+    // hands out of the origin.
+    // ====================================================================
+
+    public enum GripMode
+    {
+        Auto,      // measured from bounds every frame
+        Custom     // the two points below, in this object's local space
+    }
+
+    /// <summary>One hand's placement, in the ITEM'S local space so it follows
+    /// the object however it is turned.</summary>
+    [System.Serializable]
+    public class HandGrip
+    {
+        [Tooltip("Where this hand sits, in the ITEM'S local space.")]
+        public Vector3 localPosition;
+
+        [Tooltip("Which way the palm faces, in the ITEM'S local space, in " +
+                 "degrees. Drag the rotation handle in the Scene view rather " +
+                 "than typing numbers - hand axes are not intuitive.")]
+        public Vector3 localEuler;
+
+        [Tooltip("Use this hand at all. Off means the arm is left to the " +
+                 "animation - which is what you want for a one-handed carry " +
+                 "like a briefcase or a pistol.")]
+        public bool used = true;
+
+        // ---- FINGERS ----
+        //
+        // "we don't grab boxes like that you grab them with fingers"
+        //
+        // Placing the hand somewhere is only half of a grip. An open flat
+        // hand parked against a crate still reads as pushing it, not holding
+        // it - the fingers have to close around something.
+        //
+        // One number per finger, 0 straight and 1 fully curled, because the
+        // difference between grips is mostly WHICH fingers close:
+        //
+        //   crate lip       all four fingers hooked, thumb flat on the face
+        //   briefcase       all five closed hard around a handle
+        //   large panel     everything half-closed, more of a clamp
+        //
+        // Curl is applied to the real finger bones after the animation, so it
+        // costs no clips and works on any humanoid rig with fingers mapped.
+
+        [Header("Fingers - 0 straight, 1 fully curled")]
+        [Range(0f, 1f)] public float thumb = 0.35f;
+        [Range(0f, 1f)] public float index = 0.8f;
+        [Range(0f, 1f)] public float middle = 0.85f;
+        [Range(0f, 1f)] public float ring = 0.85f;
+        [Range(0f, 1f)] public float little = 0.8f;
+    }
+
+    [Header("Grip - how the hands take hold of THIS item")]
+    [Tooltip("Auto measures the object's bounds. Custom uses the two points " +
+             "below, placed by hand and saved with this prefab.")]
+    public GripMode gripMode = GripMode.Auto;
+
+    public HandGrip leftGrip = new HandGrip();
+    public HandGrip rightGrip = new HandGrip();
+
+    [Tooltip("Draw the grip points on this item in the Scene view even when " +
+             "it is not selected.")]
+    public bool alwaysDrawGrips = false;
+
+    public bool HasCustomGrip => gripMode == GripMode.Custom;
+
+    /// <summary>This item's grip points in WORLD space, for whoever is holding
+    /// it. Only meaningful in Custom mode.</summary>
+    public void WorldGrips(out Vector3 lPos, out Quaternion lRot,
+                           out Vector3 rPos, out Quaternion rRot)
+    {
+        lPos = transform.TransformPoint(leftGrip.localPosition);
+        rPos = transform.TransformPoint(rightGrip.localPosition);
+        lRot = transform.rotation * Quaternion.Euler(leftGrip.localEuler);
+        rRot = transform.rotation * Quaternion.Euler(rightGrip.localEuler);
+    }
+
+    /// <summary>
+    /// Fill the two Custom points from the measured bounds, so switching an
+    /// item to Custom starts from the Auto answer instead of from nothing.
+    ///
+    /// Uses the ITEM'S OWN axes rather than a player's, because there is no
+    /// player involved when you press the button in the prefab view. Which
+    /// way round "left" and "right" come out depends on how the model was
+    /// authored - if they are swapped, swap the two X values.
+    /// </summary>
+    public void SeedGripsFromBounds(float heightOnBox, float widthFraction,
+                                    float maxHalfWidth, float toward)
+    {
+        Bounds w = WorldBounds;
+
+        Vector3 localCentre = transform.InverseTransformPoint(w.center);
+        Vector3 localExtent = transform.InverseTransformVector(w.extents);
+        localExtent = new Vector3(Mathf.Abs(localExtent.x),
+                                  Mathf.Abs(localExtent.y),
+                                  Mathf.Abs(localExtent.z));
+
+        float half = Mathf.Min(Mathf.Max(localExtent.x, localExtent.z) * widthFraction,
+                               maxHalfWidth);
+
+        float y = localCentre.y - localExtent.y
+                + Mathf.Clamp01(heightOnBox) * localExtent.y * 2f;
+
+        float z = localCentre.z - toward;
+
+        leftGrip.localPosition = new Vector3(localCentre.x - half, y, z);
+        rightGrip.localPosition = new Vector3(localCentre.x + half, y, z);
+
+        // Palms facing each other across the object: the left hand looks
+        // right, the right hand looks left. Whatever the hand bone's own axes
+        // turn out to be, this at least starts them mirrored rather than
+        // identical - two identical rotations is what makes one hand look
+        // right and the other inside out.
+        leftGrip.localEuler = new Vector3(0f, 90f, 0f);
+        rightGrip.localEuler = new Vector3(0f, -90f, 0f);
+
+        leftGrip.used = rightGrip.used = true;
+    }
+
     int lootLayer = -1;
 
     // ------------------------------------------------------------------

@@ -233,6 +233,11 @@ public class PlayerCarryArms : MonoBehaviour
     PlayerMotor motor;
     HandFingerCurl fingers;
 
+    /// <summary>True while this component is actually driving the hands, so
+    /// it can let go exactly once instead of stamping zeros forever over
+    /// whatever wrote after it.</summary>
+    bool heldGoals;
+
     int blendFrame = -1;
     float live;                              // eased weight actually applied
     Vector3 posL, posR;                      // world, this frame
@@ -347,21 +352,45 @@ public class PlayerCarryArms : MonoBehaviour
                                      blendTime <= 0f ? 1f : Time.deltaTime / blendTime);
         }
 
-        // ---- ZEROED, NOT SKIPPED ----
+        // ---- RELEASE ONCE, THEN SAY NOTHING ----
         //
-        // An IK weight PERSISTS. A goal that is simply not written keeps
-        // whatever it had, so letting go of a crate while only skipping the
-        // write would leave both hands clamped around a box that is no longer
-        // there. FirstPersonHands shipped exactly that bug and it took four
-        // rounds to find; this writes the zero. Fingers are the same - they
-        // have to be told to open.
+        // An IK weight PERSISTS, so a component that stops having an opinion
+        // must zero what it wrote - that part has always been right. What was
+        // wrong was doing it EVERY FRAME.
+        //
+        // PlayerPushArms writes the shove, and on this prefab it sits ABOVE
+        // this component in the list:
+        //
+        //     ProceduralLegsIK, PlayerPushArms, PlayerCarryArms, HandFingerCurl
+        //
+        // OnAnimatorIK follows component order, not DefaultExecutionOrder, so
+        // this ran AFTER the push and stamped zeros over its goals on every
+        // frame of every shove. The body simply stopped pushing.
+        //
+        // The tell was that the first-person hands still shoved perfectly:
+        // StripForViewmodel destroys PlayerCarryArms on the clone, so on that
+        // rig there was nothing left to overwrite the push. Same push code,
+        // one component's difference, opposite results.
+        //
+        // Releasing ONCE on the transition fixes it and removes the ordering
+        // question entirely - whoever writes after an idle frame owns the
+        // goals, because nothing is arguing with them any more. It is the same
+        // heldGoals pattern PlayerPushArms already uses, which is where I
+        // should have taken it from the first time.
         if (live <= 0.001f)
         {
-            Release(AvatarIKGoal.LeftHand);
-            Release(AvatarIKGoal.RightHand);
-            if (fingers != null) fingers.ClearAll();
+            if (heldGoals)
+            {
+                Release(AvatarIKGoal.LeftHand);
+                Release(AvatarIKGoal.RightHand);
+                if (fingers != null) fingers.ClearAll();
+                heldGoals = false;
+            }
+
             return;
         }
+
+        heldGoals = true;
 
         Place(AvatarIKGoal.LeftHand, useL, posL, rotL);
         Place(AvatarIKGoal.RightHand, useR, posR, rotR);

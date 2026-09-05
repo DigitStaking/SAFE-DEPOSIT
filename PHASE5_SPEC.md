@@ -391,6 +391,25 @@ without sending geometry.
 > loot is worth the walk, and somewhere a thing can get between you and the
 > door. None of that exists in a square, and every inhabitant in Phase 6
 > assumes it.
+>
+> **Made to branch, 5 Sep 2026.** A main now offers **left, right and straight
+> on**, and the generator spends its room budget breadth-first across those —
+> so a floor is a **tree**, not a corridor.
+>
+> That is not decoration. Branching is the reason a crew splits up, which is
+> the reason they have to talk to each other, which is what the Phase 4 voice
+> work was for. **A corridor needs no radio.**
+>
+> Breadth-first on purpose: depth-first spends the whole budget down one arm
+> and produces a long thin floor with a stub, which is a corridor again with
+> extra steps.
+>
+> Branching brought a hazard a spine could not have: **two arms turning toward
+> each other and overlapping.** Rooms are placed, measured, and removed again
+> if their footprint hits one already there — the exit is then left unused and
+> sealed, so a rejected branch becomes a wall rather than a hole. Placing
+> first is not laziness: a module's footprint depends on its rotation, and the
+> honest way to know where it lands is to put it there.
 
 ---
 

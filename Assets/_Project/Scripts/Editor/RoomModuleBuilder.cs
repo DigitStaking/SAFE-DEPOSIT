@@ -127,8 +127,12 @@ public static class RoomModuleBuilder
     static void Main(string name, Material mat, int variant)
     {
         const float D = 20f, W = 10f;
+        // THREE WAYS ON, not one. Walking into a room and being offered a
+        // single corridor is not exploring, it is being led - and a crew that
+        // cannot split up has no reason to talk to each other, which is the
+        // mechanic the whole middle of this game is built on.
         var root = Shell(name, RoomModule.Role.Main, D, W, mat,
-                         backDoor: true, leftDoorX: 10f);
+                         backDoor: true, leftDoorX: 10f, rightDoorX: 10f);
 
         if (variant == 1)
         {
@@ -167,11 +171,13 @@ public static class RoomModuleBuilder
         Socket(root, "Loot_3", new Vector3(17f, 0f, -3f), RoomSocket.Kind.Loot);
         Socket(root, "Hazard_1", new Vector3(14f, 0f, 0f), RoomSocket.Kind.Hazard);
 
-        // Straight on to whatever continues the floor, and left to a side
-        // room. Labelled, because this is the one module where the generator
-        // has to know which door is which.
-        Exit(root, "Exit_Back", new Vector3(D, 0f, 0f), 0f, label: "back");
-        Exit(root, "Exit_Side", new Vector3(10f, 0f, -W * 0.5f), -90f, label: "side");
+        // Left, right, straight on. Unlabelled now: the generator picks what
+        // goes through each door rather than being told which door leads to
+        // which kind of room, so a side room can be on the left of one floor
+        // and straight ahead on another.
+        Exit(root, "Exit_Ahead", new Vector3(D, 0f, 0f), 0f);
+        Exit(root, "Exit_Left", new Vector3(10f, 0f, -W * 0.5f), -90f);
+        Exit(root, "Exit_Right", new Vector3(10f, 0f, W * 0.5f), 90f);
 
         Finish(root);
     }
@@ -218,7 +224,8 @@ public static class RoomModuleBuilder
 
     static Transform Shell(string name, RoomModule.Role role,
                            float depth, float width, Material mat,
-                           bool backDoor = false, float leftDoorX = float.NaN)
+                           bool backDoor = false, float leftDoorX = float.NaN,
+                           float rightDoorX = float.NaN)
     {
         var go = new GameObject(name);
         var module = go.AddComponent<RoomModule>();
@@ -261,7 +268,9 @@ public static class RoomModuleBuilder
              mat: mat);
 
         Wall("Wall_Right", t, alongZ: false, fixedCoord: halfW + WallThick * 0.5f,
-             spanCenter: midX, spanLength: depth, doors: new float[0], mat: mat);
+             spanCenter: midX, spanLength: depth,
+             doors: float.IsNaN(rightDoorX) ? new float[0] : new[] { rightDoorX },
+             mat: mat);
 
         return t;
     }

@@ -35,135 +35,72 @@ using UnityEngine;
 public struct FloorLayout
 {
     public int landing;
+    public int firstMain;
 
-    /// <summary>The spine, in the order you walk it. One entry per main room,
-    /// and a floor may use the same main more than once.</summary>
-    public int[] mains;
+    /// <summary>How many rooms this floor is allowed, landing included.</summary>
+    public int roomBudget;
 
-    /// <summary>Whether a side room hangs off each main. Same length as
-    /// mains.</summary>
-    public bool[] sideAt;
+    /// <summary>Drives the branching walk in FloorGenerator. Handed over
+    /// rather than used here, because the shape of a TREE depends on which
+    /// exits actually exist on the modules chosen - a fact about prefabs, and
+    /// this file deliberately knows nothing about prefabs.</summary>
+    public int seed;
 
-    /// <summary>Whether the spine ends in a dead end.</summary>
-    public bool hasBack;
-
-    /// <summary>How many rooms a player walks, landing included.</summary>
-    public int RoomCount
-    {
-        get
-        {
-            int n = 1 + (mains != null ? mains.Length : 0) + (hasBack ? 1 : 0);
-            if (sideAt != null)
-                foreach (bool b in sideAt) if (b) n++;
-            return n;
-        }
-    }
-
-    /// <summary>
-    /// Mixed so that neighbouring floors of the same run do not produce
-    /// neighbouring sequences. A plain seed of run + floor gives floor 3 of
-    /// run 1 and floor 1 of run 3 the same building, which a player WILL
-    /// notice by the third run even though no single floor looks wrong.
-    /// </summary>
     static int SeedFor(int runNumber, int floor) =>
         unchecked(runNumber * 73856093) ^ unchecked((floor + 1) * 19349663);
 
-    /// <summary>Separate stream for the first main, so which room you walk
-    /// into is independent of how long the floor is.</summary>
     static int StepSeedFor(int runNumber, int floor) =>
         unchecked(SeedFor(runNumber, floor) * 83492791) ^ 0x5bf03635;
 
     /// <summary>
-    /// The floor's shape, from numbers every machine already shares.
+    /// The floor's budget and its first room, from numbers every machine
+    /// already shares.
     ///
-    /// ---- LENGTH IS THE VARIETY. WHICH ROOM IS NOT. ----
+    /// ---- WHAT MAKES FLOORS DIFFERENT ----
     ///
-    /// The first version built landing -> main -> side -> back every single
-    /// time, and varied only WHICH main. Ten of them side by side were ten
-    /// identical silhouettes: the difference was a partition wall you had to
-    /// walk inside to see, while the shape you actually navigate by never
-    /// changed at all.
+    /// Two things, and neither is which main was picked. LENGTH - a floor of
+    /// three rooms and a floor of nine are not the same place - and SHAPE,
+    /// because a main offers left, right and straight on, so the budget is
+    /// spent as a tree rather than as a queue.
     ///
-    /// A player does not remember which main room they were in. They remember
-    /// that the fourth floor went on forever and the fifth was a cupboard. So
-    /// the spine is 1 to 4 mains now, side rooms hang off any of them, and the
-    /// dead end is optional - between two and eight rooms per floor instead of
-    /// a fixed four.
-    ///
-    /// Repeats within a floor are allowed and wanted. A corridor of two halls
-    /// end to end reads as a long floor, not as a bug - it is only the room
-    /// you just LEFT that must not be the room you just entered.
+    /// The first version varied only the main module, which is a partition
+    /// wall you have to walk inside to notice. Ten floors of that were ten
+    /// identical silhouettes.
     /// </summary>
     public static FloorLayout For(int runNumber, int floor,
                                   int landingCount, int mainCount)
     {
         var rng = new System.Random(SeedFor(runNumber, floor));
 
-        var l = new FloorLayout
+        // 3..9 rooms, weighted toward the middle. A floor of three is a quick
+        // stop; nine is somewhere you can get lost. Both should happen.
+        int[] budgets = { 3, 4, 4, 5, 5, 6, 6, 7, 8, 9 };
+
+        return new FloorLayout
         {
             landing = landingCount > 0 ? rng.Next(landingCount) : 0,
-            hasBack = rng.NextDouble() < 0.7
+            firstMain = FirstMainFor(runNumber, floor, mainCount),
+            roomBudget = budgets[rng.Next(budgets.Length)],
+            seed = StepSeedFor(runNumber, floor)
         };
-
-        if (mainCount <= 0)
-        {
-            l.mains = new int[0];
-            l.sideAt = new bool[0];
-            return l;
-        }
-
-        // 1..4, weighted toward the middle. A floor of one main is a short
-        // stop; four is a march. Both should happen, and neither every time.
-        int[] lengths = { 1, 2, 2, 3, 3, 4 };
-        int spine = lengths[rng.Next(lengths.Length)];
-
-        l.mains = new int[spine];
-        l.sideAt = new bool[spine];
-
-        // The first main is the cross-floor rule: it must differ from the
-        // first main of the floor above, because that is the room you just
-        // left. See FirstMainFor.
-        l.mains[0] = FirstMainFor(runNumber, floor, mainCount);
-
-        for (int i = 1; i < spine; i++)
-        {
-            // Within a floor, only ADJACENT repeats are avoided - two halls
-            // back to back read as one enormous room rather than as a
-            // corridor, which loses the length the spine was for.
-            int pick = rng.Next(mainCount);
-            if (mainCount > 1 && pick == l.mains[i - 1])
-                pick = (pick + 1 + rng.Next(mainCount - 1)) % mainCount;
-
-            l.mains[i] = pick;
-        }
-
-        for (int i = 0; i < spine; i++)
-            l.sideAt[i] = rng.NextDouble() < 0.45;
-
-        return l;
     }
 
     /// <summary>
-    /// The first main, guaranteed different from the floor above's first main.
+    /// The first main, guaranteed different from the floor above's.
     ///
     /// ---- WHY THIS WALKS AND DOES NOT JUST COMPARE ----
     ///
-    /// The first version drew a main for this floor, drew the floor above's
-    /// main, and nudged on a collision. It did not work, and the failure is
-    /// worth keeping: the floor above's main may ITSELF have been nudged, so
-    /// comparing against its raw draw compares against a room that was never
-    /// built. Repeats survived at roughly the rate you would expect from no
-    /// rule at all - code that reads correct with output that is only
-    /// sometimes wrong, which is the kind that ships.
+    /// The first version drew this floor's main, drew the floor above's, and
+    /// nudged on a collision. It did not work: the floor above's main may
+    /// ITSELF have been nudged, so it compared against a room that was never
+    /// built, and repeats survived at about the rate of having no rule at all.
+    /// Code that reads correct with output that is only sometimes wrong.
     ///
-    /// So the choice is made by STEPPING. Each floor moves 1..n-1 places
-    /// around the set of mains, and a step of at least one cannot land where
-    /// it started. No comparison, nothing to get wrong.
-    ///
-    /// The walk from floor 1 is at most twenty iterations of integer
-    /// arithmetic, and it keeps this a pure function of (run, floor): nothing
-    /// is remembered between calls, so a client joining on floor 12 asks for
-    /// floor 12 and gets the host's answer. Recomputing is not state.
+    /// Stepping instead. Each floor moves 1..n-1 places around the set, and a
+    /// step of at least one cannot land where it started. The walk from floor
+    /// 1 is at most twenty integer operations and keeps this a pure function
+    /// of (run, floor) - a client joining on floor 12 asks for 12 and gets the
+    /// host's answer. Recomputing is not state.
     /// </summary>
     static int FirstMainFor(int runNumber, int floor, int mainCount)
     {

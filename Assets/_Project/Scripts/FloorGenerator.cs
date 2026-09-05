@@ -71,6 +71,9 @@ public class FloorGenerator : MonoBehaviour
                                      landings.Length,
                                      mains != null ? mains.Length : 0);
 
+        var rng = new System.Random(layout.seed);
+        var taken = new List<Bounds>();
+
         // ---- THE LANDING, AT THE LEVEL'S OWN DOORWAY ----
         //
         // Local position and identity local rotation: the level is already
@@ -82,50 +85,157 @@ public class FloorGenerator : MonoBehaviour
         landing.transform.localPosition = doorwayLocal;
         landing.transform.localRotation = Quaternion.identity;
         built.Add(landing);
+        taken.Add(FootprintOf(landing));
 
-        // ---- THE SPINE ----
+        // ================================================================
+        // GROW A TREE, NOT A LINE
         //
-        // Each main hangs off the previous room's onward exit - the landing's
-        // only one, then each main's "back" door. That is what makes a floor
-        // long or short: the same attach step, repeated as many times as the
-        // layout asked for.
+        // The first version walked a spine - landing, main, main, main, with
+        // side rooms hanging off - so every floor was a corridor and "which
+        // way do we go" had the same answer on every floor of the building.
         //
-        // A room that has no free exit ends the spine early. That is a
-        // shorter floor and not a failure: every module must be walkable with
-        // its exits unused, so the floor simply stops here.
-        RoomModule current = landing;
+        // A main offers left, right and straight on. Spending the budget
+        // across those makes a floor branch, and branching is the whole reason
+        // a crew splits up - which is the reason they have to talk to each
+        // other, which is what the voice work in Phase 4 was for. A corridor
+        // needs no radio.
+        //
+        // Breadth-first on purpose: depth-first spends the whole budget down
+        // one arm and produces a long thin floor with a stub on it, which is a
+        // corridor again with extra steps.
+        // ================================================================
 
-        for (int i = 0; i < layout.mains.Length; i++)
+        var frontier = new Queue<RoomModule>();
+        frontier.Enqueue(landing);
+
+        while (frontier.Count > 0 && built.Count < layout.roomBudget)
         {
-            if (mains == null || mains.Length == 0) break;
+            var room = frontier.Dequeue();
 
-            string onward = current == landing ? "" : "back";
-            var main = Attach(spawn, mains[layout.mains[i]], current, level, onward);
-            if (main == null) break;
-
-            built.Add(main);
-
-            // A side room off this one, if the layout said so. It branches and
-            // does not continue the spine, which is what makes it optional in
-            // the sense that matters: you can walk past it.
-            if (layout.sideAt[i] && sides != null && sides.Length > 0)
+            foreach (var exit in RoomExit.ExitsUnder(room.transform))
             {
-                var side = Attach(spawn, sides[0], main, level, "side");
-                if (side != null) built.Add(side);
+                if (built.Count >= layout.roomBudget) break;
+                if (exit == null || exit.used) continue;
+
+                // Not every door leads somewhere. A floor where every opening
+                // is filled is as predictable as one where none are - and an
+                // unused door is sealed below, so it reads as a wall rather
+                // than as a promise nobody kept.
+                if (rng.NextDouble() < 0.2) continue;
+
+                // A main CONTINUES the tree; a side or a back room ends it.
+                // Leaves are what stop a floor being an endless branch, and
+                // they are where the survivor and the best loot live.
+                bool branch = rng.NextDouble() < 0.55
+                              && mains != null && mains.Length > 0;
+
+                GameObject prefab = branch
+                    ? mains[room == landing ? layout.firstMain : rng.Next(mains.Length)]
+                    : PickLeaf(rng, sides, backs);
+
+                if (prefab == null) continue;
+
+                var placed = TryAttach(spawn, prefab, exit, level, taken);
+                if (placed == null) continue;
+
+                built.Add(placed);
+                if (branch) frontier.Enqueue(placed);
             }
-
-            current = main;
-        }
-
-        // ---- THE DEAD END ----
-        if (layout.hasBack && backs != null && backs.Length > 0 && current != landing)
-        {
-            var back = Attach(spawn, backs[0], current, level, "back");
-            if (back != null) built.Add(back);
         }
 
         SealUnusedExits(built);
         return built;
+    }
+
+    static GameObject PickLeaf(System.Random rng, GameObject[] sides, GameObject[] backs)
+    {
+        bool hasSide = sides != null && sides.Length > 0;
+        bool hasBack = backs != null && backs.Length > 0;
+
+        if (hasSide && hasBack)
+            return rng.NextDouble() < 0.5 ? sides[rng.Next(sides.Length)]
+                                          : backs[rng.Next(backs.Length)];
+
+        if (hasSide) return sides[rng.Next(sides.Length)];
+        if (hasBack) return backs[rng.Next(backs.Length)];
+        return null;
+    }
+
+    /// <summary>
+    /// Put a room on an exit, unless it would land on top of one already
+    /// there.
+    ///
+    /// ---- BRANCHING NEEDS THIS AND A SPINE DID NOT ----
+    ///
+    /// A line of rooms cannot collide with itself. A tree can: two arms that
+    /// turn toward each other meet, and the result is two rooms in the same
+    /// space with their walls interleaved - which looks like a rendering bug
+    /// and plays like a trap.
+    ///
+    /// So the room is placed, measured, and removed again if it overlaps.
+    /// Placing first is not laziness: a module's footprint depends on its
+    /// rotation, and the honest way to know where it lands is to put it there.
+    /// The exit is left unused and gets sealed, so a rejected branch becomes a
+    /// wall rather than a hole.
+    /// </summary>
+    static RoomModule TryAttach(System.Func<GameObject, GameObject> spawn,
+                                GameObject prefab, RoomExit exit,
+                                Transform level, List<Bounds> taken)
+    {
+        var room = Place(spawn, prefab, level);
+        if (room == null) return null;
+
+        // The whole of the placement maths. See the header.
+        room.transform.SetPositionAndRotation(exit.Position, exit.Rotation);
+
+        Bounds b = FootprintOf(room);
+
+        foreach (var other in taken)
+        {
+            if (!other.Intersects(b)) continue;
+
+            Discard(room.gameObject);
+            return null;
+        }
+
+        taken.Add(b);
+        exit.used = true;
+        return room;
+    }
+
+    /// <summary>
+    /// The room's footprint, pulled in so two rooms sharing a wall are not
+    /// read as overlapping.
+    ///
+    /// Renderer bounds rather than colliders: they are already world space,
+    /// and a module's walls are exactly what defines where it is. The inset is
+    /// a little more than a wall thickness, because shared walls touch by
+    /// design and only a real overlap should count.
+    /// </summary>
+    static Bounds FootprintOf(RoomModule room)
+    {
+        var renderers = room.GetComponentsInChildren<MeshRenderer>();
+
+        var b = new Bounds(room.transform.position, Vector3.one * 0.1f);
+        bool any = false;
+
+        foreach (var r in renderers)
+        {
+            if (r == null) continue;
+            if (!any) { b = r.bounds; any = true; }
+            else b.Encapsulate(r.bounds);
+        }
+
+        b.Expand(new Vector3(-1.2f, 0f, -1.2f));
+        return b;
+    }
+
+    /// <summary>Works in play mode and in the editor preview, which run the
+    /// same Build for the same reason a preview must not lie.</summary>
+    static void Discard(GameObject go)
+    {
+        if (Application.isPlaying) Object.Destroy(go);
+        else Object.DestroyImmediate(go);
     }
 
     // ====================================================================
@@ -182,40 +292,6 @@ public class FloorGenerator : MonoBehaviour
                     plug.GetComponent<MeshRenderer>().sharedMaterial = source.sharedMaterial;
             }
         }
-    }
-
-    /// <summary>
-    /// Put <paramref name="prefab"/> on a free exit of <paramref name="from"/>.
-    ///
-    /// Returns null when there is no such exit, which the caller treats as
-    /// "this floor does not have that room" rather than as an error. A module
-    /// must be walkable with its exits unused, so a floor that ran out of
-    /// doors is a shorter floor and not a broken one.
-    /// </summary>
-    static RoomModule Attach(System.Func<GameObject, GameObject> spawn,
-                             GameObject prefab, RoomModule from,
-                             Transform level, string label)
-    {
-        RoomExit exit = null;
-
-        foreach (var e in RoomExit.ExitsUnder(from.transform))
-        {
-            if (e == null || e.used) continue;
-            if (!string.IsNullOrEmpty(label) && e.label != label) continue;
-            exit = e;
-            break;
-        }
-
-        if (exit == null) return null;
-
-        var room = Place(spawn, prefab, level);
-        if (room == null) return null;
-
-        // The whole of the placement maths. See the header.
-        room.transform.SetPositionAndRotation(exit.Position, exit.Rotation);
-        exit.used = true;
-
-        return room;
     }
 
     static RoomModule Place(System.Func<GameObject, GameObject> spawn,

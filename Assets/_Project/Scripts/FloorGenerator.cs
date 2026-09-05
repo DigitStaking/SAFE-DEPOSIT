@@ -83,32 +83,105 @@ public class FloorGenerator : MonoBehaviour
         landing.transform.localRotation = Quaternion.identity;
         built.Add(landing);
 
-        // ---- MAIN, THROUGH THE LANDING'S EXIT ----
-        var main = mains != null && mains.Length > 0
-            ? Attach(spawn, mains[layout.main], landing, level, "")
-            : null;
-
-        if (main != null) built.Add(main);
-        if (main == null) return built;
-
-        // ---- THE OPTIONAL PAIR ----
+        // ---- THE SPINE ----
         //
-        // Named exits, because this is the one module with two ways on and
-        // guessing which is which would put the dead end where the side room
-        // goes on some floors and not others.
-        if (layout.hasSide && sides != null && sides.Length > 0)
+        // Each main hangs off the previous room's onward exit - the landing's
+        // only one, then each main's "back" door. That is what makes a floor
+        // long or short: the same attach step, repeated as many times as the
+        // layout asked for.
+        //
+        // A room that has no free exit ends the spine early. That is a
+        // shorter floor and not a failure: every module must be walkable with
+        // its exits unused, so the floor simply stops here.
+        RoomModule current = landing;
+
+        for (int i = 0; i < layout.mains.Length; i++)
         {
-            var side = Attach(spawn, sides[0], main, level, "side");
-            if (side != null) built.Add(side);
+            if (mains == null || mains.Length == 0) break;
+
+            string onward = current == landing ? "" : "back";
+            var main = Attach(spawn, mains[layout.mains[i]], current, level, onward);
+            if (main == null) break;
+
+            built.Add(main);
+
+            // A side room off this one, if the layout said so. It branches and
+            // does not continue the spine, which is what makes it optional in
+            // the sense that matters: you can walk past it.
+            if (layout.sideAt[i] && sides != null && sides.Length > 0)
+            {
+                var side = Attach(spawn, sides[0], main, level, "side");
+                if (side != null) built.Add(side);
+            }
+
+            current = main;
         }
 
-        if (layout.hasBack && backs != null && backs.Length > 0)
+        // ---- THE DEAD END ----
+        if (layout.hasBack && backs != null && backs.Length > 0 && current != landing)
         {
-            var back = Attach(spawn, backs[0], main, level, "back");
+            var back = Attach(spawn, backs[0], current, level, "back");
             if (back != null) built.Add(back);
         }
 
+        SealUnusedExits(built);
         return built;
+    }
+
+    // ====================================================================
+    // A DOOR THAT LEADS NOWHERE IS WORSE THAN NO DOOR
+    //
+    // Every module is authored with openings for every exit it declares, and
+    // the generator only fills some of them - the spine ends somewhere, and a
+    // main whose side room was not rolled still has a side doorway cut into
+    // its wall. Left alone, those are holes onto the skybox: a floor that ends
+    // in a doorway reads as unfinished, and worse, it reads as a route. A
+    // player walks to it, finds nothing, and stops trusting doors.
+    //
+    // A dead end has to LOOK like a dead end. So every exit nothing was
+    // attached to gets its opening filled back in, which also makes Step 5's
+    // "walkable with every exit sealed" rule automatic instead of a thing the
+    // human has to remember.
+    //
+    // Filled rather than never cut, deliberately: the module cannot know
+    // which of its doors a floor will use, so cutting them all and closing the
+    // spares is the only order that lets one prefab serve both.
+    // ====================================================================
+
+    const float DoorWidth = 2f;
+    const float DoorHeight = 2.5f;
+    const float WallThick = 0.5f;
+
+    static void SealUnusedExits(List<RoomModule> rooms)
+    {
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+
+            foreach (var exit in RoomExit.ExitsUnder(room.transform))
+            {
+                if (exit == null || exit.used) continue;
+
+                var plug = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                plug.name = "Sealed";
+                plug.transform.SetParent(exit.transform, false);
+
+                // The exit's own frame: +X points out through the opening, so
+                // the plug sits half a wall along it and fills the 2 x 2.5
+                // hole exactly.
+                plug.transform.localPosition =
+                    new Vector3(WallThick * 0.5f, DoorHeight * 0.5f, 0f);
+                plug.transform.localRotation = Quaternion.identity;
+                plug.transform.localScale =
+                    new Vector3(WallThick, DoorHeight, DoorWidth);
+
+                // Matched to whatever the room is made of, so a sealed door
+                // does not announce itself as a different kind of object.
+                var source = room.GetComponentInChildren<MeshRenderer>();
+                if (source != null)
+                    plug.GetComponent<MeshRenderer>().sharedMaterial = source.sharedMaterial;
+            }
+        }
     }
 
     /// <summary>

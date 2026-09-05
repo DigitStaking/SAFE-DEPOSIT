@@ -64,9 +64,14 @@ public static class FloorPreview
             var names = new List<string>();
             foreach (var r in rooms) names.Add(r != null ? r.label : "?");
 
-            report.AppendLine($"  {floor:00}  {string.Join("  >  ", names)}");
+            report.AppendLine($"  {floor:00}  {rooms.Count} rooms   " +
+                              string.Join("  >  ", names));
         }
 
+        report.AppendLine();
+        report.AppendLine("Room counts should VARY - that is the thing you see from");
+        report.AppendLine("outside. Which main a floor picked is invisible until you");
+        report.AppendLine("walk into it; how long the floor is, is not.");
         report.AppendLine();
         report.AppendLine("The done-when is not something code can check:");
         report.AppendLine("  can a stranger navigate these without a map, and");

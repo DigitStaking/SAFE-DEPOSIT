@@ -34,10 +34,30 @@ using UnityEngine;
 /// </summary>
 public struct FloorLayout
 {
-    public int landing;      // index into the landing modules
-    public int main;         // index into the main modules
-    public bool hasSide;
+    public int landing;
+
+    /// <summary>The spine, in the order you walk it. One entry per main room,
+    /// and a floor may use the same main more than once.</summary>
+    public int[] mains;
+
+    /// <summary>Whether a side room hangs off each main. Same length as
+    /// mains.</summary>
+    public bool[] sideAt;
+
+    /// <summary>Whether the spine ends in a dead end.</summary>
     public bool hasBack;
+
+    /// <summary>How many rooms a player walks, landing included.</summary>
+    public int RoomCount
+    {
+        get
+        {
+            int n = 1 + (mains != null ? mains.Length : 0) + (hasBack ? 1 : 0);
+            if (sideAt != null)
+                foreach (bool b in sideAt) if (b) n++;
+            return n;
+        }
+    }
 
     /// <summary>
     /// Mixed so that neighbouring floors of the same run do not produce
@@ -48,36 +68,83 @@ public struct FloorLayout
     static int SeedFor(int runNumber, int floor) =>
         unchecked(runNumber * 73856093) ^ unchecked((floor + 1) * 19349663);
 
-    /// <summary>Separate stream for the main-room walk, so the step a floor
-    /// takes is independent of which landing it drew.</summary>
+    /// <summary>Separate stream for the first main, so which room you walk
+    /// into is independent of how long the floor is.</summary>
     static int StepSeedFor(int runNumber, int floor) =>
         unchecked(SeedFor(runNumber, floor) * 83492791) ^ 0x5bf03635;
 
     /// <summary>
     /// The floor's shape, from numbers every machine already shares.
     ///
-    /// <paramref name="floor"/> is 1-based, matching Level_01.
+    /// ---- LENGTH IS THE VARIETY. WHICH ROOM IS NOT. ----
+    ///
+    /// The first version built landing -> main -> side -> back every single
+    /// time, and varied only WHICH main. Ten of them side by side were ten
+    /// identical silhouettes: the difference was a partition wall you had to
+    /// walk inside to see, while the shape you actually navigate by never
+    /// changed at all.
+    ///
+    /// A player does not remember which main room they were in. They remember
+    /// that the fourth floor went on forever and the fifth was a cupboard. So
+    /// the spine is 1 to 4 mains now, side rooms hang off any of them, and the
+    /// dead end is optional - between two and eight rooms per floor instead of
+    /// a fixed four.
+    ///
+    /// Repeats within a floor are allowed and wanted. A corridor of two halls
+    /// end to end reads as a long floor, not as a bug - it is only the room
+    /// you just LEFT that must not be the room you just entered.
     /// </summary>
     public static FloorLayout For(int runNumber, int floor,
                                   int landingCount, int mainCount)
     {
         var rng = new System.Random(SeedFor(runNumber, floor));
 
-        return new FloorLayout
+        var l = new FloorLayout
         {
             landing = landingCount > 0 ? rng.Next(landingCount) : 0,
-            main = MainFor(runNumber, floor, mainCount),
-
-            // Not every floor gets everything. A side room on every floor is
-            // not a side room, it is a corridor with a bulge - the point of
-            // "optional" is that finding one is worth something.
-            hasSide = rng.NextDouble() < 0.6,
-            hasBack = rng.NextDouble() < 0.75
+            hasBack = rng.NextDouble() < 0.7
         };
+
+        if (mainCount <= 0)
+        {
+            l.mains = new int[0];
+            l.sideAt = new bool[0];
+            return l;
+        }
+
+        // 1..4, weighted toward the middle. A floor of one main is a short
+        // stop; four is a march. Both should happen, and neither every time.
+        int[] lengths = { 1, 2, 2, 3, 3, 4 };
+        int spine = lengths[rng.Next(lengths.Length)];
+
+        l.mains = new int[spine];
+        l.sideAt = new bool[spine];
+
+        // The first main is the cross-floor rule: it must differ from the
+        // first main of the floor above, because that is the room you just
+        // left. See FirstMainFor.
+        l.mains[0] = FirstMainFor(runNumber, floor, mainCount);
+
+        for (int i = 1; i < spine; i++)
+        {
+            // Within a floor, only ADJACENT repeats are avoided - two halls
+            // back to back read as one enormous room rather than as a
+            // corridor, which loses the length the spine was for.
+            int pick = rng.Next(mainCount);
+            if (mainCount > 1 && pick == l.mains[i - 1])
+                pick = (pick + 1 + rng.Next(mainCount - 1)) % mainCount;
+
+            l.mains[i] = pick;
+        }
+
+        for (int i = 0; i < spine; i++)
+            l.sideAt[i] = rng.NextDouble() < 0.45;
+
+        return l;
     }
 
     /// <summary>
-    /// Which main room, guaranteed different from the floor above.
+    /// The first main, guaranteed different from the floor above's first main.
     ///
     /// ---- WHY THIS WALKS AND DOES NOT JUST COMPARE ----
     ///
@@ -86,26 +153,19 @@ public struct FloorLayout
     /// worth keeping: the floor above's main may ITSELF have been nudged, so
     /// comparing against its raw draw compares against a room that was never
     /// built. Repeats survived at roughly the rate you would expect from no
-    /// rule at all, which is exactly the kind of bug that ships - the code
-    /// reads correct and the output is only wrong sometimes.
+    /// rule at all - code that reads correct with output that is only
+    /// sometimes wrong, which is the kind that ships.
     ///
-    /// So the choice is made by STEPPING instead. Each floor moves 1..n-1
-    /// places around the set of mains, and a step of at least one cannot land
-    /// where it started. No comparison, no nudge, and nothing to get wrong.
+    /// So the choice is made by STEPPING. Each floor moves 1..n-1 places
+    /// around the set of mains, and a step of at least one cannot land where
+    /// it started. No comparison, nothing to get wrong.
     ///
-    /// It costs a walk from floor 1, which is at most twenty iterations of
-    /// integer arithmetic. That is still a pure function of (run, floor):
-    /// nothing is remembered between calls, so a client joining on floor 12
-    /// asks for floor 12 and gets the same answer as the host who walked
-    /// through it. Recomputing is not state.
-    ///
-    /// WITH ONLY TWO MAINS THIS FORCES A,B,A,B - the step can only be 1. That
-    /// is a visible pattern and it is not a generator problem: two of anything
-    /// alternates. The answer is more main modules in Step 5, and this comment
-    /// is here so that when someone notices the alternation they change the
-    /// module set rather than this file.
+    /// The walk from floor 1 is at most twenty iterations of integer
+    /// arithmetic, and it keeps this a pure function of (run, floor): nothing
+    /// is remembered between calls, so a client joining on floor 12 asks for
+    /// floor 12 and gets the host's answer. Recomputing is not state.
     /// </summary>
-    static int MainFor(int runNumber, int floor, int mainCount)
+    static int FirstMainFor(int runNumber, int floor, int mainCount)
     {
         if (mainCount <= 1) return 0;
 

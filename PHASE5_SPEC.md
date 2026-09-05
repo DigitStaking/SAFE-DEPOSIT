@@ -360,6 +360,27 @@ without sending geometry.
 > A,B,A,B**, which reads as generated just as loudly as a repeat. Two of
 > anything alternates. So there is a **third main** now — a columned hall —
 > making seven modules, not six. The spec said six; six was wrong.
+>
+> **Revised after looking at it.** Ten previews side by side were ten
+> identical silhouettes: the generator always built landing → main → side →
+> back, so the only variety was *which* main — a partition wall you have to
+> walk inside to see. **A player does not remember which main room they were
+> in. They remember that the fourth floor went on forever and the fifth was a
+> cupboard.**
+>
+> So the spine is 1–4 mains, side rooms hang off any of them, the dead end is
+> optional, and **a floor may use the same main more than once** — two halls
+> end to end read as a long floor, not a bug. Two to nine rooms per floor
+> instead of a fixed four. Only *adjacent* repeats are avoided, and only the
+> first main carries the cross-floor rule, since that is the room you just
+> left.
+>
+> And: **unused exits are now sealed.** Modules cut an opening for every exit
+> they declare, but the generator fills only some — so a spine that ended at a
+> main left a doorway onto the skybox. A door that leads nowhere is worse than
+> no door: a player walks to it, finds nothing, and stops trusting doors. This
+> also makes "walkable with every exit sealed" automatic rather than a rule
+> the human has to remember.
 
 ---
 

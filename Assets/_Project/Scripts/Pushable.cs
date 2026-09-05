@@ -35,6 +35,12 @@ using UnityEngine;
 
 public class Pushable : MonoBehaviour
 {
+    [Tooltip("Can this be shoved at all. " +
+             "An explicit answer here always wins over the default rule, in " +
+             "either direction - tick it on a crate you DO want shovable, " +
+             "untick it on a door that should not budge.")]
+    public bool canBePushed = true;
+
     [Tooltip("How this object is shoved. Empty means the default profile - " +
              "which is a perfectly good answer for most things, and the reason " +
              "this component is optional rather than required.")]
@@ -44,6 +50,31 @@ public class Pushable : MonoBehaviour
              "when a gesture looks wrong and you want to know which asset " +
              "produced it rather than guessing.")]
     public bool logOnPush = false;
+
+    /// <summary>
+    /// Whether this thing may be shoved.
+    ///
+    /// PEOPLE YES, LOOT NO, and everything else yes. A crate you can pick up
+    /// is something you CARRY - shoving the quota across the floor was never
+    /// the verb, and a crew that can scatter its own haul by walking into it
+    /// is a crew that will.
+    ///
+    /// A downed crewmate is a Carryable too, and is still a person, so they
+    /// stay pushable - the rule asks what something IS, not which components
+    /// happen to be on it.
+    ///
+    /// A Pushable with an explicit answer overrides all of that, both ways.
+    /// </summary>
+    public static bool Allows(Component hit)
+    {
+        if (hit == null) return false;
+
+        var p = hit.GetComponentInParent<Pushable>();
+        if (p != null) return p.canBePushed;
+
+        var carry = hit.GetComponentInParent<Carryable>();
+        return carry == null || carry.IsPerson;
+    }
 
     /// <summary>
     /// The profile for whatever was hit, or null to mean "use the default".

@@ -82,21 +82,30 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Impulse used against PEOPLE, in newton-seconds. Deliberately much " +
              "larger than the one above: a crate is resisted only by friction, " +
              "a person by their own motor. " +
-             "Divided by mass, so 420 on a 70kg crewmate is 6 m/s. With " +
-             "PlayerMotor.shoveControl at 8 that carries about 2.2m - those two " +
-             "numbers together decide the distance, and the throw is roughly " +
-             "speed squared over twice shoveControl.")]
-    public float playerImpulse = 420f;
+             "Divided by mass, so 280 on a 70kg crewmate is 4 m/s. With the " +
+             "upward lift below and shoveRecovery, that throws them about " +
+             "2.0m. 300 gives 2.25m, 260 gives 1.86m - most of the distance " +
+             "is covered while they are off the ground and unbraked.")]
+    public float playerImpulse = 280f;
+
+    [Tooltip("Upward impulse on a shoved person, in newton-seconds. This is " +
+             "what turns a slide into a shove - they leave the ground briefly, " +
+             "travel, and land. " +
+             "Divided by mass, so 140 on 70kg is 2 m/s up: a 0.20m hop and " +
+             "0.41s in the air. It also sets the DISTANCE, because the throw " +
+             "happens mostly while airborne - raise this and they travel " +
+             "further as well as higher. Deliberately far short of a jump.")]
+    public float playerUpward = 140f;
 
     [Tooltip("Seconds the shoved player's motor stops fighting the push. Too " +
              "short and they brake almost instantly; too long and they feel " +
              "like they have lost control of their own legs.")]
-    public float shoveRecovery = 0.45f;
+    public float shoveRecovery = 0.5f;
 
     // Apply is static - the RPC path has no instance to hand - so the tuned
     // value is mirrored here once in Awake rather than duplicated as a second
     // constant somebody would forget to keep in step.
-    static float ShoveRecovery = 0.45f;
+    static float ShoveRecovery = 0.5f;
 
     [Tooltip("How much of the shove goes upward, 0 to 1. A little lifts them " +
              "off the floor so friction does not eat the push immediately. Too " +
@@ -368,6 +377,13 @@ public class PlayerPush : NetworkBehaviour
         // Never yourself. The probe starts inside your own capsule.
         if (body.transform == transform || body.transform.IsChildOf(transform)) return;
 
+        // ---- WHAT MAY BE SHOVED ----
+        //
+        // People yes, loot no. Asked for directly, and it is the right way
+        // round: a crate is something you CARRY, and a crew that can scatter
+        // its own quota by walking into it is a crew that will.
+        if (!Pushable.Allows(body)) return;
+
         // ---- A PERSON IS NOT A CRATE ----
         //
         // The impulse that slides a filing cabinet barely registers on someone
@@ -376,7 +392,9 @@ public class PlayerPush : NetworkBehaviour
         // window closes.
         bool person = body.GetComponent<PlayerMotor>() != null;
 
-        Vector3 push = Direction(eye) * (person ? playerImpulse : impulse);
+        Vector3 push = person
+            ? Knockback(body.transform)
+            : Direction(eye) * impulse;
 
         var target = body.GetComponent<NetworkObject>();
 
@@ -389,6 +407,41 @@ public class PlayerPush : NetworkBehaviour
         }
 
         RequestPushServerRpc(target.NetworkObjectId, push);
+    }
+
+    /// <summary>
+    /// A shove that lifts somebody off their feet a little and throws them.
+    ///
+    /// ---- DIRECTION COMES FROM THE TWO BODIES, NOT FROM THE CAMERA ----
+    ///
+    /// Where you are LOOKING and where they are STANDING are different things.
+    /// Shoulder-barging somebody at your side while looking down a corridor
+    /// should throw them sideways, away from you - not down the corridor.
+    /// So it is target minus pusher, flattened, which is what a shove
+    /// physically is.
+    ///
+    /// ---- AND A SMALL LIFT, NOT A LAUNCH ----
+    ///
+    /// The upward part is what turns a slide into a shove: they leave the
+    /// ground for a moment, travel, and land. Kept small on purpose - big
+    /// enough to read as physical, nowhere near enough to be a jump.
+    /// </summary>
+    Vector3 Knockback(Transform victim)
+    {
+        Vector3 away = victim.position - transform.position;
+        away.y = 0f;
+
+        // Standing exactly on top of each other: fall back to facing, since
+        // there is no "away" to compute and something has to happen.
+        if (away.sqrMagnitude < 0.0001f)
+        {
+            away = transform.forward;
+            away.y = 0f;
+        }
+
+        away.Normalize();
+
+        return away * playerImpulse + Vector3.up * playerUpward;
     }
 
     Vector3 Direction(Transform eye)

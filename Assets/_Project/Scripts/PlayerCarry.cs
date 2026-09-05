@@ -1020,8 +1020,22 @@ public class PlayerCarry : MonoBehaviour
             { fontSize = 12, alignment = TextAnchor.MiddleCenter };
             label.normal.textColor = new Color(1f, 1f, 1f, 0.75f);
 
+            // ---- CURRENT AND MAXIMUM, NOT JUST CURRENT ----
+            //
+            // This read "2.0 m" and got reported as the range being stuck at
+            // two metres. It was not stuck; it was a third-charged throw of a
+            // 3.5m item, and the number alone gave no way to tell those apart.
+            // A gauge showing one figure cannot answer "is this as far as it
+            // goes, or as far as I have wound it" - which is the only question
+            // anybody asks of it.
+            //
+            // Doubling the wind-up time is what made that ambiguity bite: the
+            // same half-second press that used to fill the bar now fills a
+            // third of it, so the number people were used to seeing dropped
+            // without the reason being visible anywhere.
             GUI.Label(new Rect(x, y - 20f, barW, 18f),
-                      $"{ThrowRange(held) * Mathf.Lerp(0.35f, 1f, charge):0.0} m",
+                      $"{ThrowRange(held) * Mathf.Lerp(0.35f, 1f, charge):0.0}" +
+                      $"  /  {ThrowRange(held):0.0} m",
                       label);
         }
     }

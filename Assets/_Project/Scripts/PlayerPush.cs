@@ -79,6 +79,25 @@ public class PlayerPush : NetworkBehaviour
              "who barely notices. 140 gives a person about 2 m/s.")]
     public float impulse = 140f;
 
+    [Tooltip("Impulse used against PEOPLE, in newton-seconds. Deliberately much " +
+             "larger than the one above: a crate is resisted only by friction, " +
+             "a person by their own motor. " +
+             "Divided by mass, so 420 on a 70kg crewmate is 6 m/s. With " +
+             "PlayerMotor.shoveControl at 8 that carries about 2.2m - those two " +
+             "numbers together decide the distance, and the throw is roughly " +
+             "speed squared over twice shoveControl.")]
+    public float playerImpulse = 420f;
+
+    [Tooltip("Seconds the shoved player's motor stops fighting the push. Too " +
+             "short and they brake almost instantly; too long and they feel " +
+             "like they have lost control of their own legs.")]
+    public float shoveRecovery = 0.45f;
+
+    // Apply is static - the RPC path has no instance to hand - so the tuned
+    // value is mirrored here once in Awake rather than duplicated as a second
+    // constant somebody would forget to keep in step.
+    static float ShoveRecovery = 0.45f;
+
     [Tooltip("How much of the shove goes upward, 0 to 1. A little lifts them " +
              "off the floor so friction does not eat the push immediately. Too " +
              "much turns a shove into a launch.")]
@@ -153,6 +172,8 @@ public class PlayerPush : NetworkBehaviour
 
     void Awake()
     {
+        ShoveRecovery = shoveRecovery;
+
         motor = GetComponent<PlayerMotor>();
         health = GetComponent<PlayerHealth>();
         carry = GetComponent<PlayerCarry>();
@@ -347,7 +368,15 @@ public class PlayerPush : NetworkBehaviour
         // Never yourself. The probe starts inside your own capsule.
         if (body.transform == transform || body.transform.IsChildOf(transform)) return;
 
-        Vector3 push = Direction(eye) * impulse;
+        // ---- A PERSON IS NOT A CRATE ----
+        //
+        // The impulse that slides a filing cabinet barely registers on someone
+        // standing up: a crate is resisted only by friction, a person by their
+        // own motor. So the shove has to still be moving them once the Shoved
+        // window closes.
+        bool person = body.GetComponent<PlayerMotor>() != null;
+
+        Vector3 push = Direction(eye) * (person ? playerImpulse : impulse);
 
         var target = body.GetComponent<NetworkObject>();
 
@@ -381,8 +410,23 @@ public class PlayerPush : NetworkBehaviour
         // Impulse, so MASS divides it. This is the whole design: the fat man
         // absorbs a shove because he weighs twice what you do, and nobody had
         // to write a rule saying so.
-        if (body != null && !body.isKinematic)
-            body.AddForce(push, ForceMode.Impulse);
+        if (body == null || body.isKinematic) return;
+
+        body.AddForce(push, ForceMode.Impulse);
+
+        // ---- AND TELL THEIR MOTOR TO STOP FIGHTING IT ----
+        //
+        // Without this the impulse lands perfectly and is gone in two frames:
+        // with no input, PlayerMotor brakes toward zero at groundAcceleration,
+        // so 2 m/s died in 0.033s over 3.3cm. A shove that worked and could not
+        // be seen.
+        //
+        // Runs on EVERY machine, because Apply is reached through the ClientRpc
+        // and each client simulates its own bodies. If only the pusher relaxed,
+        // everyone else would watch the victim get braked flat and the two
+        // views would disagree about where they ended up.
+        var motor = body.GetComponent<PlayerMotor>();
+        if (motor != null) motor.Shoved(ShoveRecovery);
     }
 
     // --------------------------------------------------------------------

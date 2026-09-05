@@ -58,6 +58,29 @@ public class PlayerMotor : MonoBehaviour
              "the game.")]
     public float airAcceleration = 8f;
 
+    [Header("Being shoved")]
+    [Tooltip("How hard the motor is allowed to fight a shove while one is " +
+             "landing, in m/s^2. " +
+             "The distance a shove throws you is roughly speed squared over " +
+             "twice this - so at 8, a 5 m/s shove travels about 1.6m. Raise it " +
+             "to recover faster, lower it to slide further.")]
+    public float shoveControl = 8f;
+
+    float shovedUntil;
+
+    /// <summary>
+    /// Somebody just shoved this body. Back off for a moment.
+    ///
+    /// Called on EVERY machine, not just the pusher's, because the shove
+    /// arrives through a ClientRpc and each client simulates its own bodies -
+    /// if only the pusher relaxed, everybody else would still watch the motor
+    /// brake it flat.
+    /// </summary>
+    public void Shoved(float seconds)
+    {
+        shovedUntil = Mathf.Max(shovedUntil, Time.time + Mathf.Max(0f, seconds));
+    }
+
     [Header("Jump")]
     [Tooltip("Peak height of a standing jump, in metres. Launch velocity is " +
              "calculated from this and gravity, so the number means what it says.")]
@@ -570,7 +593,26 @@ public class PlayerMotor : MonoBehaviour
 
         // 3. the difference, clamped to what we are allowed to spend
         Vector3 delta = targetVelocity - currentHorizontal;
+
+        // ---- WHY A SHOVE USED TO MOVE SOMEBODY THREE CENTIMETRES ----
+        //
+        // With no input targetVelocity is ZERO, so delta is the negative of
+        // whatever speed the body has and this brakes it out at the full
+        // ground acceleration. That is correct for stopping when you let go of
+        // W, and it is also what erased every push.
+        //
+        // The arithmetic: a 140 impulse on a 70kg body is 2 m/s. Braking at
+        // groundAcceleration 60 kills that in 0.033s, over v^2/2a = 3.3cm. The
+        // shove was landing perfectly and being deleted before anyone saw it.
+        //
+        // So for a moment after being shoved the motor stops fighting: it
+        // still steers, but far more weakly, and the impulse gets to carry.
+        // Distance is roughly v^2 / (2 * shoveControl), which is the number to
+        // change if you want a different throw.
         float acceleration = grounded ? groundAcceleration : airAcceleration;
+
+        if (Time.time < shovedUntil)
+            acceleration = Mathf.Min(acceleration, shoveControl);
         Vector3 change = Vector3.ClampMagnitude(delta, acceleration * Time.fixedDeltaTime);
 
         // 4. apply. VelocityChange adds straight to velocity and ignores mass,

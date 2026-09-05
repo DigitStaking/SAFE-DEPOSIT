@@ -13,16 +13,16 @@ MonoBehaviour:
   m_Name: FirstPersonViewmodelSettings
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonViewmodelSettings
   visible: 1
-  localPosition: {x: 0, y: -0.57, z: 0.87}
+  localPosition: {x: 0, y: -0.17, z: 0.89}
   deriveHeightFromEye: 1
   handsBelowEye: 0.3
-  localEulerAngles: {x: -123.5, y: 0, z: 0}
-  localScale: 0.54
+  localEulerAngles: {x: -122.9, y: 0, z: 0}
+  localScale: 0.5
   leftHandOffset: {x: -0.06, y: 0, z: 0}
   rightHandOffset: {x: 0.06, y: 0, z: 0}
   handSpread: 0.03
   handReach: -0.03
-  showOnlyWhenBusy: 1
+  showOnlyWhenBusy: 0
   hiddenOffset: {x: 0, y: 0, z: 0}
   raiseTime: 0.22
   holdAfter: 0.6

@@ -484,7 +484,63 @@ MonoBehaviour:
   m_Animator: {fileID: 7025117437554898757}
   TransitionStateInfoList: []
   AnimatorParameterEntries:
-    ParameterEntries: []
+    ParameterEntries:
+    - name: MoveX
+      NameHash: 675470966
+      Synchronize: 1
+      ParameterType: 1
+    - name: MoveZ
+      NameHash: -968048806
+      Synchronize: 1
+      ParameterType: 1
+    - name: Speed
+      NameHash: -823668238
+      Synchronize: 1
+      ParameterType: 1
+    - name: VelY
+      NameHash: 1522617170
+      Synchronize: 1
+      ParameterType: 1
+    - name: Grounded
+      NameHash: 862969536
+      Synchronize: 1
+      ParameterType: 4
+    - name: Jump
+      NameHash: 125937960
+      Synchronize: 1
+      ParameterType: 9
+    - name: Carry
+      NameHash: 961424176
+      Synchronize: 1
+      ParameterType: 3
+    - name: DoPickUp
+      NameHash: -679504200
+      Synchronize: 1
+      ParameterType: 9
+    - name: DoStow
+      NameHash: -1741817230
+      Synchronize: 1
+      ParameterType: 9
+    - name: DoUse
+      NameHash: 1537850744
+      Synchronize: 1
+      ParameterType: 9
+    - name: Emote
+      NameHash: -1434604862
+      Synchronize: 1
+      ParameterType: 3
+    - name: DoEmote
+      NameHash: -1193972156
+      Synchronize: 1
+      ParameterType: 9
+    - name: Downed
+      NameHash: -660779543
+      Synchronize: 1
+      ParameterType: 4
+    - name: DoStun
+      NameHash: 1282123881
+      Synchronize: 1
+      ParameterType: 9
   AnimatorParametersExpanded: 0
 --- !u!114 &5469903729989680692
 MonoBehaviour:
@@ -935,7 +991,6 @@ MonoBehaviour:
   maxLegExtension: 0.93
   hipDropSpeed: 1.6
   maxHipDrop: 0.35
-  showReadout: 0
   airGrace: 0.25
   airborneHeight: 1.45
 --- !u!114 &3009698359235393191
@@ -973,14 +1028,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6737721c13191534a8b8d8b59d797c64, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCarryArms
-  gripWidth: 0.85
-  gripHeightOnBox: 0.78
-  gripInset: 0.02
-  gripToward: 0.06
-  maxGripWidth: 0.55
+  measure:
+    width: 0.85
+    heightOnBox: 0.78
+    inset: 0.02
+    toward: 0.06
+    maxWidth: 0.3
   centreOnBody: 1
   leftHandOffset: {x: 0, y: 0, z: 0}
   rightHandOffset: {x: 0, y: 0, z: 0}
+  elbowHintRadius: 0.5
   useHandRotation: 1
   leftPalmEuler: {x: -90, y: 0, z: 0}
   rightPalmEuler: {x: -90, y: 0, z: 0}
@@ -994,6 +1051,7 @@ MonoBehaviour:
   blendTime: 0.18
   weight: 1
   drawGrips: 0
+  drawElbows: 0
 --- !u!114 &417824198872990787
 MonoBehaviour:
   m_ObjectHideFlags: 0

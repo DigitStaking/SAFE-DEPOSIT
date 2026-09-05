@@ -247,7 +247,17 @@ public class FirstPersonViewmodel : MonoBehaviour
     /// a guess about THIS model that would silently become wrong the day it is
     /// replaced - and it is already being multiplied by a scale that changes.
     /// </summary>
-    float rigArmHeight = -1f;
+    // ---- -1 WAS DOING TWO JOBS AND COULD NOT DO EITHER PROPERLY ----
+    //
+    // It was the "not measured yet" sentinel, and it is also a perfectly
+    // plausible measurement. So the warning "measured arm height is -1.00m"
+    // could mean the rig really measured -1, or that Rebuild never managed to
+    // measure at all - and there was no way to tell which from the log.
+    //
+    // That is not hypothetical: -1.00m appeared in one session and -0.33m in
+    // another, and only one of those was a measurement.
+    float rigArmHeight;
+    bool rigMeasured;
 
     /// <summary>SECONDS since the shove began, or -1 when idle. Handed
     /// straight to ViewmodelArmsIK, which owns the gesture.</summary>
@@ -495,12 +505,15 @@ public class FirstPersonViewmodel : MonoBehaviour
             moanedAboutDerive = true;
 
             Debug.LogWarning(
-                "[Viewmodel] Derive Height From Eye is ON but the measured arm " +
-                "height is " + rigArmHeight.ToString("0.00") + "m, which is not " +
-                "usable - so handsBelowEye is doing NOTHING and the height is " +
-                "coming from localPosition.y (" + localPosition.y.ToString("0.00") +
-                "m). Tune localPosition.y, or untick Derive Height From Eye to " +
-                "make that explicit.");
+                "[Viewmodel] Derive Height From Eye is ON but " +
+                (rigMeasured
+                    ? "the measured arm height is " + rigArmHeight.ToString("0.00") +
+                      "m, which is negative and therefore not usable"
+                    : "the arm height was never measured on this rig") +
+                " - so handsBelowEye is doing NOTHING and the height is coming " +
+                "from localPosition.y (" + localPosition.y.ToString("0.00") + "m). " +
+                "Tune localPosition.y, or untick Derive Height From Eye to make " +
+                "that explicit.");
         }
 
         // ---- THE SHOVE MOVES THE WHOLE RIG, NOT THE HAND BONES ----
@@ -963,11 +976,36 @@ public class FirstPersonViewmodel : MonoBehaviour
             ? cloneAnim.GetBoneTransform(HumanBodyBones.LeftHand)
             : null;
 
+        // ---- MEASURED FROM A POSE THAT MAY NOT EXIST YET ----
+        //
+        // This reads a WORLD position off a bone on a rig that was created a
+        // few lines ago. Whether the Animator has posed it yet depends on when
+        // Rebuild happened to run - and that differs between a placeholder
+        // body that has been animating since the scene loaded and a network
+        // body that spawned this frame.
+        //
+        // Same code, different answer, which is why the number changed when
+        // online mode came back.
+        //
+        // rigMeasured is only set when the value is actually usable, so the
+        // warning below can say "never measured" and "measured something odd"
+        // as the different things they are.
         if (handBone != null && localScale > 0.001f)
         {
             rigArmHeight = (handBone.position.y - t.position.y) / localScale;
+            rigMeasured = Mathf.Abs(rigArmHeight) > 0.01f;
+
             Report("rig measured: hands sit " + rigArmHeight.ToString("0.00") +
-                   "m above the arms rig origin at scale 1.");
+                   "m from the arms rig origin at scale 1." +
+                   (rigArmHeight > 0f ? "" :
+                    "  NEGATIVE, so Derive Height From Eye stays off and " +
+                    "localPosition.y is what places them."));
+        }
+        else
+        {
+            rigMeasured = false;
+            Report("rig NOT measured - no hand bone on the clone yet. " +
+                   "localPosition.y is placing the arms.", true);
         }
 
         // ---- THE ARMS LISTEN TO THE SAME ANIMATION AS THE BODY ----

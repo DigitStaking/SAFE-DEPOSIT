@@ -70,7 +70,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "HookRope",
+                    "name": "PutDown",
                     "type": "Button",
                     "id": "c6d96bb9-e310-4035-8343-c9089dd33cc5",
                     "expectedControlType": "",
@@ -380,7 +380,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "HookRope",
+                    "action": "PutDown",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -391,7 +391,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "HookRope",
+                    "action": "PutDown",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

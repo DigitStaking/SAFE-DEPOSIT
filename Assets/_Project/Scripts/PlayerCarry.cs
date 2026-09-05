@@ -251,6 +251,25 @@ public class PlayerCarry : MonoBehaviour
             : facing * Quaternion.Euler(held.itemRotationOffset);
     }
 
+    /// <summary>
+    /// Q - set it down.
+    ///
+    /// Bound to the action that used to be HookRope, which has been dead since
+    /// the rope was cut from Phase 4. The key was already on the keyboard doing
+    /// nothing.
+    ///
+    /// Tap only, for now. Hold-to-throw is Step 2 of this phase and arrives on
+    /// this same action.
+    /// </summary>
+    void OnPutDown(InputValue value)
+    {
+        if (!value.isPressed) return;
+        if (!PlayerRegistry.IsLocalFor(this)) return;
+        if (held == null) return;
+
+        PlaceHeld();
+    }
+
     void OnInteract(InputValue value)
     {
         if (!value.isPressed) return;
@@ -291,7 +310,20 @@ public class PlayerCarry : MonoBehaviour
             return;
         }
 
-        DropHeld();
+        // ---- E IS FOR TAKING. Q IS FOR GIVING UP. ----
+        //
+        // This used to be DropHeld(), so one key did both jobs. The failure is
+        // small and constant: drop a crate with E and the very next E press
+        // picks the same crate straight back up, because you are still looking
+        // at it. Every mistimed press undoes itself.
+        //
+        // Hands full means E has nothing to do here now. Setting the thing
+        // down is Q - PlaceHeld below - which also puts it somewhere chosen
+        // rather than wherever your hands happened to be.
+        //
+        // The downed branch above KEEPS its drop, deliberately: that one is
+        // not a convenience, it is the reason the load gauge cannot end up
+        // charging the crew for a box nobody can reach.
     }
 
     Carryable FindTarget()
@@ -411,6 +443,175 @@ public class PlayerCarry : MonoBehaviour
         if (held == null) return;
         held.Drop(Vector3.zero);
         held = null;
+    }
+
+    // ====================================================================
+    // PUTTING SOMETHING DOWN, AS OPPOSED TO LETTING GO OF IT
+    //
+    // DropHeld is a release: the item leaves your hands at your hands, keeping
+    // whatever speed you were walking at, and physics sorts out the rest. That
+    // is correct for a drop and wrong for a deliberate placement.
+    //
+    // The lift is why this needs to exist at all. The load gauge counts what is
+    // physically in the car, so a crate that lands on its corner and rolls back
+    // out through the doors is not a cosmetic problem - it is loot the crew
+    // paid weight for and will not be paid for. Placement fixes that with three
+    // things: flat (yaw only, so it cannot land on an edge), still
+    // (Drop(Vector3.zero), so it does not inherit your walk), and somewhere
+    // checked (an OverlapBox, so it is not being posted into a wall).
+    //
+    // Note the ORDER in PlaceHeld: moved, then announced, then dropped. A held
+    // item's colliders are off - that is what lets you carry a crate through a
+    // doorframe - so moving it first is free, and the colliders switch back on
+    // at a spot already known to be empty. DropHeld does the opposite, and the
+    // maxDepenetrationVelocity comment in Carryable is what that costs.
+    // ====================================================================
+
+    [Header("Putting it down")]
+    [Tooltip("How far in front of your feet a placed item is set down, on top " +
+             "of its own size and the width of your body. Small: this is " +
+             "putting something down, not tossing it.")]
+    public float placeReach = 0.15f;
+
+    [Tooltip("How far down the placement looks for a floor. Anything more than " +
+             "a step below you is not somewhere to put a crate, it is a hole.")]
+    public float placeDrop = 2.5f;
+
+    /// <summary>Q. Set the held thing down flat, still, and in a spot that has
+    /// been checked - or fall back to a plain drop if there is no such spot,
+    /// because a crate must never become impossible to put down.</summary>
+    void PlaceHeld()
+    {
+        if (held == null) return;
+
+        var item = held;
+
+        if (!TryPlacement(item, out Vector3 pos, out Quaternion rot))
+        {
+            // Boxed into a corner, standing over a drop, or facing a wall from
+            // 10cm. Letting go is worse than placing, and far better than the
+            // key appearing to do nothing at all.
+            DropHeld();
+            return;
+        }
+
+        // Cleared before announcing, for the same reason DropHeld does it: on
+        // the HOST a ServerRpc dispatches to itself, so DropClientRpc comes
+        // straight back round and calls ForceDrop on this very object. If held
+        // were still set, the echo would drop it a second time.
+        held = null;
+
+        item.transform.SetPositionAndRotation(pos, rot);
+
+        // Announce reads the transform, and the transform is now the resting
+        // place - so every machine puts it exactly here, rather than each
+        // simulating a falling crate and arriving at its own answer.
+        Announce(item, false);
+
+        item.Drop(Vector3.zero);
+    }
+
+    static readonly Collider[] placeOverlap = new Collider[32];
+
+    /// <summary>
+    /// Where a placed item comes to rest, and how it is turned.
+    ///
+    /// Returns false when there is nowhere sensible, which the caller treats as
+    /// "drop it instead" rather than as "do nothing".
+    /// </summary>
+    bool TryPlacement(Carryable item, out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero;
+
+        // ---- FLAT, NOT HOWEVER IT WAS BEING CARRIED ----
+        //
+        // Yaw only. A crate carried tilted and released tilted lands on an edge
+        // and rolls, and where it stops is then nobody's decision.
+        rot = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+
+        // Measured AT the placement rotation, because WorldBounds is a world
+        // axis-aligned box: read it while the item is still tilted and the
+        // extents describe a shape that is about to stop existing. Safe to turn
+        // it here - it is kinematic with its colliders off, and it is being
+        // placed this frame either way.
+        Quaternion wasRot = item.transform.rotation;
+        item.transform.rotation = rot;
+
+        Bounds b = item.WorldBounds;
+        Vector3 half = b.extents;
+
+        // The pivot is not the middle of the mesh, so a desired CENTRE has to
+        // be converted back into a TRANSFORM position before anything is moved.
+        Vector3 pivotFromCentre = item.transform.position - b.center;
+
+        item.transform.rotation = wasRot;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        forward.Normalize();
+
+        // Clear of your own capsule, plus half the item, plus the reach. Read
+        // off the collider rather than typed in, so the 0.30 -> 0.42 capsule
+        // change from Phase 4 cannot leave a stale number sitting here.
+        var capsule = GetComponent<CapsuleCollider>();
+        float bodyRadius = capsule != null ? capsule.radius : 0.4f;
+        float itemHalf = Mathf.Max(half.x, half.z);
+        float reach = bodyRadius + itemHalf + placeReach;
+
+        // Near is tried too, because the far spot is the one a wall takes away.
+        // Standing in a doorway you should still be able to set a crate down at
+        // your feet rather than be refused.
+        float[] tries = { reach, bodyRadius + itemHalf + 0.02f };
+
+        for (int i = 0; i < tries.Length; i++)
+        {
+            Vector3 over = transform.position + forward * tries[i];
+
+            // Started above head height on the target column, so the probe
+            // cannot begin inside the floor of a step you are standing on.
+            if (!Physics.Raycast(over + Vector3.up * 1.2f, Vector3.down,
+                                 out RaycastHit ground, placeDrop + 1.2f,
+                                 ~0, QueryTriggerInteraction.Ignore))
+                continue;
+
+            // A skin, so it rests on the floor instead of starting the frame
+            // fractionally inside it.
+            Vector3 centre = new Vector3(over.x,
+                                         ground.point.y + half.y + 0.02f,
+                                         over.z);
+
+            if (!Clear(centre, half, rot)) continue;
+
+            pos = centre + pivotFromCentre;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Nothing solid in that space but me.
+    ///
+    /// The item itself never shows up here - its colliders are off while it is
+    /// held - so the only thing worth filtering out is my own body. Buffer
+    /// truncation is harmless in this direction: a full buffer can only mean
+    /// the space is crowded, and crowded is already the answer that refuses.
+    /// </summary>
+    bool Clear(Vector3 centre, Vector3 half, Quaternion rot)
+    {
+        int n = Physics.OverlapBoxNonAlloc(centre, half * 0.95f, placeOverlap,
+                                           rot, ~0, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < n; i++)
+        {
+            var c = placeOverlap[i];
+            if (c == null) continue;
+            if (c.transform == transform || c.transform.IsChildOf(transform)) continue;
+            return false;
+        }
+
+        return true;
     }
 
     void DropHeld()

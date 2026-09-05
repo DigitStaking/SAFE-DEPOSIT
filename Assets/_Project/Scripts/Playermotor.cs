@@ -66,7 +66,7 @@ public class PlayerMotor : MonoBehaviour
              "essentially along for the ride until they land. Raise it to " +
              "give them more control mid-flight, lower it for a longer " +
              "throw.")]
-    public float shoveControl = 2f;
+    public float shoveControl = 0f;
 
     float shovedUntil;
 

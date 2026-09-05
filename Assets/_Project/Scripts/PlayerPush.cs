@@ -71,42 +71,55 @@ public class PlayerPush : NetworkBehaviour
 
     [Tooltip("Radius of the probe. A little forgiveness so a shove does not " +
              "need the accuracy of a rifle shot.")]
-    public float radius = 0.45f;
+    public float radius = 0.6f;
 
     [Header("Force")]
     [Tooltip("Impulse in newton-seconds. Divided by the target's MASS, which " +
              "is what makes one number cover a 70kg crewmate and a 140kg man " +
              "who barely notices. 140 gives a person about 2 m/s.")]
     public float impulse = 140f;
+    // ====================================================================
+    // A PERSON IS LAUNCHED BY TRAJECTORY, NOT BY FORCE.
+    //
+    // These used to be impulses in newton-seconds, which put the victim's mass
+    // and whatever they were already doing between the number and the result.
+    // "450 and 280" says nothing about what you will see.
+    //
+    // Two distances instead, with the velocities solved from them:
+    //
+    //     vY   = sqrt(2 * g * height)      straight ballistics
+    //     air  = rise + fall               the fall is FASTER, because
+    //                                      PlayerMotor adds extra gravity
+    //                                      while descending
+    //     vX   = distance / air
+    //
+    // and the result is WRITTEN as a velocity rather than added as a force, so
+    // mass cancels, whatever they were doing is replaced, and the arc is
+    // exactly the one solved for. Change the metres, get those metres.
+    // ====================================================================
 
-    [Tooltip("Impulse used against PEOPLE, in newton-seconds. Deliberately much " +
-             "larger than the one above: a crate is resisted only by friction, " +
-             "a person by their own motor. " +
-             "Divided by mass, so 450 on a 70kg crewmate is 6.4 m/s. With the " +
-             "lift below and shoveControl at 2, that throws them about 4.5m. " +
-             "400 gives 3.7m, 500 gives 5.1m - almost all of it covered " +
-             "while they are off the ground.")]
-    public float playerImpulse = 450f;
+    [Header("Knockback - in metres, not newtons")]
+    [Tooltip("How high a shoved person is thrown, in metres. Solved into an " +
+             "upward velocity with vY = sqrt(2*g*h), so this is the height " +
+             "they actually reach.")]
+    public float knockbackHeight = 1f;
 
-    [Tooltip("Upward impulse on a shoved person, in newton-seconds. This is " +
-             "what turns a slide into a shove - they leave the ground briefly, " +
-             "travel, and land. " +
-             "Divided by mass, so 280 on 70kg is 4 m/s up: a 0.82m hop and " +
-             "0.71s in the air - clearly off the ground, just under a jump " +
-             "(1.1m). It also sets the DISTANCE, because almost all the " +
-             "travel happens while airborne, so raising this throws them " +
-             "further as well as higher.")]
-    public float playerUpward = 280f;
+    [Tooltip("How far away a shoved person lands, in metres. Divided by the " +
+             "flight time the height above produces, so the two together are " +
+             "the whole arc - raising the height lengthens the flight, and " +
+             "this stays the distance either way.")]
+    public float knockbackDistance = 2f;
 
-    [Tooltip("Seconds the shoved player's motor stops fighting the push. Too " +
-             "short and they brake almost instantly; too long and they feel " +
-             "like they have lost control of their own legs.")]
-    public float shoveRecovery = 0.75f;
+    [Tooltip("EXTRA seconds of no-control AFTER landing, on top of the flight " +
+             "time - which is worked out from the height, so this is only the " +
+             "tail. Small: just enough that they do not snap into a walk the " +
+             "instant their feet touch.")]
+    public float shoveRecovery = 0.12f;
 
     // Apply is static - the RPC path has no instance to hand - so the tuned
     // value is mirrored here once in Awake rather than duplicated as a second
     // constant somebody would forget to keep in step.
-    static float ShoveRecovery = 0.75f;
+    static float ShoveRecovery = 0.9f;
 
     [Tooltip("How much of the shove goes upward, 0 to 1. A little lifts them " +
              "off the floor so friction does not eat the push immediately. Too " +
@@ -182,7 +195,9 @@ public class PlayerPush : NetworkBehaviour
 
     void Awake()
     {
-        ShoveRecovery = shoveRecovery;
+        // Matched to the arc rather than typed in, so changing the height
+        // cannot leave control coming back halfway up or long after landing.
+        ShoveRecovery = KnockbackAirtime + shoveRecovery;
 
         motor = GetComponent<PlayerMotor>();
         health = GetComponent<PlayerHealth>();
@@ -506,7 +521,43 @@ public class PlayerPush : NetworkBehaviour
 
         away.Normalize();
 
-        return away * playerImpulse + Vector3.up * playerUpward;
+        // ---- SOLVE THE ARC ----
+        //
+        // fallGravityMultiplier is read off the VICTIM rather than assumed,
+        // because PlayerMotor adds extra gravity only while descending - so the
+        // fall is shorter than the rise and the flight time is not 2*vY/g. Get
+        // that wrong and the horizontal distance misses by a third.
+        float g = Mathf.Abs(Physics.gravity.y);
+        if (g < 0.01f) g = 9.81f;
+
+        var victimMotor = victim.GetComponent<PlayerMotor>();
+        float fall = victimMotor != null
+            ? Mathf.Max(1f, victimMotor.fallGravityMultiplier) : 1f;
+
+        float height = Mathf.Max(0.01f, knockbackHeight);
+
+        float vY = Mathf.Sqrt(2f * g * height);
+        float airborne = vY / g + Mathf.Sqrt(2f * height / (g * fall));
+        float vX = knockbackDistance / Mathf.Max(0.01f, airborne);
+
+        return away * vX + Vector3.up * vY;
+    }
+
+    /// <summary>Seconds of flight the configured height produces. The
+    /// no-control window is matched to it, so movement comes back on landing
+    /// rather than halfway up or long after.</summary>
+    public float KnockbackAirtime
+    {
+        get
+        {
+            float g = Mathf.Abs(Physics.gravity.y);
+            if (g < 0.01f) g = 9.81f;
+
+            float fall = motor != null ? Mathf.Max(1f, motor.fallGravityMultiplier) : 1f;
+            float height = Mathf.Max(0.01f, knockbackHeight);
+
+            return Mathf.Sqrt(2f * g * height) / g + Mathf.Sqrt(2f * height / (g * fall));
+        }
     }
 
     Vector3 Direction(Transform eye)
@@ -530,21 +581,30 @@ public class PlayerPush : NetworkBehaviour
         // to write a rule saying so.
         if (body == null || body.isKinematic) return;
 
-        body.AddForce(push, ForceMode.Impulse);
-
-        // ---- AND TELL THEIR MOTOR TO STOP FIGHTING IT ----
-        //
-        // Without this the impulse lands perfectly and is gone in two frames:
-        // with no input, PlayerMotor brakes toward zero at groundAcceleration,
-        // so 2 m/s died in 0.033s over 3.3cm. A shove that worked and could not
-        // be seen.
-        //
-        // Runs on EVERY machine, because Apply is reached through the ClientRpc
-        // and each client simulates its own bodies. If only the pusher relaxed,
-        // everyone else would watch the victim get braked flat and the two
-        // views would disagree about where they ended up.
         var motor = body.GetComponent<PlayerMotor>();
-        if (motor != null) motor.Shoved(ShoveRecovery);
+
+        if (motor != null)
+        {
+            // ---- SET, NOT ADD ----
+            //
+            // AddForce(Impulse) divides by mass and adds to whatever they were
+            // already doing, so the same shove produced a different arc on
+            // somebody walking toward you than on somebody standing still, and
+            // neither matched the numbers.
+            //
+            // Assigning the velocity makes the launch exactly the arc that was
+            // solved for, on any mass, from any starting motion. Safe here
+            // because PlayerMotor never assigns horizontal velocity itself - it
+            // only ever ADDS a clamped amount - so nothing is being fought.
+            body.linearVelocity = push;
+
+            motor.Shoved(ShoveRecovery);
+            return;
+        }
+
+        // Crates are unchanged: an impulse, divided by mass, so a filing
+        // cabinet still resists more than a can.
+        body.AddForce(push, ForceMode.Impulse);
     }
 
     // --------------------------------------------------------------------

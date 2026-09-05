@@ -67,6 +67,12 @@ public class PlayerPush : NetworkBehaviour
     [Header("Reach")]
     [Tooltip("How far in front of the eye a shove lands, in metres. Arm's " +
              "length - this is a shove, not a force push.")]
+    [Tooltip("How wide the shove arc is, as a dot product against where you " +
+             "are looking. 0.35 is about 70 degrees each way, 0.2 about 78, " +
+             "0 is a full half-circle in front of you. Lower is more " +
+             "forgiving; too low and you shove people you are not looking at.")]
+    [Range(0f, 0.9f)] public float pushCone = 0.2f;
+
     public float range = 1.9f;
 
     [Tooltip("Radius of the probe. A little forgiveness so a shove does not " +
@@ -408,9 +414,21 @@ public class PlayerPush : NetworkBehaviour
         RequestPushServerRpc(target.NetworkObjectId, push);
     }
 
-    /// Reused, so a shove does not allocate. Sixteen is far more than can fit
-    /// inside arm's reach.
-    static readonly Collider[] nearby = new Collider[16];
+    /// <summary>
+    /// Reused, so a shove does not allocate.
+    ///
+    /// SIXTY-FOUR, NOT SIXTEEN. OverlapSphereNonAlloc does not report the
+    /// nearest colliders - it reports the first ones it finds and then stops.
+    /// Sixteen sounded like plenty for arm's reach until you count what is
+    /// actually inside a 1.9m sphere in a corridor: floor, several wall
+    /// panels, a door leaf and its frame, the skirting, whatever loot is on
+    /// the ground. The person you are trying to shove can easily be number
+    /// seventeen, and then they simply are not in the results.
+    ///
+    /// That is the "sometimes it works" and the "cannot push near a door" -
+    /// both are geometry density, not aim.
+    /// </summary>
+    static readonly Collider[] nearby = new Collider[64];
 
     /// <summary>
     /// What is in front of the eye, at ANY range - including point blank.
@@ -472,7 +490,7 @@ public class PlayerPush : NetworkBehaviour
             // Within about 70 degrees of where you are looking. Wide enough
             // that you do not have to aim at a ribcage, narrow enough that it
             // is still a shove rather than an area attack.
-            if (Vector3.Dot(toward.normalized, forward) < 0.35f) continue;
+            if (Vector3.Dot(toward.normalized, forward) < pushCone) continue;
 
             best = rb;
             bestDistance = distance;

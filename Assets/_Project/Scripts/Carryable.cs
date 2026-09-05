@@ -627,6 +627,56 @@ public class Carryable : MonoBehaviour
         body.maxDepenetrationVelocity = 3f;
     }
 
+    // ====================================================================
+    // A THROWN THING IS NOT A SHOVED THING
+    //
+    // The damping below exists so a dropped crate stays where it was put
+    // instead of skating off, and it is aggressive on purpose: k is
+    // 1/(1 + mass*dt), which for a 30kg crate at a 0.02s step is 0.625 PER
+    // STEP - fifty times a second.
+    //
+    // Run that out and a throw is arithmetically impossible. Total horizontal
+    // travel is v * dt / (1 - k), which for 30kg is 0.053 metres for every
+    // metre-per-second of launch speed. A crate thrown hard enough to cover
+    // 8.6m covers 0.32m instead, whatever speed it leaves your hand at, and no
+    // amount of throwing harder changes it.
+    //
+    // It also explains the shape rather than just the distance. The damping is
+    // x/z only - y is deliberately untouched so gravity stays honest - so the
+    // horizontal half of the arc is deleted and the vertical half is not. The
+    // crate went up and came straight back down. "It goes and stops, it does
+    // not go in a circle" is exactly that, seen.
+    //
+    // This is the third time this project has found a system quietly braking
+    // something else's impulse: the shoved player's own motor did it over
+    // 3.3cm, and the crate's own anti-slide damping does it here. The fix is
+    // the same shape both times - a window where the brake is off - and so is
+    // the lesson, which is that the arithmetic said so in one line and two
+    // rounds of guessing had not.
+    // ====================================================================
+
+    bool inFlight;
+    float flightUntil;
+
+    /// <summary>Airborne from a throw, and exempt from the anti-slide damping
+    /// until it lands.</summary>
+    public bool InFlight => inFlight;
+
+    /// <summary>
+    /// Thrown, as opposed to let go of.
+    ///
+    /// The timeout is a backstop, not the mechanism: the flight ends when the
+    /// thing is actually slow, and the clock only matters for something that
+    /// never quite settles - wedged in a doorframe, or rolling down a shaft.
+    /// </summary>
+    public void Launch(Vector3 velocity, float maxFlight = 6f)
+    {
+        Drop(velocity);
+
+        inFlight = true;
+        flightUntil = Time.time + maxFlight;
+    }
+
     /// <summary>
     /// Only runs while Free - Held and Stowed are kinematic and do not
     /// simulate at all, so there is nothing here for them to fight.
@@ -636,7 +686,19 @@ public class Carryable : MonoBehaviour
     void FixedUpdate()
     {
         if (IsPerson) return;      // a person is not shoved-around furniture
-        if (State != CarryState.Free) return;
+        if (State != CarryState.Free) { inFlight = false; return; }
+
+        if (inFlight)
+        {
+            // Landed, or given up on. Half a metre per second is slow enough
+            // that the damping taking over is invisible, and fast enough that
+            // it does not end the flight at the top of the arc.
+            if (Time.time >= flightUntil ||
+                body.linearVelocity.sqrMagnitude < 0.25f)
+                inFlight = false;
+
+            return;
+        }
 
         Vector3 v = body.linearVelocity;
         float k = 1f / (1f + horizontalDamping * Time.fixedDeltaTime);

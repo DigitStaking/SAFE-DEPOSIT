@@ -574,13 +574,14 @@ public class PlayerCarry : MonoBehaviour
              "same press.")]
     public float tapTime = 0.2f;
 
-    [Tooltip("Wind-up for something light, in seconds. A can is almost " +
-             "instant.")]
-    public float windupLight = 0.25f;
+    [Tooltip("Wind-up for something light, in seconds. A can is quick, but " +
+             "not instant - the bar has to be readable or choosing a strength " +
+             "is not really a choice.")]
+    public float windupLight = 0.5f;
 
     [Tooltip("Wind-up at the heaviest throwable weight, in seconds. Long " +
              "enough that heaving a crate is a decision, not a reflex.")]
-    public float windupHeavy = 1.1f;
+    public float windupHeavy = 2f;
 
     [Tooltip("How far a light thing goes at a full wind-up, in metres. This " +
              "is the across-a-room throw: a can down a corridor to send " +
@@ -592,10 +593,17 @@ public class PlayerCarry : MonoBehaviour
              "lift from the doorway, and no further.")]
     public float throwRangeHeavy = 2f;
 
-    [Tooltip("How much above your aim a throw leaves the hand, as a fraction. " +
-             "0 would be a flat line drive that hits the floor; this is what " +
-             "makes it an arc you can lob over something.")]
-    public float throwLift = 0.35f;
+    [Tooltip("How much above your aim a throw leaves the hand. 1 puts a level " +
+             "aim at 45 degrees, which is the angle that throws furthest for a " +
+             "given effort and the one that looks like a throw rather than a " +
+             "shove. Lower is flatter and faster; higher is a lob.")]
+    public float throwLift = 1f;
+
+    [Tooltip("The arc is kept inside this band however you are aiming, so " +
+             "looking at your own boots still throws forwards instead of " +
+             "producing a divide-by-zero and a crate in your face.")]
+    public float minThrowAngle = 12f;
+    public float maxThrowAngle = 70f;
 
     [Tooltip("Mass treated as 'light' for the two numbers above. Below this " +
              "nothing gets any easier to throw.")]
@@ -646,27 +654,29 @@ public class PlayerCarry : MonoBehaviour
 
         float range = ThrowRange(item) * Mathf.Lerp(0.35f, 1f, charge);
 
-        // ---- SOLVE THE ARC, DO NOT GUESS AT IT ----
+        // ---- THE DIRECTION, KEPT INSIDE A SANE BAND ----
         //
-        // Same arithmetic as PlayerPush's knockback, for the same reason: a
-        // number in metres is something you can reason about and a number in
-        // newtons is not. Range on the flat for a launch angle t is
-        // v^2 * sin(2t) / g, so the speed that covers `range` is
-        // sqrt(range * g / sin(2t)).
-        Vector3 dir = (cam.forward + Vector3.up * throwLift).normalized;
+        // Aim plus lift, then the elevation is clamped and the vector rebuilt
+        // from it. Clamping the ANGLE rather than flooring the arithmetic later
+        // is what keeps the solve and the direction describing the same throw -
+        // floor one and not the other and the displayed range becomes a lie.
+        //
+        // It also removes the two degenerate aims: straight down cancels the
+        // lift exactly and leaves a zero vector to normalise, and straight up
+        // has no horizontal component to travel along.
+        Vector3 aim = cam.forward + Vector3.up * throwLift;
 
-        float g = Mathf.Abs(Physics.gravity.y);
-        if (g < 0.01f) g = 9.81f;
+        Vector3 flat = new Vector3(aim.x, 0f, aim.z);
+        if (flat.sqrMagnitude < 0.0001f) flat = transform.forward;
+        flat.y = 0f;
+        flat.Normalize();
 
-        float theta = Mathf.Asin(Mathf.Clamp(dir.y, -0.99f, 0.99f));
-        float sin2 = Mathf.Sin(2f * theta);
+        float theta = Mathf.Clamp(
+            Mathf.Atan2(aim.y, new Vector2(aim.x, aim.z).magnitude),
+            minThrowAngle * Mathf.Deg2Rad,
+            maxThrowAngle * Mathf.Deg2Rad);
 
-        // Aiming at your own feet or straight up makes sin(2t) useless - zero
-        // or negative - and the throw would be either infinite or backwards.
-        // Floored, so a bad angle throws weakly instead of absurdly.
-        if (sin2 < 0.25f) sin2 = 0.25f;
-
-        Vector3 velocity = dir * Mathf.Sqrt(range * g / sin2);
+        Vector3 dir = flat * Mathf.Cos(theta) + Vector3.up * Mathf.Sin(theta);
 
         // Clear of my own capsule before the colliders come back on, or the
         // first thing the throw hits is me.
@@ -676,6 +686,39 @@ public class PlayerCarry : MonoBehaviour
         float clearance = bodyRadius + Mathf.Max(b.extents.x, b.extents.z) + 0.1f;
 
         Vector3 from = cam.position + dir * clearance;
+
+        // ---- SOLVE THE SPEED FOR THE RANGE, FROM THE HEIGHT IT LEAVES AT ----
+        //
+        // The textbook range formula v^2*sin(2t)/g assumes the thing lands at
+        // the height it launched from. It leaves your hand at head height and
+        // lands on the floor, so that formula quietly undershoots by about a
+        // sixth - the displayed metres would always have been a little wrong.
+        //
+        // Solved properly instead. With launch height h, angle t and desired
+        // horizontal distance d:
+        //
+        //     d = v*cos(t)*T                    and    0 = h + v*sin(t)*T - g*T^2/2
+        //
+        // eliminate T and it falls out as
+        //
+        //     v^2 = g*d^2 / (2*cos^2(t) * (d*tan(t) + h))
+        //
+        // so the number on the gauge is the number of metres it travels.
+        float g = Mathf.Abs(Physics.gravity.y);
+        if (g < 0.01f) g = 9.81f;
+
+        float h = 1.2f;
+        if (Physics.Raycast(from, Vector3.down, out RaycastHit floor, 8f,
+                            ~0, QueryTriggerInteraction.Ignore))
+            h = Mathf.Clamp(from.y - floor.point.y, 0f, 4f);
+
+        float cos = Mathf.Cos(theta);
+        float denom = 2f * cos * cos * (range * Mathf.Tan(theta) + h);
+
+        Vector3 velocity = denom > 0.01f
+            ? dir * Mathf.Sqrt(g * range * range / denom)
+            : dir * 6f;
+
         Quaternion rot = item.transform.rotation;
 
         held = null;
@@ -683,7 +726,9 @@ public class PlayerCarry : MonoBehaviour
 
         AnnounceThrow(item, from, rot, velocity);
 
-        item.Drop(velocity);
+        // Launch, not Drop. Carryable damps horizontal motion hard enough to
+        // delete the throw entirely - see the arithmetic above its FixedUpdate.
+        item.Launch(velocity);
 
         // The arc is simulated on every machine; the resting place is stated.
         StartCoroutine(AnnounceRestWhenStill(item));

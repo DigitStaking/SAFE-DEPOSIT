@@ -429,11 +429,14 @@ public class LootNet : NetworkBehaviour
         {
             body.position = pos;
             body.rotation = rot;
-
-            // The one line that separates this from DropClientRpc.
-            body.linearVelocity = vel;
             body.angularVelocity = Vector3.zero;
         }
+
+        // Launch, not just a velocity. Carryable damps horizontal motion hard
+        // enough to delete a throw outright, and the exemption is per-machine -
+        // set the velocity alone here and the arc would happen on the thrower's
+        // screen and nowhere else, which is the bug this RPC exists to fix.
+        carry.Launch(vel);
     }
 
     static PlayerCarry FindCarrier(ulong clientId)

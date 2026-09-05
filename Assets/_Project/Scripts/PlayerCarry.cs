@@ -583,15 +583,41 @@ public class PlayerCarry : MonoBehaviour
              "enough that heaving a crate is a decision, not a reflex.")]
     public float windupHeavy = 2f;
 
-    [Tooltip("How far a light thing goes at a full wind-up, in metres. Two " +
+    // ====================================================================
+    // THESE WERE throwRangeLight / throwRangeHeavy AND HAD TO BE RENAMED.
+    //
+    // The code default said 4 and the running game threw 1.9m, which is
+    // Lerp(2, 1.2, h*h) - the values from two commits earlier. Mathf.Lerp
+    // clamps, so Lerp(4, 2, anything) CANNOT return less than 2.0. That made
+    // 1.9 arithmetic proof that the number in the source was not the number
+    // being used, rather than one more thing to argue about.
+    //
+    // Nothing on disk held the old values. The prefab's PlayerCarry block ends
+    // at pickupRadius, no scene carries an override, nothing assigns them at
+    // runtime - all searched binary-safe, after an earlier ASCII grep had
+    // already lied once about a UTF-16 string. So they were live in the
+    // editor's own memory as an unsaved override on the component, captured
+    // while the field genuinely was 2, and no file edit could reach them.
+    //
+    // Renaming is the fix that does not depend on reaching them: a field with
+    // a new name has no serialised counterpart, so Unity has nothing to load
+    // and the code default is what runs. If they ever need renaming again,
+    // that is the reason - not tidiness.
+    //
+    // Four times now, in one form or another: a serialised value and a code
+    // default are different things, and editing the one you can read does not
+    // touch the one that runs.
+    // ====================================================================
+
+    [Tooltip("How far a light thing goes at a full wind-up, in metres. Four " +
              "metres: far enough to cross a doorway or clear a gap, short " +
              "enough that it still reads as placing rather than pitching.")]
-    public float throwRangeLight = 4f;
+    public float throwDistanceLight = 4f;
 
     [Tooltip("How far the heaviest throwable thing goes at a full wind-up. " +
              "Short and heavy - enough to get a crate over a threshold and " +
              "into the lift, and no further.")]
-    public float throwRangeHeavy = 2f;
+    public float throwDistanceHeavy = 2f;
 
     [Tooltip("The launch angle above horizontal, in degrees. FIXED - looking " +
              "up does not throw higher, it only turns you. 20 is flat and " +
@@ -628,7 +654,7 @@ public class PlayerCarry : MonoBehaviour
     float ThrowRange(Carryable item)
     {
         float h = Heaviness(item);
-        return Mathf.Lerp(throwRangeLight, throwRangeHeavy, h * h);
+        return Mathf.Lerp(throwDistanceLight, throwDistanceHeavy, h * h);
     }
 
     /// <summary>
@@ -729,7 +755,8 @@ public class PlayerCarry : MonoBehaviour
         // the item actually weighs, and whether the charge ever reached 1.
         //
         // Delete once the throw is signed off.
-        Debug.Log($"[THROW] build=4m-gauge  item={item.name}  mass={item.Mass:0.0}kg" +
+        Debug.Log($"[THROW] build=renamed  light={throwDistanceLight:0.0}" +
+                  $"  heavy={throwDistanceHeavy:0.0}  item={item.name}  mass={item.Mass:0.0}kg" +
                   $"  class={item.Weight}  charge={charge:0.00}" +
                   $"  maxRange={ThrowRange(item):0.00}m  asked={range:0.00}m" +
                   $"  speed={velocity.magnitude:0.00}  angle={throwAngle:0}deg");

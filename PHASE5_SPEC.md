@@ -145,7 +145,7 @@ vending machine cannot be thrown at all.
 > so sending a cannibal to the far end of one — *"the first real counterplay
 > in the game that is not hiding"* — is not buildable at this range.
 >
-> That costs nothing yet and a number gives it back: `throwRangeLight` is the
+> That costs nothing yet and a number gives it back: `throwDistanceLight` is the
 > dial, and the distraction only needs it raised for Small items, which is
 > exactly the class a can is in. Revisit when the cannibal is built, not
 > before.

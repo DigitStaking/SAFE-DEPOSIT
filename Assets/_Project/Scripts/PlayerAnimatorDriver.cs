@@ -68,6 +68,7 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
     bool wasGrounded = true;
     bool wasWindingUp;
+    bool wasThrown;
     bool wasCarrying;
     int  lastPackCount;
     float armsWeight = 1f;
@@ -220,6 +221,25 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // still deserve the clip and never go through OnJump.
         if (!windingUp && wasGrounded && !strict && vel.y > jumpDetectSpeed)
             animator.SetTrigger(JumpId);
+
+        // ---- A THROW ENTERS THE AIR STATE OUTRIGHT ----
+        //
+        // The line above INFERS "left the ground without jumping" from was
+        // grounded, is not now, and is moving up faster than jumpDetectSpeed.
+        // That is a fine guess and it is still a guess: a shove that clips the
+        // ground check for a frame, or that starts while already stepping off
+        // something, does not satisfy it - and then a body sails through the
+        // air in a walk pose.
+        //
+        // Being shoved is not something to infer. It is known, so the trigger
+        // is fired directly, once, on the frame it starts.
+        //
+        // NetworkAnimator replicates triggers, so firing it on the victim's own
+        // machine is what puts everybody else's copy of them in the air too.
+        bool thrownNow = motor != null && motor.BeingShoved;
+
+        if (thrownNow && !wasThrown) animator.SetTrigger(JumpId);
+        wasThrown = thrownNow;
 
         wasGrounded = strict;
         animator.SetBool(GroundId, grounded);

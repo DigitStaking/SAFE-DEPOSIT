@@ -445,6 +445,22 @@ public class ProceduralLegsIK : MonoBehaviour
         // than from a simulation only one of them is running. It is also
         // simply a better signal: it is the floor under THE FOOT, not under
         // the body's centre.
+        // ---- BEING THROWN COUNTS AS AIRBORNE, IMMEDIATELY ----
+        //
+        // The height test below asks whether the FOOT has left the floor, and
+        // for the first fraction of a second of a shove it has not - so the
+        // procedural feet kept solving and the legs kept planting while the
+        // body was already travelling. That is the sliding.
+        //
+        // A shove is known rather than measured, so it does not wait for
+        // airGrace either: the legs go back to the clip on the same frame, and
+        // the air animation gets to own them for the whole flight.
+        if (motor != null && motor.BeingShoved)
+        {
+            HeldBack = "thrown - the clips own the legs until they land";
+            return 0f;
+        }
+
         bool airborne = false;
 
         if (releaseInAir)

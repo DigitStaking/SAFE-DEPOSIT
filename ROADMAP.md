@@ -20,8 +20,8 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
   PHASE 1  ████████████  the elevator ...................... DONE  12/12
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
   PHASE 3  ████████████  de-single-player .................. DONE  7/7
-  PHASE 4  ████████████  netcode + PROXIMITY VOICE ........ BUILT  11/11
-  PHASE 5  ░░░░░░░░░░░░  the room kit .................. next
+  PHASE 4  ████████████  netcode + PROXIMITY VOICE ......... DONE  11/11
+  PHASE 5  ░░░░░░░░░░░░  the room kit .............. IN PROGRESS  0/8
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
   PHASE 7  ░░░░░░░░░░░░  economy and shop
   PHASE 8  ░░░░░░░░░░░░  polish + FULL AUDIO PASS
@@ -136,9 +136,9 @@ player.
 
 ---
 
-# PHASE 4 — NETCODE, AND PROXIMITY VOICE 🎙️
+# PHASE 4 — NETCODE, AND PROXIMITY VOICE 🎙️ ✅ DONE
 
-`PHASE4_SPEC.md` · **11 steps** · 7 weeks · *2 Nov – 20 Dec 2026* · **★ biggest unknown**
+`PHASE4_SPEC.md` · **11 steps** · 7 weeks · *2 Nov – 20 Dec 2026* · **tested with a crew and signed off 5 Sep 2026**
 
 Seven weeks, down from ten — deleting the rope is what bought that. A moving
 platform is a position and a state; a 32-node simulated rope replicated at
@@ -212,23 +212,34 @@ person still in a room. **Two players first.**
 
 ---
 
-# PHASE 5 — THE ROOM KIT
+# PHASE 5 — THE ROOM KIT ◀ IN PROGRESS
 
-4 weeks · *21 Dec 2026 – 17 Jan 2027* · spec not written yet
+`PHASE5_SPEC.md` · **8 steps** · 4 weeks · *21 Dec 2026 – 17 Jan 2027*
 
 The graybox becomes a real generator.
 
-- Landing → main → side → back, the fixed 3-sub-room shape
-- 6 room modules with tagged sockets (`LootAnchor`, `LockAnchor`,
-  `HazardAnchor`, `SurvivorAnchor`)
-- Floor generator arranging modules
-- The door on a different side per floor — **already working**, Phase 1 built it
-- Doors, keys, locked states
-- **Survivors**, reusing Phase 2's downed-player carrying
-- ★ **PUSH, and Q to put down / hold Q to throw** — see `INHABITANTS.md`
-  Part 4. These come FIRST: four of the demo seven have an answer that is
-  "push it", and building the creatures before the verb means building them
-  twice.
+Eight steps, and the order is the point — `INHABITANTS.md` Part 5 puts the
+verbs in this phase and says why: *"verbs first. Every inhabitant below assumes
+push exists."* Four of the demo seven have an answer that is "push it", and
+building the creatures before the verb means building them twice.
+
+1. **Q — put it down.** E is for taking; Q is for giving up
+2. **Q — hold to throw.** Heavier means a longer wind-up and a shorter
+   throw; a vending machine never completes the wind-up. `INHABITANTS.md`
+   Part 4
+3. **Make the shove reliable** — the KNOWN ISSUE below, carried here
+4. **The room module contract** — tagged sockets (`LootAnchor`, `LockAnchor`,
+   `HazardAnchor`, `SurvivorAnchor`, `PuzzleAnchor`). Nothing to look at, and
+   everything after it is cheap or expensive depending on getting it right
+5. **Six modules** — 2 landings, 2 mains, 1 side, 1 back, greyboxed
+6. **The floor generator** — landing → main → side → back, seeded by the
+   host the way `LootSpawner`'s roster already is. The door on a different
+   side per floor is **already working**; the generator respects it rather
+   than re-deciding it
+7. **Doors, keys, locked states** — a key is a `Carryable`, so throwing one
+   across a gap falls out of steps 1 and 2 for free
+8. **Survivors**, reusing Phase 2's downed-player carrying — the cheapest
+   thing in the phase and the one that will look like the most expensive
 
 **Done when:** ten generated floors a stranger can navigate without a map.
 
@@ -448,8 +459,11 @@ in one, and several were found *only* in one.
 
 # PHASE 4 — WHAT IS BUILT vs WHAT IS PROVEN
 
-*30 Aug 2026.* All eleven steps are written and compile. That is not the same
-as verified, and the distinction matters before Phase 5 builds on top.
+*30 Aug 2026, closed 5 Sep 2026.* All eleven steps were written and compiled.
+That was not the same as verified, and the distinction mattered before Phase 5
+built on top. **The table below has since been tested with a crew and signed
+off by the developer** — recorded here rather than deleted, because how a phase
+got from "compiles" to "done" is the useful part.
 
 **Proven with two machines:** connect, bodies, the lift and its riders, the
 loot, the round change, the lobby, Steam relay, voice reaching another person.
@@ -464,9 +478,14 @@ loot, the round change, the lobby, Steam relay, voice reaching another person.
 | Step 9 | the crew argues about cable versus their friend |
 | Step 6 payoff | **one haul, one bank** on RETURN |
 
-Every one of those needs a crew and about ten minutes. They are the done-whens
-this phase was written against, and until they are ticked, Phase 4 is a phase
-that compiles.
+Every one of those needed a crew and about ten minutes. They are the done-whens
+this phase was written against, and **all of them were run and passed on
+5 Sep 2026.** Phase 4 is closed.
+
+One thing survived the sign-off and moved rather than closed: the intermittent
+shove miss, under KNOWN ISSUES below and now Step 3 of Phase 5. Push works; it
+occasionally does not, and four separate faults have already been found beneath
+it.
 
 **The lesson worth carrying forward,** because it cost this phase more time
 than any single bug: *a symptom that is asymmetric — works on the host, fails

@@ -381,6 +381,16 @@ without sending geometry.
 > no door: a player walks to it, finds nothing, and stops trusting doors. This
 > also makes "walkable with every exit sealed" automatic rather than a rule
 > the human has to remember.
+>
+> **Rooms made long, 5 Sep 2026.** The first set were 10×12, 7×7, 6×8 — near
+> square, and a near-square box has no direction: you walk in, see the whole
+> thing, and leave. Depth is roughly twice width now (main 20×10, back 14×8,
+> side 10×5, landing 11×7), so a floor runs **31m to 105m** along its spine.
+>
+> A long room has a far end — somewhere the light does not reach, somewhere
+> loot is worth the walk, and somewhere a thing can get between you and the
+> door. None of that exists in a square, and every inhabitant in Phase 6
+> assumes it.
 
 ---
 

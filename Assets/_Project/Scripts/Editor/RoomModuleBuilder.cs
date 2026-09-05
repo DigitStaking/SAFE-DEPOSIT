@@ -84,99 +84,110 @@ public static class RoomModuleBuilder
 
     // ------------------------------------------------------------------
     // THE SIX
+    //
+    // LONG, NOT SQUARE. The first set were 10x12, 7x7, 6x8 - near-square
+    // boxes, and a near-square box has no direction. You walk in, you see the
+    // whole thing, you leave. Ten floors of them read as ten of the same room
+    // whatever the generator does with the order, because there is nothing to
+    // walk ALONG.
+    //
+    // Depth roughly twice width now. A long room has a far end, which means it
+    // has somewhere the light does not reach, somewhere loot is worth the walk,
+    // and somewhere a thing can be between you and the door. None of that
+    // exists in a square.
     // ------------------------------------------------------------------
 
-    /// <summary>Where you step out of the lift. Shallow and wide, because it
-    /// has to read as "the way back" from anywhere on the floor - a landing
-    /// you can lose is a landing that makes the whole floor frightening for
-    /// the wrong reason.</summary>
+    /// <summary>Where you step out of the lift. Must read as "the way back"
+    /// from anywhere on the floor - a landing you can lose is a landing that
+    /// makes the whole floor frightening for the wrong reason.</summary>
     static void Landing(string name, Material mat, bool pillars)
     {
-        var root = Shell(name, RoomModule.Role.Landing, depth: 6f, width: 8f, mat,
-                         backDoor: true);
+        const float D = 11f, W = 7f;
+        var root = Shell(name, RoomModule.Role.Landing, D, W, mat, backDoor: true);
 
         if (pillars)
         {
-            // Two pillars break the sightline without closing the route. The
-            // difference between the two landings is deliberately this small:
-            // a player should feel that floors differ, not have to relearn
-            // where the lift is.
-            Box("Pillar_L", root, new Vector3(3f, Height * 0.5f, -2.2f),
-                new Vector3(0.6f, Height, 0.6f), mat);
-            Box("Pillar_R", root, new Vector3(3f, Height * 0.5f, 2.2f),
-                new Vector3(0.6f, Height, 0.6f), mat);
+            // Down the length rather than across it, so they divide the walk
+            // instead of blocking the entrance.
+            for (int i = 0; i < 3; i++)
+                Box($"Pillar_{i}", root, new Vector3(3f + i * 3f, Height * 0.5f, -1.7f),
+                    new Vector3(0.6f, Height, 0.6f), mat);
         }
 
-        Socket(root, "Loot_1", new Vector3(2.2f, 0f, -3f), RoomSocket.Kind.Loot);
-        Exit(root, "Exit_Main", new Vector3(6f, 0f, 0f), 0f);
+        Socket(root, "Loot_1", new Vector3(3.5f, 0f, 2.2f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_2", new Vector3(8f, 0f, -2.2f), RoomSocket.Kind.Loot);
+        Exit(root, "Exit_Main", new Vector3(D, 0f, 0f), 0f);
 
         Finish(root);
     }
 
-    /// <summary>The room the landing opens into. Largest, most loot, and the
+    /// <summary>The room the landing opens into. Longest, most loot, and the
     /// only module with two ways on - the side room and the back hang off
     /// it.</summary>
     static void Main(string name, Material mat, int variant)
     {
-        var root = Shell(name, RoomModule.Role.Main, depth: 10f, width: 12f, mat,
-                         backDoor: true, leftDoorX: 5f);
+        const float D = 20f, W = 10f;
+        var root = Shell(name, RoomModule.Role.Main, D, W, mat,
+                         backDoor: true, leftDoorX: 10f);
 
         if (variant == 1)
         {
-            // A partition with a gap at one end. Two routes through one room
-            // is what lets a crew split up without leaving the room, which is
-            // where the cannibal and the eyeless get interesting in Phase 6.
-            Box("Partition", root, new Vector3(5f, Height * 0.5f, 1.5f),
-                new Vector3(0.4f, Height, 9f), mat);
+            // A spine wall down most of the length with a gap at the far end.
+            // Two routes through one room is what lets a crew split without
+            // leaving the room, which is where the cannibal and the eyeless
+            // get interesting in Phase 6.
+            Box("Partition", root, new Vector3(8f, Height * 0.5f, 1.5f),
+                new Vector3(0.4f, Height, 13f), mat);
 
             // Paired half of a two-room mechanism. Nothing reads pairId until
             // Phase 6 - it is placed now because PUZZLES.md needs the halves
             // in DIFFERENT rooms, and a generator that cannot express that
             // cannot build a single puzzle in that document.
-            Socket(root, "Puzzle_A", new Vector3(8.5f, 0f, 5f),
+            Socket(root, "Puzzle_A", new Vector3(17f, 0f, 4f),
                    RoomSocket.Kind.Puzzle, pairId: "main_back");
         }
 
         if (variant == 2)
         {
-            // Four columns on a grid. Reads completely differently from the
-            // hall and the partition at a glance, which is the whole job - a
-            // player is not auditing the layout, they are deciding whether
+            // A colonnade down the length. Reads completely differently from
+            // the hall and the partition at a glance, which is the whole job -
+            // a player is not auditing the layout, they are deciding whether
             // they have been here before.
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 8; i++)
             {
-                float px = 3f + (i % 2) * 4f;
-                float pz = -3f + (i / 2) * 6f;
+                float px = 3f + (i / 2) * 4.5f;
+                float pz = (i % 2 == 0) ? -2.8f : 2.8f;
                 Box($"Column_{i}", root, new Vector3(px, Height * 0.5f, pz),
                     new Vector3(0.8f, Height, 0.8f), mat);
             }
         }
 
-        Socket(root, "Loot_1", new Vector3(3f, 0f, -4.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(7f, 0f, -2f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_3", new Vector3(4.5f, 0f, 4f), RoomSocket.Kind.Loot);
-        Socket(root, "Hazard_1", new Vector3(8f, 0f, 0f), RoomSocket.Kind.Hazard);
+        Socket(root, "Loot_1", new Vector3(4f, 0f, -3.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_2", new Vector3(11f, 0f, 3.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_3", new Vector3(17f, 0f, -3f), RoomSocket.Kind.Loot);
+        Socket(root, "Hazard_1", new Vector3(14f, 0f, 0f), RoomSocket.Kind.Hazard);
 
-        // Straight on to the back room, and left to the side room. Labelled,
-        // because this is the one module where the generator has to know which
-        // door is which.
-        Exit(root, "Exit_Back", new Vector3(10f, 0f, 0f), 0f, label: "back");
-        Exit(root, "Exit_Side", new Vector3(5f, 0f, -6f), -90f, label: "side");
+        // Straight on to whatever continues the floor, and left to a side
+        // room. Labelled, because this is the one module where the generator
+        // has to know which door is which.
+        Exit(root, "Exit_Back", new Vector3(D, 0f, 0f), 0f, label: "back");
+        Exit(root, "Exit_Side", new Vector3(10f, 0f, -W * 0.5f), -90f, label: "side");
 
         Finish(root);
     }
 
     /// <summary>Off the main, optional. Where a lock or a survivor lives -
-    /// small enough that finding it feels like a decision to spend time
-    /// rather than a corridor you were walking anyway.</summary>
+    /// narrow and deep, so it is a place you commit to walking down rather
+    /// than a bulge you can see the end of from the door.</summary>
     static void SideRoom(Material mat)
     {
-        var root = Shell("Room_Side_Store", RoomModule.Role.Side, depth: 5f, width: 6f, mat);
+        const float D = 10f, W = 5f;
+        var root = Shell("Room_Side_Store", RoomModule.Role.Side, D, W, mat);
 
-        Socket(root, "Loot_1", new Vector3(2f, 0f, -1.8f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(3.6f, 0f, 1.8f), RoomSocket.Kind.Loot);
-        Socket(root, "Lock_1", new Vector3(0.6f, 0f, 2.4f), RoomSocket.Kind.Lock);
-        Socket(root, "Survivor_1", new Vector3(3.8f, 0f, -1.5f), RoomSocket.Kind.Survivor);
+        Socket(root, "Loot_1", new Vector3(3f, 0f, -1.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_2", new Vector3(7.5f, 0f, 1.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Lock_1", new Vector3(1f, 0f, 1.8f), RoomSocket.Kind.Lock);
+        Socket(root, "Survivor_1", new Vector3(8.5f, 0f, -1.2f), RoomSocket.Kind.Survivor);
 
         // No exit. A side room is somewhere you go back out of.
 
@@ -184,16 +195,18 @@ public static class RoomModuleBuilder
     }
 
     /// <summary>The dead end. Best loot, worst place to be caught - and those
-    /// are the same sentence, which is the only reason it is worth
-    /// walking to.</summary>
+    /// are the same sentence, which is the only reason it is worth walking
+    /// to.</summary>
     static void BackRoom(Material mat)
     {
-        var root = Shell("Room_Back_DeadEnd", RoomModule.Role.Back, depth: 7f, width: 7f, mat);
+        const float D = 14f, W = 8f;
+        var root = Shell("Room_Back_DeadEnd", RoomModule.Role.Back, D, W, mat);
 
-        Socket(root, "Loot_1", new Vector3(4.5f, 0f, -2f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(5.2f, 0f, 2f), RoomSocket.Kind.Loot);
-        Socket(root, "Survivor_1", new Vector3(2.5f, 0f, 2.4f), RoomSocket.Kind.Survivor);
-        Socket(root, "Puzzle_B", new Vector3(5.8f, 0f, 0f),
+        Socket(root, "Loot_1", new Vector3(6f, 0f, -2.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_2", new Vector3(11f, 0f, 2.5f), RoomSocket.Kind.Loot);
+        Socket(root, "Loot_3", new Vector3(12.5f, 0f, -2f), RoomSocket.Kind.Loot);
+        Socket(root, "Survivor_1", new Vector3(3f, 0f, 3f), RoomSocket.Kind.Survivor);
+        Socket(root, "Puzzle_B", new Vector3(12f, 0f, 0f),
                RoomSocket.Kind.Puzzle, pairId: "main_back");
 
         Finish(root);

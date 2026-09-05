@@ -333,19 +333,14 @@ public class PlayerPush : NetworkBehaviour
         Transform eye = motor != null ? motor.Eye : null;
         if (eye == null) return null;
 
-        if (!Physics.SphereCast(eye.position, radius, eye.forward,
-                                out RaycastHit hit, range, mask,
-                                QueryTriggerInteraction.Ignore))
-            return null;
+        // The SAME finder Connect uses, so the gesture is chosen for the thing
+        // that will actually be shoved. It had its own copy of the SphereCast
+        // and therefore its own copy of the point-blank blind spot - two
+        // probes that could disagree about what you were aiming at, which is
+        // exactly the sort of split this project keeps having to undo.
+        Rigidbody body = FindTarget(eye);
 
-        if (hit.collider == null) return null;
-
-        // Never yourself, same as Connect - the probe starts inside your own
-        // capsule and you do not have a push profile.
-        if (hit.transform == transform || hit.transform.IsChildOf(transform))
-            return null;
-
-        return Pushable.For(hit.collider);
+        return body != null ? Pushable.For(body) : null;
     }
 
     /// <summary>
@@ -366,16 +361,8 @@ public class PlayerPush : NetworkBehaviour
         // uses one: a single ray demands you aim at a ribcage, and a shove
         // that misses because you were looking at somebody's belt reads as
         // broken rather than as inaccurate.
-        if (!Physics.SphereCast(eye.position, radius, eye.forward,
-                                out RaycastHit hit, range, mask,
-                                QueryTriggerInteraction.Ignore))
-            return;
-
-        var body = hit.rigidbody;
+        Rigidbody body = FindTarget(eye);
         if (body == null) return;
-
-        // Never yourself. The probe starts inside your own capsule.
-        if (body.transform == transform || body.transform.IsChildOf(transform)) return;
 
         // ---- WHAT MAY BE SHOVED ----
         //
@@ -408,6 +395,83 @@ public class PlayerPush : NetworkBehaviour
 
         RequestPushServerRpc(target.NetworkObjectId, push);
     }
+
+    /// Reused, so a shove does not allocate. Sixteen is far more than can fit
+    /// inside arm's reach.
+    static readonly Collider[] nearby = new Collider[16];
+
+    /// <summary>
+    /// What is in front of the eye, at ANY range - including point blank.
+    ///
+    /// ---- WHY THE SPHERECAST ALONE COULD NEVER SHOVE A PERSON ----
+    ///
+    /// Physics.SphereCast does not report colliders that already overlap the
+    /// sphere at its START position. That is not an edge case here, it is the
+    /// normal case:
+    ///
+    ///     two players stand 0.84m apart (0.42 capsule each)
+    ///     so their surface is 0.42m from your eye
+    ///     the cast's start sphere is 0.45m
+    ///     -> overlapping at t=0, and the cast returns NOTHING
+    ///
+    /// It was the same before the capsule was widened - 0.30m surface against
+    /// the same 0.45m sphere - so a point-blank shove on a person has never
+    /// once worked. Crates escaped it only because you stand further from a
+    /// crate than from a person.
+    ///
+    /// So the cast still does the reaching, and an overlap check covers the
+    /// range the cast is blind to. Same detection, one owner, no second
+    /// raycast system.
+    /// </summary>
+    Rigidbody FindTarget(Transform eye)
+    {
+        // 1. THE REACH. A swept sphere down the look direction, as before.
+        if (Physics.SphereCast(eye.position, radius, eye.forward,
+                               out RaycastHit hit, range, mask,
+                               QueryTriggerInteraction.Ignore) &&
+            hit.rigidbody != null && !IsSelf(hit.rigidbody.transform))
+            return hit.rigidbody;
+
+        // 2. POINT BLANK. Everything already touching us, nearest first, and
+        //    only what is roughly in front - so backing into somebody does not
+        //    shove them.
+        Vector3 forward = eye.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) return null;
+        forward.Normalize();
+
+        int found = Physics.OverlapSphereNonAlloc(eye.position, range, nearby,
+                                                  mask, QueryTriggerInteraction.Ignore);
+
+        Rigidbody best = null;
+        float bestDistance = float.MaxValue;
+
+        for (int i = 0; i < found; i++)
+        {
+            var rb = nearby[i] != null ? nearby[i].attachedRigidbody : null;
+            if (rb == null || IsSelf(rb.transform)) continue;
+
+            Vector3 toward = rb.transform.position - eye.position;
+            toward.y = 0f;
+
+            float distance = toward.sqrMagnitude;
+            if (distance < 1e-6f || distance >= bestDistance) continue;
+
+            // Within about 70 degrees of where you are looking. Wide enough
+            // that you do not have to aim at a ribcage, narrow enough that it
+            // is still a shove rather than an area attack.
+            if (Vector3.Dot(toward.normalized, forward) < 0.35f) continue;
+
+            best = rb;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
+    /// <summary>Your own body. The probe starts inside your own capsule, so
+    /// this has to be asked every time.</summary>
+    bool IsSelf(Transform t) => t == transform || t.IsChildOf(transform);
 
     /// <summary>
     /// A shove that lifts somebody off their feet a little and throws them.

@@ -283,6 +283,31 @@ Greyboxed only. Materials, props and lighting are Phase 8.
 
 **Done when:** each of the six can be walked end to end with no socket filled.
 
+> **Built 5 Sep 2026.** `Tools → Rooms → Build Six Modules` writes them to
+> `Assets/_Project/Prefabs/Rooms/`. Greybox only — materials, props and
+> lighting stay in Phase 8.
+>
+> **The frame is the load-bearing decision.** A module's origin is its own
+> doorway, on the floor, with +X into the room. An exit is that same frame
+> pointing outward — so attaching B to an exit of A is "put B's origin on the
+> exit and match rotation", for any A and any B, with neither knowing about
+> the other. Get this wrong and Step 6's generator becomes a table of special
+> cases about which rooms fit which, which is the version that never finishes.
+>
+> `RoomExit` was added here, not in Step 4 — the contract said *"any module can
+> follow any other"* and I built sockets without the thing that makes following
+> possible.
+>
+> Caught before it shipped: the first shell built four solid walls and cut a
+> doorway only at the front, so the main room's two exits pointed into
+> concrete. **An exit is a promise you can walk through it**, and nothing in
+> the code was keeping it. Walls are segmented around their openings now, so a
+> module cannot declare an exit the shell does not know about without it being
+> obvious the moment you walk in.
+>
+> Still on the human, and still not checkable: **walkable with every socket
+> empty and every exit sealed.**
+
 ---
 
 ### Step 6 · The floor generator

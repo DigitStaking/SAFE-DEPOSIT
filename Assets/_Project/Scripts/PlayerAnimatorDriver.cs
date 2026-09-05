@@ -218,7 +218,18 @@ public class PlayerAnimatorDriver : MonoBehaviour
         // Kept as a fallback for anything that leaves the ground WITHOUT the
         // motor's own jump - a launcher, a shove, a collapsing floor. Those
         // still deserve the clip and never go through OnJump.
-        if (!windingUp && wasGrounded && !strict && vel.y > jumpDetectSpeed)
+        // ---- AND A THROW MUST NOT BE MISTAKEN FOR ONE ----
+        //
+        // This line INFERS a jump from "was grounded, is not now, moving up
+        // faster than jumpDetectSpeed" - which a knockback satisfies exactly:
+        // 4.43 m/s up against a 1.0 threshold. Removing the explicit trigger
+        // for a throw achieved nothing on its own, because this would have
+        // fired JumpUp a frame later anyway.
+        //
+        // Being shoved is known, so it is excluded here rather than guessed
+        // around. Reuses the flag read further up - one question, asked once
+        // per frame.
+        if (!windingUp && !thrown && wasGrounded && !strict && vel.y > jumpDetectSpeed)
             animator.SetTrigger(JumpId);
 
         // ---- A THROW IS NOT A JUMP ----

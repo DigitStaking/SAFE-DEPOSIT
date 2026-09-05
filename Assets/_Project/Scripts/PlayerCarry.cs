@@ -258,16 +258,54 @@ public class PlayerCarry : MonoBehaviour
     /// the rope was cut from Phase 4. The key was already on the keyboard doing
     /// nothing.
     ///
-    /// Tap only, for now. Hold-to-throw is Step 2 of this phase and arrives on
-    /// this same action.
+    /// Tap places it. Hold winds up and releasing throws.
+    ///
+    /// ---- THIS DEPENDS ON AN INTERACTION, AND WILL DIE QUIETLY WITHOUT IT ----
+    ///
+    /// The PutDown action carries Press(behavior=2) - PressAndRelease - and it
+    /// has to. PlayerInput's SendMessages path filters on this line:
+    ///
+    ///     if (!(context.performed ||
+    ///           (context.canceled && action.type == InputActionType.Value)))
+    ///         return;
+    ///
+    /// canceled is delivered for VALUE actions only. PutDown is a Button, so
+    /// without the interaction this method is called once, on the press, and
+    /// value.isPressed is true every single time - the release half never
+    /// arrives and holding Q does nothing at all.
+    ///
+    /// If hold-to-throw ever stops working, check the action's interactions
+    /// field before reading a line of this file.
     /// </summary>
     void OnPutDown(InputValue value)
     {
-        if (!value.isPressed) return;
         if (!PlayerRegistry.IsLocalFor(this)) return;
-        if (held == null) return;
 
-        PlaceHeld();
+        if (value.isPressed)
+        {
+            // Nothing happens on the press itself. A tap and the start of a
+            // wind-up are the same event, and which one it was is not known
+            // until the key comes back up.
+            windupStart = held != null ? Time.time : -1f;
+            return;
+        }
+
+        // ---- RELEASED ----
+        if (windupStart < 0f || held == null) { windupStart = -1f; return; }
+
+        float heldFor = Time.time - windupStart;
+        windupStart = -1f;
+
+        // A tap is a tap even on something that could have been thrown. The
+        // threshold is short enough that deciding to throw and deciding to put
+        // down never feel like the same press.
+        if (heldFor < tapTime || !CanThrow)
+        {
+            PlaceHeld();
+            return;
+        }
+
+        ThrowHeld(Mathf.Clamp01(heldFor / WindupTime(held)));
     }
 
     void OnInteract(InputValue value)
@@ -511,6 +549,202 @@ public class PlayerCarry : MonoBehaviour
         item.Drop(Vector3.zero);
     }
 
+    // ====================================================================
+    // HOLD Q - WIND UP, RELEASE TO THROW
+    //
+    // The rule from INHABITANTS.md Part 4 is one sentence: the heavier it is,
+    // the longer the wind-up and the shorter the throw. A can crosses a room, a
+    // crate goes a couple of metres and lands hard, and a vending machine
+    // cannot be thrown at all - the wind-up simply never completes.
+    //
+    // Nothing new decides that last part. Carryable's weight classes were drawn
+    // in Phase 2 for walking speed and jumping, and Massive starts at 60kg,
+    // which is above every crate and below a person at 70. So "you cannot throw
+    // a crewmate" and "you cannot throw a vending machine" both fall out of a
+    // threshold that was set for an unrelated reason. If a fourth system ever
+    // disagrees with those classes, the classes are wrong, not the system.
+    //
+    // Throwing DAMAGES NOTHING and loses no value. This game already punishes
+    // greed with weight; it does not need to punish it with breakage.
+    // ====================================================================
+
+    [Header("Throwing")]
+    [Tooltip("Under this many seconds, Q is a tap - put it down. Over it, Q " +
+             "was a wind-up. Short enough that the two never feel like the " +
+             "same press.")]
+    public float tapTime = 0.2f;
+
+    [Tooltip("Wind-up for something light, in seconds. A can is almost " +
+             "instant.")]
+    public float windupLight = 0.25f;
+
+    [Tooltip("Wind-up at the heaviest throwable weight, in seconds. Long " +
+             "enough that heaving a crate is a decision, not a reflex.")]
+    public float windupHeavy = 1.1f;
+
+    [Tooltip("How far a light thing goes at a full wind-up, in metres. This " +
+             "is the across-a-room throw: a can down a corridor to send " +
+             "something looking the wrong way.")]
+    public float throwRangeLight = 9f;
+
+    [Tooltip("How far the heaviest throwable thing goes at a full wind-up. " +
+             "Two metres and it lands hard - enough to get a crate into the " +
+             "lift from the doorway, and no further.")]
+    public float throwRangeHeavy = 2f;
+
+    [Tooltip("How much above your aim a throw leaves the hand, as a fraction. " +
+             "0 would be a flat line drive that hits the floor; this is what " +
+             "makes it an arc you can lob over something.")]
+    public float throwLift = 0.35f;
+
+    [Tooltip("Mass treated as 'light' for the two numbers above. Below this " +
+             "nothing gets any easier to throw.")]
+    public float lightMass = 2f;
+
+    float windupStart = -1f;
+
+    /// <summary>Anything but Massive. A crewmate is 70kg and a vending machine
+    /// is worse, so both are refused by the same line.</summary>
+    bool CanThrow => held != null && held.Weight != Carryable.WeightClass.Massive;
+
+    /// <summary>0 at the light end, 1 at the heaviest throwable thing. Every
+    /// weight-dependent number below is a lerp on this, so they can never
+    /// disagree with each other about how heavy something is.</summary>
+    float Heaviness(Carryable item)
+    {
+        if (item == null) return 0f;
+        return Mathf.Clamp01(Mathf.InverseLerp(lightMass, 60f, item.Mass));
+    }
+
+    float WindupTime(Carryable item) =>
+        Mathf.Lerp(windupLight, windupHeavy, Heaviness(item));
+
+    /// <summary>
+    /// Squared, so weight bites early rather than fading politely. A 30kg crate
+    /// sits halfway along the mass range and should not go half as far as a
+    /// can - it should go most of the way to nowhere.
+    /// </summary>
+    float ThrowRange(Carryable item)
+    {
+        float h = Heaviness(item);
+        return Mathf.Lerp(throwRangeLight, throwRangeHeavy, h * h);
+    }
+
+    /// <summary>
+    /// Let go of it hard.
+    ///
+    /// charge is 0..1 of the wind-up. It scales the distance rather than
+    /// gating the throw, so a half-held Q is a short lob and not a failure.
+    /// </summary>
+    void ThrowHeld(float charge)
+    {
+        if (held == null) return;
+
+        var item = held;
+        var cam = Eye;
+        if (cam == null) { PlaceHeld(); return; }
+
+        float range = ThrowRange(item) * Mathf.Lerp(0.35f, 1f, charge);
+
+        // ---- SOLVE THE ARC, DO NOT GUESS AT IT ----
+        //
+        // Same arithmetic as PlayerPush's knockback, for the same reason: a
+        // number in metres is something you can reason about and a number in
+        // newtons is not. Range on the flat for a launch angle t is
+        // v^2 * sin(2t) / g, so the speed that covers `range` is
+        // sqrt(range * g / sin(2t)).
+        Vector3 dir = (cam.forward + Vector3.up * throwLift).normalized;
+
+        float g = Mathf.Abs(Physics.gravity.y);
+        if (g < 0.01f) g = 9.81f;
+
+        float theta = Mathf.Asin(Mathf.Clamp(dir.y, -0.99f, 0.99f));
+        float sin2 = Mathf.Sin(2f * theta);
+
+        // Aiming at your own feet or straight up makes sin(2t) useless - zero
+        // or negative - and the throw would be either infinite or backwards.
+        // Floored, so a bad angle throws weakly instead of absurdly.
+        if (sin2 < 0.25f) sin2 = 0.25f;
+
+        Vector3 velocity = dir * Mathf.Sqrt(range * g / sin2);
+
+        // Clear of my own capsule before the colliders come back on, or the
+        // first thing the throw hits is me.
+        Bounds b = item.WorldBounds;
+        var capsule = GetComponent<CapsuleCollider>();
+        float bodyRadius = capsule != null ? capsule.radius : 0.4f;
+        float clearance = bodyRadius + Mathf.Max(b.extents.x, b.extents.z) + 0.1f;
+
+        Vector3 from = cam.position + dir * clearance;
+        Quaternion rot = item.transform.rotation;
+
+        held = null;
+        item.transform.SetPositionAndRotation(from, rot);
+
+        AnnounceThrow(item, from, rot, velocity);
+
+        item.Drop(velocity);
+
+        // The arc is simulated on every machine; the resting place is stated.
+        StartCoroutine(AnnounceRestWhenStill(item));
+    }
+
+    /// <summary>
+    /// Tell everyone the velocity, so the arc happens on their screens too -
+    /// DropClientRpc zeroes velocity on purpose and would drop a thrown crate
+    /// straight down for every viewer but the thrower.
+    /// </summary>
+    void AnnounceThrow(Carryable item, Vector3 pos, Quaternion rot, Vector3 vel)
+    {
+        var net = LootNet.Instance;
+        if (net == null || !net.IsSpawned) return;
+
+        var loot = item != null ? item.GetComponent<LootItem>() : null;
+        if (loot == null || loot.RosterIndex < 0) return;
+
+        net.RequestThrowServerRpc(loot.RosterIndex, pos, rot, vel,
+                                  Unity.Netcode.NetworkManager.Singleton.LocalClientId);
+    }
+
+    /// <summary>
+    /// THE HANDOVER.
+    ///
+    /// Four machines simulating the same arc from the same start still disagree
+    /// the moment it clips a doorframe, and the elevator load gauge counts what
+    /// is physically in the car - so "roughly there" is a number the crew gets
+    /// paid on. Once it has actually stopped, the thrower announces where it
+    /// ended up as an ordinary drop, and everybody snaps to that.
+    ///
+    /// The timeout matters as much as the test: a crate wedged against a wall
+    /// can jitter below the threshold forever, and something rolling down a
+    /// stairwell should not hold the announcement open indefinitely.
+    /// </summary>
+    System.Collections.IEnumerator AnnounceRestWhenStill(Carryable item)
+    {
+        var body = item != null ? item.GetComponent<Rigidbody>() : null;
+        if (body == null) yield break;
+
+        float until = Time.time + 6f;
+        var wait = new WaitForSeconds(0.1f);
+
+        while (Time.time < until)
+        {
+            yield return wait;
+
+            if (item == null) yield break;
+
+            // Picked up again, or bagged, mid-flight. Whoever did that has
+            // already announced it and this would be arguing with them.
+            if (item.State != Carryable.CarryState.Free) yield break;
+
+            if (body.linearVelocity.sqrMagnitude < 0.01f) break;
+        }
+
+        if (item == null || item.State != Carryable.CarryState.Free) yield break;
+
+        Announce(item, false);
+    }
+
     static readonly Collider[] placeOverlap = new Collider[32];
 
     /// <summary>
@@ -659,12 +893,12 @@ public class PlayerCarry : MonoBehaviour
             // numbers are identical and the sentence must not be: the whole
             // point of Step 6 is that the load gauge cannot tell the
             // difference and the crew can.
-            prompt = held.IsPerson
-                ? $"carrying a crewmate  ({held.Mass:0}kg)   -   TOO HEAVY TO JUMP" +
-                  "\nE  put them down"
-                : $"carrying {held.name}  ({held.Mass:0}kg, {held.Weight})" +
-                  (held.AllowsJumping ? "" : "   -   TOO HEAVY TO JUMP OR PUSH") +
-                  "\nE  drop it - counts toward the elevator's load once it is inside the car";
+            // Asked for directly: the weight, the class and the load-gauge
+            // sentence were all true and none of them were what you needed to
+            // read while holding a crate. The controls are.
+            prompt = CanThrow
+                ? "click Q to drop and hold Q to throw"
+                : "click Q to drop   -   too heavy to throw";
 
             colour = held.IsPerson
                 ? new Color(1f, 0.45f, 0.4f)
@@ -688,5 +922,62 @@ public class PlayerCarry : MonoBehaviour
         float w = 700f;
         GUI.Label(new Rect((Screen.width - w) * 0.5f, Screen.height * 0.5f + 60f, w, 46),
                   prompt, style);
+
+        DrawWindupGauge();
+    }
+
+    /// <summary>
+    /// The wind-up, while Q is down.
+    ///
+    /// It exists because the throw is the only verb in the game whose strength
+    /// you choose, and choosing blind is not choosing. It also has to show the
+    /// refusal: on something Massive the bar fills to a stop and stays there,
+    /// which is the wind-up "never completing" made visible rather than the key
+    /// appearing to be broken.
+    /// </summary>
+    void DrawWindupGauge()
+    {
+        if (windupStart < 0f || held == null) return;
+
+        float heldFor = Time.time - windupStart;
+        if (heldFor < tapTime) return;      // still might be a tap
+
+        bool throwable = CanThrow;
+        float charge = throwable
+            ? Mathf.Clamp01(heldFor / WindupTime(held))
+            : 0.35f;                        // stuck, deliberately
+
+        const float barW = 220f;
+        const float barH = 10f;
+
+        float x = (Screen.width - barW) * 0.5f;
+        float y = Screen.height * 0.5f + 34f;
+
+        var back = new Color(0f, 0f, 0f, 0.55f);
+        var fill = !throwable
+            ? new Color(0.75f, 0.3f, 0.25f)
+            : charge >= 1f ? new Color(0.45f, 0.95f, 0.5f)
+                           : new Color(1f, 0.85f, 0.35f);
+
+        var was = GUI.color;
+
+        GUI.color = back;
+        GUI.DrawTexture(new Rect(x - 2f, y - 2f, barW + 4f, barH + 4f), Texture2D.whiteTexture);
+
+        GUI.color = fill;
+        GUI.DrawTexture(new Rect(x, y, barW * charge, barH), Texture2D.whiteTexture);
+
+        GUI.color = was;
+
+        if (throwable)
+        {
+            var label = new GUIStyle(GUI.skin.label)
+            { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+            label.normal.textColor = new Color(1f, 1f, 1f, 0.75f);
+
+            GUI.Label(new Rect(x, y - 20f, barW, 18f),
+                      $"{ThrowRange(held) * Mathf.Lerp(0.35f, 1f, charge):0.0} m",
+                      label);
+        }
     }
 }

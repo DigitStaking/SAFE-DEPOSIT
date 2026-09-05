@@ -380,6 +380,62 @@ public class LootNet : NetworkBehaviour
         }
     }
 
+    // ====================================================================
+    // A THROW IS A DROP THAT KEPT ITS VELOCITY
+    //
+    // DropClientRpc deliberately ZEROES velocity on arrival, and it is right
+    // to: a dropped crate should land where the dropper saw it land, not where
+    // four machines each independently decided. That same line is what made a
+    // throw invisible to everybody else - the item appeared at the release
+    // point and fell straight down, while on the thrower's screen it sailed
+    // across the room.
+    //
+    // So the velocity travels, and each machine simulates the same arc from
+    // the same start. They will not agree perfectly - a bounce off a doorframe
+    // is enough to separate them - which is why the thrower follows up with an
+    // ordinary drop announcement once the thing has come to rest. The arc is
+    // simulated for looks; the resting place is stated as fact.
+    //
+    // That two-part shape is the same handover the rest of this file uses:
+    // nobody caches where the item is, they are told.
+    // ====================================================================
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestThrowServerRpc(int index, Vector3 pos, Quaternion rot,
+                                      Vector3 vel, ulong who)
+        => ThrowClientRpc(index, pos, rot, vel, who);
+
+    [ClientRpc]
+    void ThrowClientRpc(int index, Vector3 pos, Quaternion rot,
+                        Vector3 vel, ulong who)
+    {
+        var item = LootItem.ByIndex(index);
+        if (item == null) return;
+
+        var carry = item.GetComponent<Carryable>();
+        if (carry == null) return;
+
+        // Same as a drop: out of whoever's hands it was in, wherever this
+        // machine thought those hands were.
+        var hands = FindCarrier(who);
+        if (hands != null && hands.Held == carry) hands.ForceDrop();
+        else carry.Drop(Vector3.zero);
+
+        item.transform.position = pos;
+        item.transform.rotation = rot;
+
+        var body = item.GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            body.position = pos;
+            body.rotation = rot;
+
+            // The one line that separates this from DropClientRpc.
+            body.linearVelocity = vel;
+            body.angularVelocity = Vector3.zero;
+        }
+    }
+
     static PlayerCarry FindCarrier(ulong clientId)
     {
         foreach (var p in PlayerRegistry.All)

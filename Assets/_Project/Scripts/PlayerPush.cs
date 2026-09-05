@@ -380,12 +380,8 @@ public class PlayerPush : NetworkBehaviour
         Rigidbody body = FindTarget(eye);
         if (body == null) return;
 
-        // ---- WHAT MAY BE SHOVED ----
-        //
-        // People yes, loot no. Asked for directly, and it is the right way
-        // round: a crate is something you CARRY, and a crew that can scatter
-        // its own quota by walking into it is a crew that will.
-        if (!Pushable.Allows(body)) return;
+        // Pushable.Allows is asked inside FindTarget now, so anything that
+        // comes back here is already something this shove may move.
 
         // ---- A PERSON IS NOT A CRATE ----
         //
@@ -445,7 +441,7 @@ public class PlayerPush : NetworkBehaviour
         if (Physics.SphereCast(eye.position, radius, eye.forward,
                                out RaycastHit hit, range, mask,
                                QueryTriggerInteraction.Ignore) &&
-            hit.rigidbody != null && !IsSelf(hit.rigidbody.transform))
+            Usable(hit.rigidbody))
             return hit.rigidbody;
 
         // 2. POINT BLANK. Everything already touching us, nearest first, and
@@ -465,7 +461,7 @@ public class PlayerPush : NetworkBehaviour
         for (int i = 0; i < found; i++)
         {
             var rb = nearby[i] != null ? nearby[i].attachedRigidbody : null;
-            if (rb == null || IsSelf(rb.transform)) continue;
+            if (!Usable(rb)) continue;
 
             Vector3 toward = rb.transform.position - eye.position;
             toward.y = 0f;
@@ -488,6 +484,24 @@ public class PlayerPush : NetworkBehaviour
     /// <summary>Your own body. The probe starts inside your own capsule, so
     /// this has to be asked every time.</summary>
     bool IsSelf(Transform t) => t == transform || t.IsChildOf(transform);
+
+    /// <summary>
+    /// Something this shove could actually move.
+    ///
+    /// ---- WHY A DOOR USED TO EAT THE PUSH ----
+    ///
+    /// Pushable.Allows was checked in Connect, AFTER the finder had already
+    /// committed to a target. So standing near a door, the cast would return
+    /// the DOOR - nearer, and perfectly valid as far as the finder knew - and
+    /// then Connect would find it unpushable and give up, without ever
+    /// considering the person standing right behind it.
+    ///
+    /// Asking here instead means an unpushable thing is simply not a target,
+    /// and the search carries on to the next one. "Sometimes he cannot be
+    /// pushed near a door" was that, exactly.
+    /// </summary>
+    bool Usable(Rigidbody rb) =>
+        rb != null && !IsSelf(rb.transform) && Pushable.Allows(rb);
 
     /// <summary>
     /// A shove that lifts somebody off their feet a little and throws them.

@@ -68,7 +68,6 @@ public class PlayerAnimatorDriver : MonoBehaviour
 
     bool wasGrounded = true;
     bool wasWindingUp;
-    bool wasThrown;
     bool wasCarrying;
     int  lastPackCount;
     float armsWeight = 1f;
@@ -222,24 +221,23 @@ public class PlayerAnimatorDriver : MonoBehaviour
         if (!windingUp && wasGrounded && !strict && vel.y > jumpDetectSpeed)
             animator.SetTrigger(JumpId);
 
-        // ---- A THROW ENTERS THE AIR STATE OUTRIGHT ----
+        // ---- A THROW IS NOT A JUMP ----
         //
-        // The line above INFERS "left the ground without jumping" from was
-        // grounded, is not now, and is moving up faster than jumpDetectSpeed.
-        // That is a fine guess and it is still a guess: a shove that clips the
-        // ground check for a frame, or that starts while already stepping off
-        // something, does not satisfy it - and then a body sails through the
-        // air in a walk pose.
+        // This used to fire the Jump trigger, which enters JumpUp - a clip of
+        // somebody deliberately jumping, arms up, legs tucked. Being shoved
+        // does not look like that, and it read as the victim helpfully
+        // hopping away.
         //
-        // Being shoved is not something to infer. It is known, so the trigger
-        // is fired directly, once, on the frame it starts.
+        // Nothing is triggered now. Grounded goes false on its own the frame
+        // they leave the floor and VelY turns negative at the apex, which is
+        // the FALLING state's own condition - so a throw rises in whatever
+        // pose it was in and falls in the falling clip, with no jump anywhere
+        // in it.
         //
-        // NetworkAnimator replicates triggers, so firing it on the victim's own
-        // machine is what puts everybody else's copy of them in the air too.
-        bool thrownNow = motor != null && motor.BeingShoved;
-
-        if (thrownNow && !wasThrown) animator.SetTrigger(JumpId);
-        wasThrown = thrownNow;
+        // Worth recording why that did not already happen: Falling wanted
+        // VelY < -8, and nothing in this game falls that fast. A full 1.1m
+        // jump peaks at 6.2 m/s and a 1m knockback at 5.9. The state existed
+        // and had never once played. The threshold is -2 now.
 
         wasGrounded = strict;
         animator.SetBool(GroundId, grounded);

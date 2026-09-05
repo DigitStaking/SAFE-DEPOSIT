@@ -60,8 +60,15 @@ public static class RoomModuleBuilder
         // of each is enough until ten floors say otherwise.
         Landing("Room_Landing_Open", mat, pillars: false);
         Landing("Room_Landing_Pillared", mat, pillars: true);
-        Main("Room_Main_Hall", mat, divided: false);
-        Main("Room_Main_Divided", mat, divided: true);
+        // THREE mains, not two, and the third is not decoration. The
+        // generator guarantees no main repeats on consecutive floors; with
+        // only two modules that guarantee FORCES A,B,A,B, which reads as
+        // generated exactly as loudly as a repeat would. Two of anything
+        // alternates. Three is the smallest set where the sequence can
+        // surprise you - see FloorLayout.MainFor.
+        Main("Room_Main_Hall", mat, variant: 0);
+        Main("Room_Main_Divided", mat, variant: 1);
+        Main("Room_Main_Columns", mat, variant: 2);
         SideRoom(mat);
         BackRoom(mat);
 
@@ -109,12 +116,12 @@ public static class RoomModuleBuilder
     /// <summary>The room the landing opens into. Largest, most loot, and the
     /// only module with two ways on - the side room and the back hang off
     /// it.</summary>
-    static void Main(string name, Material mat, bool divided)
+    static void Main(string name, Material mat, int variant)
     {
         var root = Shell(name, RoomModule.Role.Main, depth: 10f, width: 12f, mat,
                          backDoor: true, leftDoorX: 5f);
 
-        if (divided)
+        if (variant == 1)
         {
             // A partition with a gap at one end. Two routes through one room
             // is what lets a crew split up without leaving the room, which is
@@ -128,6 +135,21 @@ public static class RoomModuleBuilder
             // cannot build a single puzzle in that document.
             Socket(root, "Puzzle_A", new Vector3(8.5f, 0f, 5f),
                    RoomSocket.Kind.Puzzle, pairId: "main_back");
+        }
+
+        if (variant == 2)
+        {
+            // Four columns on a grid. Reads completely differently from the
+            // hall and the partition at a glance, which is the whole job - a
+            // player is not auditing the layout, they are deciding whether
+            // they have been here before.
+            for (int i = 0; i < 4; i++)
+            {
+                float px = 3f + (i % 2) * 4f;
+                float pz = -3f + (i / 2) * 6f;
+                Box($"Column_{i}", root, new Vector3(px, Height * 0.5f, pz),
+                    new Vector3(0.8f, Height, 0.8f), mat);
+            }
         }
 
         Socket(root, "Loot_1", new Vector3(3f, 0f, -4.5f), RoomSocket.Kind.Loot);

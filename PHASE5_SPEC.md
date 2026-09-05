@@ -329,6 +329,38 @@ without sending geometry.
 
 **Done when:** ten floors in a row, and you can tell them apart from memory.
 
+> **Built 5 Sep 2026.** `FloorLayout` (pure function) + `FloorGenerator`
+> (walks exits) + `Tools → Rooms → Preview Ten Floors`.
+>
+> **The seed is `Campaign.RunNumber`.** It is already a host-owned
+> `NetworkVariable<int>` every machine agrees on, so four machines build the
+> same building with no geometry on the wire and no second thing that can
+> disagree. A new seed variable would have been a second source of truth for
+> "which run is this" — the mistake Phase 4 spent seven weeks undoing across
+> 59 statics.
+>
+> `System.Random`, never `UnityEngine.Random`: the latter is global mutable
+> state, so its next value depends on how many times anything else in the
+> process has rolled. Determinism that depends on call order is not
+> determinism.
+>
+> **Placement is one line** — `SetPositionAndRotation(exit.Position,
+> exit.Rotation)`. No offsets, no table of which room fits which. That is what
+> Step 5's frame bought.
+>
+> Caught by checking rather than by reading: the no-repeat rule **did not
+> work**. It compared each floor's main against the previous floor's *raw*
+> draw, but that draw may itself have been nudged — so it compared against a
+> room that was never built, and repeats survived at about the rate of having
+> no rule at all. Replaced with a **stepping walk**: each floor moves 1..n−1
+> places around the set, and a step of at least one cannot land where it
+> started. Verified zero repeats over ten floors at both 2 and 3 mains.
+>
+> That check then exposed a design problem: **with two mains the rule forces
+> A,B,A,B**, which reads as generated just as loudly as a repeat. Two of
+> anything alternates. So there is a **third main** now — a columned hall —
+> making seven modules, not six. The spec said six; six was wrong.
+
 ---
 
 ### Step 7 · Doors, keys, locked states

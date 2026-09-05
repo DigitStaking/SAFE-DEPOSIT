@@ -230,6 +230,12 @@ to keep going blind or take the loss.
 
 *Redesigned 30 Aug 2026, and this version is much better than mine.*
 
+> **Also called the shapeshifter, the mimic, the impostor.** Written down 5 Sep
+> 2026 because the word did not appear anywhere in this file and a search for
+> it found nothing — which is how a design that IS recorded gets rebuilt from
+> memory anyway. He does not change shape; he arrives already wearing a
+> crewmate's colour. Same creature, and this section is the design.
+
 ### What he is
 
 **He spawns wearing the exact colour of one of your crew.** Not orange, not a

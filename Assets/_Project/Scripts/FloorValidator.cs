@@ -27,7 +27,8 @@ public static class FloorValidator
 {
     /// <summary>Everything wrong with this floor. Empty means it is valid.</summary>
     public static List<string> Check(List<RoomModule> rooms, int minRooms,
-                                     int minJunctions, int minDeadEnds)
+                                     int minJunctions, int minDeadEnds,
+                                     Bounds keepOut = default)
     {
         var bad = new List<string>();
 
@@ -118,6 +119,24 @@ public static class FloorValidator
 
         if (overlaps > 0)
             bad.Add($"{overlaps} pair(s) of rooms overlap");
+
+        // ---- THE LIFT MUST BE POSSIBLE TO LEAVE ----
+        //
+        // Rooms not overlapping EACH OTHER says nothing about the shaft. A
+        // branch that curls back and lands in front of the doors passes every
+        // other check on this list and still leaves the player walking out of
+        // the car into a wall.
+        if (keepOut.extents.sqrMagnitude > 0f)
+        {
+            int intruding = 0;
+
+            foreach (var box in boxes)
+                if (keepOut.Intersects(box)) intruding++;
+
+            if (intruding > 0)
+                bad.Add($"{intruding} room(s) reach into the shaft or block the " +
+                        "lift doorway");
+        }
 
         // ---- REACHABILITY ----
         //

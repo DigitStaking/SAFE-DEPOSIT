@@ -39,7 +39,11 @@ using UnityEngine;
 /// </summary>
 public static class RoomModuleBuilder
 {
-    const string OutputDir = "Assets/_Project/Prefabs/Rooms";
+    // Resources, not Prefabs, and that is deliberate. The editor preview can
+    // reach anything through AssetDatabase; the RUNTIME cannot. Putting the
+    // room set here means FloorDirector loads exactly the same prefabs the
+    // preview did, with no serialized array to wire by hand and get wrong.
+    const string OutputDir = "Assets/_Project/Resources/Rooms";
     const string GrayboxMat = "Assets/_Project/Materials/M_Graybox.mat";
 
     const float DoorWidth = 2f;

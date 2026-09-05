@@ -86,7 +86,8 @@ public class FloorGenerator : MonoBehaviour
                                          Catalogue cat, Vector3 entranceLocal,
                                          int minRooms, int maxRooms, int minJunctions,
                                          System.Func<GameObject, GameObject> spawn,
-                                         out FloorGraph graph, out string failure)
+                                         out FloorGraph graph, out string failure,
+                                         Bounds keepOut = default)
     {
         graph = null;
         failure = null;
@@ -116,7 +117,8 @@ public class FloorGenerator : MonoBehaviour
                 continue;
             }
 
-            var rooms = Place(level, g, cat, entranceLocal, rng, spawn, out string why);
+            var rooms = Place(level, g, cat, entranceLocal, rng, spawn, keepOut,
+                              out string why);
 
             if (rooms != null)
             {
@@ -133,9 +135,29 @@ public class FloorGenerator : MonoBehaviour
 
     // ------------------------------------------------------------------
 
+    // ====================================================================
+    // THE SHAFT IS PART OF THE TOPOLOGY, NOT SOMETHING TO AVOID AFTERWARDS
+    //
+    // A floor is entered from the lift, so generation starts AT the lift: the
+    // start room is placed by putting its entrance door on the shaft's
+    // doorway, and every other room grows from there.
+    //
+    // That alone is not enough. A branch can curl back around and land in
+    // front of the lift - the rooms do not overlap each other, so nothing
+    // caught it, and the player stepped out of the car into a wall. So the
+    // shaft and the space immediately outside its door are a KEEP-OUT volume
+    // that no room may intersect, checked exactly like a room-to-room overlap
+    // and rejected the same way.
+    //
+    // Rejected, never patched. Blocking the entrance is not a door to be
+    // sealed or a room to be nudged; it is a placement that was wrong, and
+    // the answer is a different room or a different floor.
+    // ====================================================================
+
     static List<RoomModule> Place(Transform level, FloorGraph g, Catalogue cat,
                                   Vector3 entranceLocal, System.Random rng,
                                   System.Func<GameObject, GameObject> spawn,
+                                  Bounds keepOut,
                                   out string failure)
     {
         failure = null;
@@ -174,6 +196,15 @@ public class FloorGenerator : MonoBehaviour
         root.transform.localPosition =
             entranceLocal - root.transform.localRotation * entrance.transform.localPosition;
 
+        // Even the start room has to respect the shaft - a deep room whose
+        // doorway is at the shaft wall must not have its BODY inside it.
+        if (keepOut.extents.sqrMagnitude > 0f && keepOut.Intersects(Footprint(root)))
+        {
+            failure = "the start room would sit inside the shaft";
+            Discard(root.gameObject);
+            return null;
+        }
+
         built.Add(root);
         bounds.Add(Footprint(root));
         doorsOf[0] = rootDoors;
@@ -200,7 +231,7 @@ public class FloorGenerator : MonoBehaviour
                 }
 
                 var child = AttachChild(g.nodes[childId].doors, parentDoor, cat,
-                                        level, bounds, rng, spawn,
+                                        level, bounds, keepOut, rng, spawn,
                                         out List<RoomExit> childDoors);
 
                 if (child == null)
@@ -234,7 +265,7 @@ public class FloorGenerator : MonoBehaviour
     /// </summary>
     static RoomModule AttachChild(int doorCount, RoomExit parentDoor, Catalogue cat,
                                   Transform level, List<Bounds> bounds,
-                                  System.Random rng,
+                                  Bounds keepOut, System.Random rng,
                                   System.Func<GameObject, GameObject> spawn,
                                   out List<RoomExit> childDoors)
     {
@@ -275,6 +306,12 @@ public class FloorGenerator : MonoBehaviour
                 Connect(room.transform, mine, parentDoor);
 
                 Bounds b = Footprint(room);
+
+                // The lift's own space counts as occupied. A room that lands
+                // in front of the doors is the "I cannot get out of the
+                // elevator" bug, and it is a placement failure like any other.
+                if (keepOut.extents.sqrMagnitude > 0f && keepOut.Intersects(b)) continue;
+
                 bool clash = false;
 
                 foreach (var other in bounds)

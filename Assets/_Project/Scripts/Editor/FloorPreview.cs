@@ -22,6 +22,25 @@ public static class FloorPreview
     const int MinJunctions = 2;
     const int MinDeadEnds = 2;
 
+    // The same volume FloorDirector protects at runtime. The preview has to
+    // test what the game tests, or it is checking a different generator.
+    const float ShaftKeepOut = 7.6f;
+
+    /// <summary>The shaft, in world space, built from the level's own frame so
+    /// it turns with the floor.</summary>
+    static Bounds KeepOut(Transform level)
+    {
+        var b = new Bounds(level.TransformPoint(Vector3.up * 3f), Vector3.zero);
+
+        for (int i = 0; i < 8; i++)
+            b.Encapsulate(level.TransformPoint(new Vector3(
+                (i & 1) == 0 ? -ShaftKeepOut : ShaftKeepOut,
+                (i & 2) == 0 ? -2f : 8f,
+                (i & 4) == 0 ? -ShaftKeepOut : ShaftKeepOut)));
+
+        return b;
+    }
+
     [MenuItem("Tools/Rooms/Preview Ten Floors")]
     public static void PreviewTen()
     {
@@ -58,7 +77,7 @@ public static class FloorPreview
                 level.transform, run, floor, cat, Vector3.zero,
                 MinRooms, MaxRooms, MinJunctions,
                 p => (GameObject)PrefabUtility.InstantiatePrefab(p),
-                out FloorGraph graph, out string failure);
+                out FloorGraph graph, out string failure, KeepOut(level.transform));
 
             if (rooms == null)
             {
@@ -67,7 +86,8 @@ public static class FloorPreview
                 continue;
             }
 
-            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions, MinDeadEnds);
+            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions,
+                                              MinDeadEnds, KeepOut(level.transform));
 
             int dead = 0, junc = 0;
             foreach (var r in rooms)
@@ -126,6 +146,11 @@ public static class FloorPreview
         int ok = 0, bad = 0;
         var tally = new Dictionary<string, int>();
 
+        // Which door counts actually turned up. A run of twenty seeds that
+        // never places a 4-door room has not tested the 4-door room, however
+        // green the report looks.
+        var typesSeen = new int[5];
+
         for (int seed = 1; seed <= 20; seed++)
         {
             var level = new GameObject($"S{seed}");
@@ -136,7 +161,7 @@ public static class FloorPreview
                 level.transform, seed, seed, cat, Vector3.zero,
                 MinRooms, MaxRooms, MinJunctions,
                 p => (GameObject)PrefabUtility.InstantiatePrefab(p),
-                out FloorGraph graph, out string failure);
+                out FloorGraph graph, out string failure, KeepOut(level.transform));
 
             if (rooms == null)
             {
@@ -145,13 +170,33 @@ public static class FloorPreview
                 continue;
             }
 
-            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions, MinDeadEnds);
+            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions,
+                                              MinDeadEnds, KeepOut(level.transform));
+
+            foreach (var r in rooms)
+            {
+                int n = r.DoorCount;
+                if (n >= 1 && n <= 4) typesSeen[n]++;
+            }
 
             if (faults.Count == 0) ok++;
             else { bad++; foreach (var f in faults) Count(tally, f); }
         }
 
         sb.AppendLine($"  {ok} valid, {bad} not.");
+        sb.AppendLine();
+        sb.AppendLine("  room types placed across all seeds:");
+
+        bool allTypes = true;
+        for (int d = 1; d <= 4; d++)
+        {
+            sb.AppendLine($"    {d}-door x{typesSeen[d]}");
+            if (typesSeen[d] == 0) allTypes = false;
+        }
+
+        if (!allTypes)
+            sb.AppendLine("  ! a door count never appeared - that type is UNTESTED " +
+                          "however clean the rest of this looks");
 
         if (tally.Count > 0)
         {

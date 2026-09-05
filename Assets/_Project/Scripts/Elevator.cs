@@ -346,6 +346,21 @@ public class Elevator : MonoBehaviour
 
         sideFloor = CurrentFloor;
         UpdateActiveSide();
+
+        // ---- AND BUILD THE FLOOR WE HAVE ARRIVED AT ----
+        //
+        // Hooked here rather than to "stopped moving" for the reason the
+        // comment above gives: this runs on EVERY machine at the moment it
+        // learns the floor number changed, which for a client is whenever the
+        // value arrives. Tying generation to arrival instead would build the
+        // host's floor and leave a client in an empty shaft until it caught
+        // up.
+        //
+        // The floor is recomputed from (RunNumber, floor), so every machine
+        // builds the same one without any of it being sent, and coming back
+        // to a floor rebuilds it identically.
+        if (FloorDirector.Instance != null && CurrentFloor >= 1)
+            FloorDirector.Instance.ShowFloor(CurrentFloor);
     }
 
     void UpdateActiveSide()

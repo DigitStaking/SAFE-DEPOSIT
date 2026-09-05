@@ -152,7 +152,7 @@ vending machine cannot be thrown at all.
 
 ---
 
-### Step 3 · Make the shove reliable ◀ IN PROGRESS
+### Step 3 · Make the shove reliable ✅ DONE
 
 Carried from Phase 4's KNOWN ISSUES. Push works and then occasionally does
 not, from what looks like the same position. Four faults have already been
@@ -185,6 +185,29 @@ Three things have never been checked:
 >
 > Two bugs earlier today were each settled by one log line after several rounds
 > of reading source had settled nothing. That is why this step starts here.
+>
+> **Answered in twelve swings.** Every one found a target; nine found the
+> **ELEVATOR**. So it was never the timing, the reach or the network — the
+> three leads carried since Phase 4 — it was target selection.
+> `Pushable.Allows` ends with "pushable unless it is loot", and the lift has a
+> rigidbody, no `Carryable` and no `Pushable`, so it fell through to `true`.
+> Standing in the car, the spherecast reached a wall before it reached the
+> person. Outside the lift it always worked; inside it never did, and the lift
+> is where two players naturally stand.
+>
+> Fixed twice over: the lift is refused by what it *is*
+> (`GetComponentInParent<Elevator>()`), and — the general fix — **a person now
+> beats scenery even when scenery is nearer**, which also covers a doorframe, a
+> railing, or a friend backed against a wall.
+>
+> Reach cut to **1.0m** afterwards, on request. That is the floor: both players
+> carry a 0.42 capsule, so two people in contact are 0.84m apart and can never
+> be nearer. Below ~0.9 the shove does not get tighter, it stops working.
+>
+> Known trade, left deliberately: **no line-of-sight check.** Every symptom in
+> this bug's history was a false negative, and adding a filter that can produce
+> more of them is the wrong move. If shoving through thin walls turns out to
+> matter, that is a raycast added with evidence.
 
 ---
 

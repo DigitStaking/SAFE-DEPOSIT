@@ -21,7 +21,7 @@ the per-phase spec wins for *what*, `DEMO_PLAN.md` wins for *when*.
   PHASE 2  ████████████  mass, health, downed .............. DONE  8/8
   PHASE 3  ████████████  de-single-player .................. DONE  7/7
   PHASE 4  ████████████  netcode + PROXIMITY VOICE ......... DONE  11/11
-  PHASE 5  ███░░░░░░░░░  the room kit .............. IN PROGRESS  2/8
+  PHASE 5  ████░░░░░░░░  the room kit .............. IN PROGRESS  3/8
   PHASE 6  ░░░░░░░░░░░░  puzzles and traps
   PHASE 7  ░░░░░░░░░░░░  economy and shop
   PHASE 8  ░░░░░░░░░░░░  polish + FULL AUDIO PASS
@@ -368,80 +368,25 @@ So the cuts are decided now, in advance, not in April:
 
 # KNOWN ISSUES — carried, not forgotten
 
-### Shove misses sometimes · open, deferred to Phase 5
+### Shove misses sometimes · FIXED 5 Sep 2026
 
-Pushing a person works, and then occasionally does not, from what looks like
-the same position. Four real faults have already been found and fixed
-underneath this one, which is why it kept seeming solved:
+The lift was eating it. `Pushable.Allows` ends with "pushable unless it is
+loot", and the elevator has a rigidbody, no `Carryable` and no `Pushable`, so
+it fell through to `true`. Standing in the car, the shove's spherecast reached
+a wall before it reached the person in front of you.
 
-- the victim's own motor braked the impulse out in 0.033s, over 3.3cm
-- the same impulse as a crate, on a body that resists far harder
-- `SphereCast` ignores anything already overlapping its start sphere, so a
-  point-blank shove on a person had **never** worked in any version
-- `OverlapSphereNonAlloc` fills its buffer with whatever it finds first and
-  stops; at 16 entries the person could be number seventeen in a corridor
+Outside the lift it always worked. Inside it never did — and the lift is where
+two players naturally stand together, which is what made it look intermittent.
 
-The buffer is 64 now and the arc is 78°. Reach was widened and then put back —
-**range is not the problem**, and widening it only made a miss feel arbitrary
-rather than fixing it.
+Twelve instrumented swings settled it: every one found a target, nine found the
+ELEVATOR. None of the three leads carried through Phase 4 — the 0.341s contact
+delay, the null `hit.rigidbody`, the observer-side loss — had anything to do
+with it. All three were plausible, and reading the code had not distinguished
+them in two attempts.
 
-What has NOT been checked, and is where to start:
-
-1. `contactAt` is 0.341, so the probe fires a third of a second AFTER the
-   keypress. Either of you moving in that window is enough to lose the target.
-   Locking the target at swing start rather than re-probing at contact would
-   settle it.
-2. Whether `hit.rigidbody` comes back null against a wall, leaving the overlap
-   to do all the work.
-3. Whether the shove is being applied and then lost on the observer's side
-   only — the victim's body is kinematic there and driven by `NetworkTransform`.
-
-Instrument it before changing anything else. Three of the four fixes above were
-found by arithmetic and one by reading a log; none was found by guessing.
-
-
-### Solo, bleeding out ends the campaign · by design until Phase 4
-
-With one player there is nobody left above ground, so a bleed-out ends the
-run AND the campaign — "there is nobody left above ground to come back for
-you". That is not a bug and it is not the finished behaviour either. The
-rescue contract (Phase 4) is what turns it into a bill instead of a wall, and
-it needs a crew that can keep running while somebody is still down there.
-
-Until then: **Shift+H before the 90 seconds expire**, or start over.
-
-
-### ~~Loot ends up on the elevator roof~~ · FIXED 21 Aug 2026
-
-Four attempts, three of them wrong, and the difference on the fourth was
-that it **measured instead of reasoning**. Kept here as the worked example.
-
-**The bug:** the loot prefabs carry a Rigidbody, so `Instantiate` registered
-a physics body at the prefab's authored pose — the origin — before the
-spawner touched anything. `go.transform.position = …` then moved the
-*transform* and left the *body* at the origin. Enabling
-`RigidbodyInterpolation.Interpolate` straight afterwards made it permanent:
-interpolation has Unity write the transform every frame from the body's own
-pose history, and that history said origin. Every item was stomped back to
-0,0,0 and fell down the shaft, landing on the elevator roof — the only wide
-flat thing on the way down.
-
-**The fix:** write `rb.position` / `rb.rotation`, which move the physics
-pose and reset the interpolation history, and enable interpolation
-*afterwards* on a body already in the right place.
-
-**Why three attempts missed it.** All three assumed a *placement* bug and
-re-derived the slot arithmetic. The arithmetic was always correct. The
-audit proved it in one run — all 60 spawn positions right — and then the
-settled positions named the real cause: every item at x≈0, z≈0 within
-centimetres, several having risen ninety metres to get there. Nothing
-pushes 60 objects onto one axis; the origin was simply where they had
-never really left.
-
-**The lesson, which was already written here and ignored twice:** when two
-fixes have failed, stop reasoning about the code and log the actual
-numbers. The instrument cost one commit and less time than any single
-wrong guess.
+Fixed in `Pushable` (the lift is refused by what it is) and in `PlayerPush`
+(a person beats scenery even when scenery is nearer). Details in
+`PHASE5_SPEC.md` Step 3.
 
 # THE FOUR RULES, WHICH HAVE NOT CHANGED
 

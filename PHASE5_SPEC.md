@@ -132,20 +132,23 @@ aimed by the camera instead of by two body positions.
 **Done when:** you can stand in a doorway and land a crate in the lift, and a
 vending machine cannot be thrown at all.
 
-> **Tuned down, 5 Sep 2026.** Throws are capped at **2m for a light thing and
-> 1.2m for the heaviest throwable one**, at a 20 degree launch — decided by
-> feel in play, where the across-a-room throw read as flinging loot away rather
-> than placing it.
+> **Tuned in play, 5 Sep 2026.** Throws land at **4m for a light thing and 2m
+> for the heaviest throwable one**, at a fixed 20 degree launch. Settled by
+> feel across three passes — nine metres read as flinging loot away, two was
+> too short to clear anything, four is the placement throw.
 >
-> That is a real trade and worth recording rather than absorbing: **use 2 above
-> — noise, deliberately — does not work at 2 metres.** A can you can only throw
-> two metres cannot send a cannibal to the far end of a corridor, so "the first
-> real counterplay in the game that is not hiding" is not currently buildable.
-> Phase 6 depends on it.
+> The 2m heavy figure is Part 4's own number restored: *"a crate goes two
+> metres and lands hard."*
 >
-> Nothing is lost that a number cannot give back: `throwRangeLight` on
-> `PlayerCarry` is the dial, and the distraction use only needs it raised for
-> Small items. Revisit when the cannibal is built, not before.
+> One thing this still does not reach, recorded rather than absorbed: **use 2
+> above — noise, deliberately.** Four metres is not "a can down a corridor",
+> so sending a cannibal to the far end of one — *"the first real counterplay
+> in the game that is not hiding"* — is not buildable at this range.
+>
+> That costs nothing yet and a number gives it back: `throwRangeLight` is the
+> dial, and the distraction only needs it raised for Small items, which is
+> exactly the class a can is in. Revisit when the cannibal is built, not
+> before.
 
 ---
 

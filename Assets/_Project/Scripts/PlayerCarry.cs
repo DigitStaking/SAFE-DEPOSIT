@@ -584,14 +584,14 @@ public class PlayerCarry : MonoBehaviour
     public float windupHeavy = 2f;
 
     [Tooltip("How far a light thing goes at a full wind-up, in metres. Two " +
-             "metres: this is a placement you can do from arm's length, not a " +
-             "pitch across the room.")]
-    public float throwRangeLight = 2f;
+             "metres: far enough to cross a doorway or clear a gap, short " +
+             "enough that it still reads as placing rather than pitching.")]
+    public float throwRangeLight = 4f;
 
     [Tooltip("How far the heaviest throwable thing goes at a full wind-up. " +
              "Short and heavy - enough to get a crate over a threshold and " +
              "into the lift, and no further.")]
-    public float throwRangeHeavy = 1.2f;
+    public float throwRangeHeavy = 2f;
 
     [Tooltip("The launch angle above horizontal, in degrees. FIXED - looking " +
              "up does not throw higher, it only turns you. 20 is flat and " +

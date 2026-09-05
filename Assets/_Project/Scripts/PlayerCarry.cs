@@ -593,17 +593,10 @@ public class PlayerCarry : MonoBehaviour
              "into the lift, and no further.")]
     public float throwRangeHeavy = 1.2f;
 
-    [Tooltip("How much above your aim a throw leaves the hand, as the TANGENT " +
-             "of the angle - so 0.36 is 20 degrees at a level aim, 0.58 is 30 " +
-             "and 1 is 45. Flat and fast rather than a lob: at these short " +
-             "ranges a high arc reads as dropping something, not throwing it.")]
-    public float throwLift = 0.364f;      // tan(20 degrees)
-
-    [Tooltip("The arc is kept inside this band however you are aiming, so " +
-             "looking at your own boots still throws forwards instead of " +
-             "producing a divide-by-zero and a crate in your face.")]
-    public float minThrowAngle = 12f;
-    public float maxThrowAngle = 70f;
+    [Tooltip("The launch angle above horizontal, in degrees. FIXED - looking " +
+             "up does not throw higher, it only turns you. 20 is flat and " +
+             "predictable, which is what a two-metre placement wants.")]
+    [Range(5f, 80f)] public float throwAngle = 20f;
 
     [Tooltip("Mass treated as 'light' for the two numbers above. Below this " +
              "nothing gets any easier to throw.")]
@@ -654,28 +647,35 @@ public class PlayerCarry : MonoBehaviour
 
         float range = ThrowRange(item) * Mathf.Lerp(0.35f, 1f, charge);
 
-        // ---- THE DIRECTION, KEPT INSIDE A SANE BAND ----
+        // ---- WHERE YOU LOOK DECIDES THE DIRECTION. NOTHING DECIDES THE ANGLE.
         //
-        // Aim plus lift, then the elevation is clamped and the vector rebuilt
-        // from it. Clamping the ANGLE rather than flooring the arithmetic later
-        // is what keeps the solve and the direction describing the same throw -
-        // floor one and not the other and the displayed range becomes a lie.
+        // This used to add a fixed lift to the camera's own forward vector, so
+        // the launch angle was your pitch PLUS 20 degrees. Aiming level threw
+        // at 20, which was the number everybody had in mind - but aiming up at
+        // a shelf threw at 60, and looking anywhere near the ceiling hit the
+        // clamp at 70. "Sometimes it goes 80 degrees up and I do not know why"
+        // was that: the angle was never fixed, it was an offset from wherever
+        // the camera happened to be pointing.
         //
-        // It also removes the two degenerate aims: straight down cancels the
-        // lift exactly and leaves a zero vector to normalise, and straight up
-        // has no horizontal component to travel along.
-        Vector3 aim = cam.forward + Vector3.up * throwLift;
-
-        Vector3 flat = new Vector3(aim.x, 0f, aim.z);
-        if (flat.sqrMagnitude < 0.0001f) flat = transform.forward;
+        // Only the YAW is taken now. Pitch turns you and does not tilt the
+        // throw, so the arc out of your hands is the same every single time and
+        // the only thing you are aiming is which way it goes. For a two-metre
+        // placement that is the whole job; a lob you can aim is a different
+        // verb and this is not it.
+        //
+        // It also makes the degenerate aims boring rather than special-cased.
+        // Looking straight up or straight down leaves no horizontal component
+        // at all, so the body's own facing stands in.
+        Vector3 flat = cam.forward;
         flat.y = 0f;
+        if (flat.sqrMagnitude < 0.0001f)
+        {
+            flat = transform.forward;
+            flat.y = 0f;
+        }
         flat.Normalize();
 
-        float theta = Mathf.Clamp(
-            Mathf.Atan2(aim.y, new Vector2(aim.x, aim.z).magnitude),
-            minThrowAngle * Mathf.Deg2Rad,
-            maxThrowAngle * Mathf.Deg2Rad);
-
+        float theta = Mathf.Clamp(throwAngle, 5f, 80f) * Mathf.Deg2Rad;
         Vector3 dir = flat * Mathf.Cos(theta) + Vector3.up * Mathf.Sin(theta);
 
         // Clear of my own capsule before the colliders come back on, or the

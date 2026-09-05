@@ -583,21 +583,21 @@ public class PlayerCarry : MonoBehaviour
              "enough that heaving a crate is a decision, not a reflex.")]
     public float windupHeavy = 2f;
 
-    [Tooltip("How far a light thing goes at a full wind-up, in metres. This " +
-             "is the across-a-room throw: a can down a corridor to send " +
-             "something looking the wrong way.")]
-    public float throwRangeLight = 9f;
+    [Tooltip("How far a light thing goes at a full wind-up, in metres. Two " +
+             "metres: this is a placement you can do from arm's length, not a " +
+             "pitch across the room.")]
+    public float throwRangeLight = 2f;
 
     [Tooltip("How far the heaviest throwable thing goes at a full wind-up. " +
-             "Two metres and it lands hard - enough to get a crate into the " +
-             "lift from the doorway, and no further.")]
-    public float throwRangeHeavy = 2f;
+             "Short and heavy - enough to get a crate over a threshold and " +
+             "into the lift, and no further.")]
+    public float throwRangeHeavy = 1.2f;
 
-    [Tooltip("How much above your aim a throw leaves the hand. 1 puts a level " +
-             "aim at 45 degrees, which is the angle that throws furthest for a " +
-             "given effort and the one that looks like a throw rather than a " +
-             "shove. Lower is flatter and faster; higher is a lob.")]
-    public float throwLift = 1f;
+    [Tooltip("How much above your aim a throw leaves the hand, as the TANGENT " +
+             "of the angle - so 0.36 is 20 degrees at a level aim, 0.58 is 30 " +
+             "and 1 is 45. Flat and fast rather than a lob: at these short " +
+             "ranges a high arc reads as dropping something, not throwing it.")]
+    public float throwLift = 0.364f;      // tan(20 degrees)
 
     [Tooltip("The arc is kept inside this band however you are aiming, so " +
              "looking at your own boots still throws forwards instead of " +

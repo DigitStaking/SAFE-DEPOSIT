@@ -132,6 +132,21 @@ aimed by the camera instead of by two body positions.
 **Done when:** you can stand in a doorway and land a crate in the lift, and a
 vending machine cannot be thrown at all.
 
+> **Tuned down, 5 Sep 2026.** Throws are capped at **2m for a light thing and
+> 1.2m for the heaviest throwable one**, at a 20 degree launch — decided by
+> feel in play, where the across-a-room throw read as flinging loot away rather
+> than placing it.
+>
+> That is a real trade and worth recording rather than absorbing: **use 2 above
+> — noise, deliberately — does not work at 2 metres.** A can you can only throw
+> two metres cannot send a cannibal to the far end of a corridor, so "the first
+> real counterplay in the game that is not hiding" is not currently buildable.
+> Phase 6 depends on it.
+>
+> Nothing is lost that a number cannot give back: `throwRangeLight` on
+> `PlayerCarry` is the dial, and the distraction use only needs it raised for
+> Small items. Revisit when the cannibal is built, not before.
+
 ---
 
 ### Step 3 · Make the shove reliable

@@ -357,6 +357,38 @@ So the cuts are decided now, in advance, not in April:
 
 # KNOWN ISSUES — carried, not forgotten
 
+### Shove misses sometimes · open, deferred to Phase 5
+
+Pushing a person works, and then occasionally does not, from what looks like
+the same position. Four real faults have already been found and fixed
+underneath this one, which is why it kept seeming solved:
+
+- the victim's own motor braked the impulse out in 0.033s, over 3.3cm
+- the same impulse as a crate, on a body that resists far harder
+- `SphereCast` ignores anything already overlapping its start sphere, so a
+  point-blank shove on a person had **never** worked in any version
+- `OverlapSphereNonAlloc` fills its buffer with whatever it finds first and
+  stops; at 16 entries the person could be number seventeen in a corridor
+
+The buffer is 64 now and the arc is 78°. Reach was widened and then put back —
+**range is not the problem**, and widening it only made a miss feel arbitrary
+rather than fixing it.
+
+What has NOT been checked, and is where to start:
+
+1. `contactAt` is 0.341, so the probe fires a third of a second AFTER the
+   keypress. Either of you moving in that window is enough to lose the target.
+   Locking the target at swing start rather than re-probing at contact would
+   settle it.
+2. Whether `hit.rigidbody` comes back null against a wall, leaving the overlap
+   to do all the work.
+3. Whether the shove is being applied and then lost on the observer's side
+   only — the victim's body is kinematic there and driven by `NetworkTransform`.
+
+Instrument it before changing anything else. Three of the four fixes above were
+found by arithmetic and one by reading a log; none was found by guessing.
+
+
 ### Solo, bleeding out ends the campaign · by design until Phase 4
 
 With one player there is nobody left above ground, so a bleed-out ends the

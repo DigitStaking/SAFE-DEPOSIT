@@ -830,8 +830,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPush
   ShowTopMostFoldoutHeaderGroup: 1
-  range: 2.4
-  radius: 0.7
+  range: 1.9
+  radius: 0.5
   impulse: 140
   upward: 0.14
   restAfterSwing: 0.35

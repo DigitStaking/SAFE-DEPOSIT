@@ -67,13 +67,13 @@ public class PlayerPush : NetworkBehaviour
     [Header("Reach")]
     [Tooltip("How far in front of the eye a shove lands, in metres. Arm's " +
              "length - this is a shove, not a force push.")]
+    public float range = 1.9f;
+
     [Tooltip("How wide the shove arc is, as a dot product against where you " +
              "are looking. 0.35 is about 70 degrees each way, 0.2 about 78, " +
              "0 is a full half-circle in front of you. Lower is more " +
              "forgiving; too low and you shove people you are not looking at.")]
     [Range(0f, 0.9f)] public float pushCone = 0.2f;
-
-    public float range = 1.9f;
 
     [Tooltip("Radius of the probe. A little forgiveness so a shove does not " +
              "need the accuracy of a rifle shot.")]

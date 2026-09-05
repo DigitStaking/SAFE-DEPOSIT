@@ -1,19 +1,14 @@
 using System.Collections.Generic;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Generates ten floors so you can look at them.
-///
-/// This exists because Step 6's done-when is not a property of the code. "Ten
-/// generated floors a stranger can navigate without a map" and "you can tell
-/// them apart from memory" are things a person decides by walking around, and
-/// no assertion I can write stands in for that.
+/// Generates floors so you can look at them, and validates every one.
 ///
 /// It calls FloorGenerator.Build - the same method the runtime will - rather
-/// than a preview-shaped copy of it. A preview that runs different code from
-/// the game is a preview that lies, and this project has already lost an
-/// afternoon to a test path and a real path disagreeing.
+/// than a preview-shaped copy. A preview that runs different code from the
+/// game is a preview that lies.
 ///
 /// Phase 5, Step 6. See PHASE5_SPEC.md.
 /// </summary>
@@ -22,18 +17,19 @@ public static class FloorPreview
     const string RoomDir = "Assets/_Project/Prefabs/Rooms";
     const string PreviewRoot = "FLOOR_PREVIEW";
 
+    const int MinRooms = 7;
+    const int MaxRooms = 14;
+    const int MinJunctions = 2;
+    const int MinDeadEnds = 2;
+
     [MenuItem("Tools/Rooms/Preview Ten Floors")]
     public static void PreviewTen()
     {
-        var landings = Load("Room_Landing_Open", "Room_Landing_Pillared");
-        var mains = Load("Room_Main_Hall", "Room_Main_Divided", "Room_Main_Columns");
-        var sides = Load("Room_Side_Store");
-        var backs = Load("Room_Back_DeadEnd");
+        var cat = LoadCatalogue(out string catReport);
 
-        if (landings.Length == 0 || mains.Length == 0)
+        if (cat == null)
         {
-            Debug.LogError($"No modules in {RoomDir}. " +
-                           "Run Tools > Rooms > Build Six Modules first.");
+            Debug.LogError(catReport + "\nRun Tools > Rooms > Build Room Set first.");
             return;
         }
 
@@ -42,46 +38,131 @@ public static class FloorPreview
         var root = new GameObject(PreviewRoot);
         int run = Mathf.Max(1, Campaign.RunNumber);
 
-        var report = new System.Text.StringBuilder();
-        report.AppendLine($"TEN FLOORS, run {run}");
-        report.AppendLine();
+        var sb = new StringBuilder();
+        sb.AppendLine($"TEN FLOORS, run {run}");
+        sb.AppendLine(catReport);
+        sb.AppendLine();
+
+        int failed = 0, invalid = 0;
 
         for (int floor = 1; floor <= 10; floor++)
         {
-            // Side by side rather than stacked, so all ten are visible at once
-            // in the scene view. The real shaft puts them 5m apart vertically
-            // and you can only ever see one.
             var level = new GameObject($"Preview_Level_{floor:00}");
             level.transform.SetParent(root.transform, false);
-            level.transform.localPosition = new Vector3(0f, 0f, floor * 30f);
+
+            // Far enough apart that a big floor cannot reach its neighbour and
+            // make two valid floors look like one broken one.
+            level.transform.localPosition = new Vector3(0f, 0f, floor * 140f);
 
             var rooms = FloorGenerator.Build(
-                level.transform, run, floor,
-                landings, mains, sides, backs,
-                new Vector3(0f, 0f, 0f),
-                p => (GameObject)PrefabUtility.InstantiatePrefab(p));
+                level.transform, run, floor, cat, Vector3.zero,
+                MinRooms, MaxRooms, MinJunctions,
+                p => (GameObject)PrefabUtility.InstantiatePrefab(p),
+                out FloorGraph graph, out string failure);
 
-            var names = new List<string>();
-            foreach (var r in rooms) names.Add(r != null ? r.label : "?");
+            if (rooms == null)
+            {
+                failed++;
+                sb.AppendLine($"  {floor:00}  FAILED - {failure}");
+                continue;
+            }
 
-            report.AppendLine($"  {floor:00}  {rooms.Count} rooms   " +
-                              string.Join("  >  ", names));
+            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions, MinDeadEnds);
+
+            int dead = 0, junc = 0;
+            foreach (var r in rooms)
+            {
+                int n = r.DoorCount;
+                if (n == 1) dead++;
+                if (n >= 3) junc++;
+            }
+
+            sb.AppendLine($"  {floor:00}  {rooms.Count} rooms  " +
+                          $"{junc} junction(s)  {dead} dead end(s)  " +
+                          $"depth {graph.Depth()}  " +
+                          (faults.Count == 0 ? "VALID" : $"{faults.Count} FAULT(S)"));
+
+            foreach (var f in faults)
+            {
+                invalid++;
+                sb.AppendLine($"        ! {f}");
+            }
         }
 
-        report.AppendLine();
-        report.AppendLine("Room counts should VARY - that is the thing you see from");
-        report.AppendLine("outside. Which main a floor picked is invisible until you");
-        report.AppendLine("walk into it; how long the floor is, is not.");
-        report.AppendLine();
-        report.AppendLine("The done-when is not something code can check:");
-        report.AppendLine("  can a stranger navigate these without a map, and");
-        report.AppendLine("  can you tell them apart from memory?");
-        report.AppendLine("Walk them. If two floors in a row feel the same, the");
-        report.AppendLine("module set is too small - that is a Step 5 answer, not");
-        report.AppendLine("a generator one.");
+        sb.AppendLine();
+        sb.AppendLine(failed == 0 && invalid == 0
+            ? "All ten generated and all ten passed validation."
+            : $"{failed} floor(s) could not be generated, {invalid} fault(s) found.");
 
-        Debug.Log(report.ToString());
+        sb.AppendLine();
+        sb.AppendLine("What code cannot check, and is on you:");
+        sb.AppendLine("  can a stranger navigate these without a map?");
+        sb.AppendLine("  do they feel like different places?");
+
+        if (failed > 0 || invalid > 0) Debug.LogWarning(sb.ToString());
+        else Debug.Log(sb.ToString());
+
         Selection.activeGameObject = root;
+    }
+
+    /// <summary>
+    /// Twenty seeds, no geometry kept - the fast check that the RULES hold, as
+    /// opposed to the slow one where you look at it.
+    /// </summary>
+    [MenuItem("Tools/Rooms/Validate Twenty Seeds")]
+    public static void ValidateMany()
+    {
+        var cat = LoadCatalogue(out string catReport);
+        if (cat == null) { Debug.LogError(catReport); return; }
+
+        Clear();
+        var root = new GameObject(PreviewRoot);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("TWENTY SEEDS");
+        sb.AppendLine(catReport);
+        sb.AppendLine();
+
+        int ok = 0, bad = 0;
+        var tally = new Dictionary<string, int>();
+
+        for (int seed = 1; seed <= 20; seed++)
+        {
+            var level = new GameObject($"S{seed}");
+            level.transform.SetParent(root.transform, false);
+            level.transform.localPosition = new Vector3(0f, 0f, seed * 140f);
+
+            var rooms = FloorGenerator.Build(
+                level.transform, seed, seed, cat, Vector3.zero,
+                MinRooms, MaxRooms, MinJunctions,
+                p => (GameObject)PrefabUtility.InstantiatePrefab(p),
+                out FloorGraph graph, out string failure);
+
+            if (rooms == null)
+            {
+                bad++;
+                Count(tally, "could not generate: " + failure);
+                continue;
+            }
+
+            var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions, MinDeadEnds);
+
+            if (faults.Count == 0) ok++;
+            else { bad++; foreach (var f in faults) Count(tally, f); }
+        }
+
+        sb.AppendLine($"  {ok} valid, {bad} not.");
+
+        if (tally.Count > 0)
+        {
+            sb.AppendLine();
+            foreach (var kv in tally) sb.AppendLine($"  x{kv.Value}  {kv.Key}");
+        }
+
+        Object.DestroyImmediate(root);
+
+        if (bad > 0) Debug.LogWarning(sb.ToString());
+        else Debug.Log(sb.ToString());
     }
 
     [MenuItem("Tools/Rooms/Clear Floor Preview")]
@@ -91,16 +172,51 @@ public static class FloorPreview
         if (existing != null) Object.DestroyImmediate(existing);
     }
 
-    static GameObject[] Load(params string[] names)
-    {
-        var found = new List<GameObject>();
+    // ------------------------------------------------------------------
 
-        foreach (var n in names)
+    /// <summary>
+    /// Sort every room prefab by how many doors it actually has.
+    ///
+    /// Counted from the prefab rather than read off a name or a folder, so a
+    /// room filed as a 3-door that carries two is caught here instead of
+    /// breaking the graph's degree invariant somewhere further down.
+    /// </summary>
+    static FloorGenerator.Catalogue LoadCatalogue(out string report)
+    {
+        var buckets = new List<GameObject>[5];
+        for (int i = 0; i < 5; i++) buckets[i] = new List<GameObject>();
+
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { RoomDir }))
         {
-            var go = AssetDatabase.LoadAssetAtPath<GameObject>($"{RoomDir}/{n}.prefab");
-            if (go != null) found.Add(go);
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (go == null) continue;
+
+            int doors = RoomExit.DoorsUnder(go.transform).Length;
+            if (doors >= 1 && doors <= 4) buckets[doors].Add(go);
         }
 
-        return found.ToArray();
+        var sb = new StringBuilder("  rooms: ");
+        for (int d = 1; d <= 4; d++) sb.Append($"{d}-door x{buckets[d].Count}  ");
+
+        report = sb.ToString();
+
+        if (buckets[1].Count == 0)
+        {
+            report = "No 1-door room found. Without a dead end no branch can be " +
+                     "terminated, so no floor can ever be valid.\n" + report;
+            return null;
+        }
+
+        var cat = new FloorGenerator.Catalogue();
+        for (int d = 1; d <= 4; d++) cat.byDoorCount[d] = buckets[d].ToArray();
+
+        return cat;
+    }
+
+    static void Count(Dictionary<string, int> tally, string key)
+    {
+        tally.TryGetValue(key, out int n);
+        tally[key] = n + 1;
     }
 }

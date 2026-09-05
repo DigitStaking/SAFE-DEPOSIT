@@ -2,232 +2,368 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Arranges modules into a floor: landing, then main, then the optional side
-/// and back rooms hanging off it.
+/// Places the rooms a FloorGraph asked for, by matching door to door.
 ///
 /// ====================================================================
-/// IT WALKS EXITS. IT DOES NOT COMPUTE POSITIONS.
+/// ORDER OF OPERATIONS, AND WHY IT IS THIS WAY ROUND
 ///
-/// Every module is authored with its origin at its own doorway, +X into the
-/// room, and an exit is that same frame pointing outward. So attaching B to
-/// an exit of A is:
+///   1. FloorGraph decides the tree      - pure numbers, no geometry
+///   2. this file places it              - door socket onto door socket
+///   3. FloorValidator checks it         - and rejects, it does not repair
+///   4. on failure, a new seed and retry - never a patched-up floor
 ///
-///     b.SetPositionAndRotation(exit.Position, exit.Rotation)
+/// The previous generator did none of that. It grew geometry room by room,
+/// and when something would not fit it SEALED THE DOOR - so a four-door
+/// crossroads quietly became a corridor with two walls in it, and there was
+/// no graph anywhere for anything to check against. Every seal was a failure
+/// being hidden rather than retried.
 ///
-/// and that is the entire placement maths in this file. No offsets, no per-
-/// module table of which room fits which, no arithmetic that has to be kept
-/// in step with the prefabs. Change a module's shape in RoomModuleBuilder and
-/// this keeps working, because it never knew the shape.
+/// Nothing here ever seals, blocks, closes or shortens. A room either lands
+/// with all its doors satisfiable or it is destroyed and something else is
+/// tried. If the whole floor cannot be placed, the floor is thrown away and
+/// regenerated from a different seed.
 ///
-/// That is what the frame decision in Step 5 bought, and it is why the frame
-/// was worth being fussy about.
+/// THE CONNECTION
 ///
-/// THE DOOR SIDE IS NOT DECIDED HERE.
+/// A door's +X points OUT of its room. To join child door C to parent door P,
+/// C must sit exactly on P and face back along it:
 ///
-/// Phase 1 already rotates each Level_NN so its doorway faces a different
-/// way, and PHASE5_SPEC says the generator must respect that rather than
-/// re-decide it. Modules are parented to the level and placed in LOCAL space,
-/// so the rotation is inherited and this file never learns which way the
-/// floor faces. Two systems deciding one thing is the split this project
-/// keeps having to undo.
+///     want     = P.rotation * yaw180
+///     childRot = want * inverse(C.localRotation)
+///     childPos = P.position - childRot * C.localPosition
+///
+/// That is the entire placement maths, and it holds for any two rooms at any
+/// rotation because neither needs to know the other's shape. Positioning by
+/// pivots or bounds instead is what produces the gap you can fall through.
 /// ====================================================================
 ///
 /// Phase 5, Step 6. See PHASE5_SPEC.md.
 /// </summary>
 public class FloorGenerator : MonoBehaviour
 {
-    [Header("Modules")]
-    public GameObject[] landings;
-    public GameObject[] mains;
-    public GameObject[] sides;
-    public GameObject[] backs;
+    [Header("Rooms, by how many doors they have")]
+    public GameObject[] oneDoor;
+    public GameObject[] twoDoor;
+    public GameObject[] threeDoor;
+    public GameObject[] fourDoor;
 
-    [Header("Where the landing attaches")]
-    [Tooltip("The level's own doorway, in the LEVEL's local space. " +
-             "Grayboxbuilder puts the inner face of the shaft wall at x 7.5 " +
-             "with the opening centred on z 0, so this is that spot - the " +
-             "landing's origin goes here and everything else follows from its " +
-             "exits.")]
-    public Vector3 doorwayLocal = new Vector3(7.5f, 0f, 0f);
+    [Header("Size")]
+    public int minRooms = 7;
+    public int maxRooms = 14;
+    public int minJunctions = 2;
+
+    [Header("Where the floor starts")]
+    [Tooltip("The lift's doorway, in the LEVEL's local space. The start " +
+             "room's entrance door is placed here - it is the ONLY opening " +
+             "to the outside on the whole floor.")]
+    public Vector3 entranceLocal = new Vector3(7.5f, 0f, 0f);
+
+    /// <summary>Everything one attempt needs, so Build stays a function and
+    /// the editor preview and the runtime take the identical path.</summary>
+    public class Catalogue
+    {
+        public GameObject[][] byDoorCount = new GameObject[5][];
+
+        public HashSet<int> Available()
+        {
+            var set = new HashSet<int>();
+
+            for (int d = 1; d <= 4; d++)
+                if (byDoorCount[d] != null && byDoorCount[d].Length > 0) set.Add(d);
+
+            return set;
+        }
+    }
 
     /// <summary>
-    /// Build one floor under <paramref name="level"/>, and return the rooms
-    /// in the order a player walks them.
+    /// Build a whole floor, or return null.
     ///
-    /// Static and given everything it needs, so the editor preview and the
-    /// runtime build take the same path. A preview that runs different code
-    /// from the game is a preview that lies.
+    /// Null means "this seed does not work here" and the caller should try
+    /// another. It never means a floor with something wrong in it - which is
+    /// the distinction the old generator did not make.
     /// </summary>
     public static List<RoomModule> Build(Transform level, int runNumber, int floor,
-                                         GameObject[] landings, GameObject[] mains,
-                                         GameObject[] sides, GameObject[] backs,
-                                         Vector3 doorwayLocal,
-                                         System.Func<GameObject, GameObject> spawn)
+                                         Catalogue cat, Vector3 entranceLocal,
+                                         int minRooms, int maxRooms, int minJunctions,
+                                         System.Func<GameObject, GameObject> spawn,
+                                         out FloorGraph graph, out string failure)
     {
-        var built = new List<RoomModule>();
-        if (level == null || landings == null || landings.Length == 0) return built;
+        graph = null;
+        failure = null;
 
-        var layout = FloorLayout.For(runNumber, floor,
-                                     landings.Length,
-                                     mains != null ? mains.Length : 0);
+        var available = cat.Available();
 
-        var rng = new System.Random(layout.seed);
-        var taken = new List<Bounds>();
-
-        // ---- THE LANDING, AT THE LEVEL'S OWN DOORWAY ----
-        //
-        // Local position and identity local rotation: the level is already
-        // turned to face whichever way Phase 1 decided, and inheriting that is
-        // how this respects it without knowing it.
-        var landing = Place(spawn, landings[layout.landing], level);
-        if (landing == null) return built;
-
-        landing.transform.localPosition = doorwayLocal;
-        landing.transform.localRotation = Quaternion.identity;
-        built.Add(landing);
-        taken.Add(FootprintOf(landing));
-
-        // ================================================================
-        // GROW A TREE, NOT A LINE
-        //
-        // The first version walked a spine - landing, main, main, main, with
-        // side rooms hanging off - so every floor was a corridor and "which
-        // way do we go" had the same answer on every floor of the building.
-        //
-        // A main offers left, right and straight on. Spending the budget
-        // across those makes a floor branch, and branching is the whole reason
-        // a crew splits up - which is the reason they have to talk to each
-        // other, which is what the voice work in Phase 4 was for. A corridor
-        // needs no radio.
-        //
-        // Breadth-first on purpose: depth-first spends the whole budget down
-        // one arm and produces a long thin floor with a stub on it, which is a
-        // corridor again with extra steps.
-        // ================================================================
-
-        var frontier = new Queue<RoomModule>();
-        frontier.Enqueue(landing);
-
-        while (frontier.Count > 0 && built.Count < layout.roomBudget)
+        if (!available.Contains(1))
         {
-            var room = frontier.Dequeue();
+            failure = "no 1-door room in the set - without a dead end no branch " +
+                      "can ever be terminated, so every floor would leak doors";
+            return null;
+        }
 
-            foreach (var exit in RoomExit.ExitsUnder(room.transform))
+        // Several attempts, each with its own seed. A rejection is cheap and a
+        // wrong floor is not, so retrying is always the better trade.
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            int seed = FloorLayout.SeedFor(runNumber, floor, attempt);
+            var rng = new System.Random(seed);
+
+            var g = FloorGraph.Build(rng, minRooms, maxRooms, minJunctions, available);
+
+            var graphFaults = g.Problems(minRooms, minJunctions);
+            if (graphFaults.Count > 0)
             {
-                if (built.Count >= layout.roomBudget) break;
-                if (exit == null || exit.used) continue;
+                failure = "graph: " + graphFaults[0];
+                continue;
+            }
 
-                // Not every door leads somewhere. A floor where every opening
-                // is filled is as predictable as one where none are - and an
-                // unused door is sealed below, so it reads as a wall rather
-                // than as a promise nobody kept.
-                if (rng.NextDouble() < 0.2) continue;
+            var rooms = Place(level, g, cat, entranceLocal, rng, spawn, out string why);
 
-                // A main CONTINUES the tree; a side or a back room ends it.
-                // Leaves are what stop a floor being an endless branch, and
-                // they are where the survivor and the best loot live.
-                bool branch = rng.NextDouble() < 0.55
-                              && mains != null && mains.Length > 0;
+            if (rooms != null)
+            {
+                graph = g;
+                failure = null;
+                return rooms;
+            }
 
-                GameObject prefab = branch
-                    ? mains[room == landing ? layout.firstMain : rng.Next(mains.Length)]
-                    : PickLeaf(rng, sides, backs);
+            failure = why;
+        }
 
-                if (prefab == null) continue;
+        return null;
+    }
 
-                var placed = TryAttach(spawn, prefab, exit, level, taken);
-                if (placed == null) continue;
+    // ------------------------------------------------------------------
 
-                built.Add(placed);
-                if (branch) frontier.Enqueue(placed);
+    static List<RoomModule> Place(Transform level, FloorGraph g, Catalogue cat,
+                                  Vector3 entranceLocal, System.Random rng,
+                                  System.Func<GameObject, GameObject> spawn,
+                                  out string failure)
+    {
+        failure = null;
+
+        var built = new List<RoomModule>();
+        var bounds = new List<Bounds>();
+        var doorsOf = new Dictionary<int, List<RoomExit>>();
+
+        // ---- THE START ROOM ----
+        var rootPrefab = PickPrefab(cat, g.nodes[0].doors, rng);
+        var root = Spawn(spawn, rootPrefab, level);
+
+        if (root == null) { failure = "no prefab for the start room"; return null; }
+
+        var rootDoors = new List<RoomExit>(RoomExit.DoorsUnder(root.transform));
+
+        if (rootDoors.Count != g.nodes[0].doors)
+        {
+            failure = "start room prefab has the wrong number of doors";
+            Cleanup(built);
+            Discard(root.gameObject);
+            return null;
+        }
+
+        // One of its doors becomes THE entrance - the single opening to the
+        // outside on this floor - and is placed at the lift's doorway. The
+        // rest owe children, which is exactly the graph's root degree.
+        var entrance = rootDoors[rng.Next(rootDoors.Count)];
+        entrance.isEntrance = true;
+
+        // Placed so the entrance door lands on the lift's doorway, facing back
+        // out of the floor.
+        Quaternion want = Quaternion.Euler(0f, 180f, 0f);
+        root.transform.localRotation =
+            want * Quaternion.Inverse(entrance.transform.localRotation);
+        root.transform.localPosition =
+            entranceLocal - root.transform.localRotation * entrance.transform.localPosition;
+
+        built.Add(root);
+        bounds.Add(Footprint(root));
+        doorsOf[0] = rootDoors;
+
+        // ---- EVERY EDGE OF THE TREE, BREADTH FIRST ----
+        var queue = new Queue<int>();
+        queue.Enqueue(0);
+
+        while (queue.Count > 0)
+        {
+            int parentId = queue.Dequeue();
+            var parentDoors = doorsOf[parentId];
+
+            foreach (int childId in g.nodes[parentId].children)
+            {
+                RoomExit parentDoor = FirstFree(parentDoors);
+
+                if (parentDoor == null)
+                {
+                    failure = $"room {parentId} ran out of doors - the graph and " +
+                              "the prefab disagree about how many it has";
+                    Cleanup(built);
+                    return null;
+                }
+
+                var child = AttachChild(g.nodes[childId].doors, parentDoor, cat,
+                                        level, bounds, rng, spawn,
+                                        out List<RoomExit> childDoors);
+
+                if (child == null)
+                {
+                    // No prefab, no door on it, and no orientation fits here
+                    // without overlapping. That is a real failure and the
+                    // floor is abandoned - NOT a door to be walled up.
+                    failure = $"room {childId} ({g.nodes[childId].doors} doors) " +
+                              $"would not fit onto room {parentId}";
+                    Cleanup(built);
+                    return null;
+                }
+
+                built.Add(child);
+                bounds.Add(Footprint(child));
+                doorsOf[childId] = childDoors;
+                queue.Enqueue(childId);
             }
         }
 
-        SealUnusedExits(built);
         return built;
     }
 
-    static GameObject PickLeaf(System.Random rng, GameObject[] sides, GameObject[] backs)
+    /// <summary>
+    /// Try every room of the right door count, and every door on each, until
+    /// one lands without overlapping.
+    ///
+    /// This is the backtracking the old generator did not have. Its only
+    /// recovery from a bad fit was to seal a door; here a bad fit costs an
+    /// Instantiate and a destroy, and the search moves on.
+    /// </summary>
+    static RoomModule AttachChild(int doorCount, RoomExit parentDoor, Catalogue cat,
+                                  Transform level, List<Bounds> bounds,
+                                  System.Random rng,
+                                  System.Func<GameObject, GameObject> spawn,
+                                  out List<RoomExit> childDoors)
     {
-        bool hasSide = sides != null && sides.Length > 0;
-        bool hasBack = backs != null && backs.Length > 0;
+        childDoors = null;
 
-        if (hasSide && hasBack)
-            return rng.NextDouble() < 0.5 ? sides[rng.Next(sides.Length)]
-                                          : backs[rng.Next(backs.Length)];
+        var options = cat.byDoorCount[doorCount];
+        if (options == null || options.Length == 0) return null;
 
-        if (hasSide) return sides[rng.Next(sides.Length)];
-        if (hasBack) return backs[rng.Next(backs.Length)];
+        // Shuffled, so a floor does not always reach for the same prefab and
+        // so a retry genuinely tries something else.
+        var order = new List<int>();
+        for (int i = 0; i < options.Length; i++) order.Add(i);
+
+        for (int i = order.Count - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            int swap = order[i]; order[i] = order[j]; order[j] = swap;
+        }
+
+        foreach (int idx in order)
+        {
+            var room = Spawn(spawn, options[idx], level);
+            if (room == null) continue;
+
+            var doors = new List<RoomExit>(RoomExit.DoorsUnder(room.transform));
+
+            if (doors.Count != doorCount)
+            {
+                // The prefab disagrees with the catalogue it was filed under.
+                // Skipped rather than used: a room with the wrong number of
+                // doors cannot satisfy the graph by definition.
+                Discard(room.gameObject);
+                continue;
+            }
+
+            foreach (var mine in doors)
+            {
+                Connect(room.transform, mine, parentDoor);
+
+                Bounds b = Footprint(room);
+                bool clash = false;
+
+                foreach (var other in bounds)
+                    if (other.Intersects(b)) { clash = true; break; }
+
+                if (clash) continue;
+
+                RoomExit.Join(parentDoor, mine);
+                childDoors = doors;
+                return room;
+            }
+
+            Discard(room.gameObject);
+        }
+
         return null;
     }
 
     /// <summary>
-    /// Put a room on an exit, unless it would land on top of one already
-    /// there.
-    ///
-    /// ---- BRANCHING NEEDS THIS AND A SPINE DID NOT ----
-    ///
-    /// A line of rooms cannot collide with itself. A tree can: two arms that
-    /// turn toward each other meet, and the result is two rooms in the same
-    /// space with their walls interleaved - which looks like a rendering bug
-    /// and plays like a trap.
-    ///
-    /// So the room is placed, measured, and removed again if it overlaps.
-    /// Placing first is not laziness: a module's footprint depends on its
-    /// rotation, and the honest way to know where it lands is to put it there.
-    /// The exit is left unused and gets sealed, so a rejected branch becomes a
-    /// wall rather than a hole.
+    /// Put <paramref name="mine"/> exactly onto <paramref name="target"/>,
+    /// facing back along it. The whole of the placement maths.
     /// </summary>
-    static RoomModule TryAttach(System.Func<GameObject, GameObject> spawn,
-                                GameObject prefab, RoomExit exit,
-                                Transform level, List<Bounds> taken)
+    static void Connect(Transform room, RoomExit mine, RoomExit target)
     {
-        var room = Place(spawn, prefab, level);
-        if (room == null) return null;
+        Quaternion want = target.transform.rotation * Quaternion.Euler(0f, 180f, 0f);
 
-        // The whole of the placement maths. See the header.
-        room.transform.SetPositionAndRotation(exit.Position, exit.Rotation);
+        room.rotation = want * Quaternion.Inverse(mine.transform.localRotation);
+        room.position = target.transform.position -
+                        room.rotation * mine.transform.localPosition;
+    }
 
-        Bounds b = FootprintOf(room);
+    static RoomExit FirstFree(List<RoomExit> doors)
+    {
+        foreach (var d in doors)
+            if (d != null && !d.connected && !d.isEntrance) return d;
 
-        foreach (var other in taken)
-        {
-            if (!other.Intersects(b)) continue;
+        return null;
+    }
 
-            Discard(room.gameObject);
-            return null;
-        }
+    static GameObject PickPrefab(Catalogue cat, int doorCount, System.Random rng)
+    {
+        var options = cat.byDoorCount[doorCount];
+        return options == null || options.Length == 0
+            ? null
+            : options[rng.Next(options.Length)];
+    }
 
-        taken.Add(b);
-        exit.used = true;
-        return room;
+    static RoomModule Spawn(System.Func<GameObject, GameObject> spawn,
+                            GameObject prefab, Transform level)
+    {
+        if (prefab == null || spawn == null) return null;
+
+        var go = spawn(prefab);
+        if (go == null) return null;
+
+        // 'false' - do NOT keep world position. Letting Unity rewrite the
+        // transform to preserve where the instance happened to appear is the
+        // commonest cause of a room ending up somewhere else entirely.
+        go.transform.SetParent(level, false);
+        return go.GetComponent<RoomModule>();
     }
 
     /// <summary>
-    /// The room's footprint, pulled in so two rooms sharing a wall are not
-    /// read as overlapping.
-    ///
-    /// Renderer bounds rather than colliders: they are already world space,
-    /// and a module's walls are exactly what defines where it is. The inset is
-    /// a little more than a wall thickness, because shared walls touch by
-    /// design and only a real overlap should count.
+    /// The room's footprint, pulled in so two rooms sharing a doorway wall are
+    /// not read as overlapping. Shared walls touch by design; only a real
+    /// overlap counts.
     /// </summary>
-    static Bounds FootprintOf(RoomModule room)
+    static Bounds Footprint(RoomModule room)
     {
-        var renderers = room.GetComponentsInChildren<MeshRenderer>();
-
         var b = new Bounds(room.transform.position, Vector3.one * 0.1f);
         bool any = false;
 
-        foreach (var r in renderers)
+        foreach (var r in room.GetComponentsInChildren<MeshRenderer>())
         {
             if (r == null) continue;
             if (!any) { b = r.bounds; any = true; }
             else b.Encapsulate(r.bounds);
         }
 
-        b.Expand(new Vector3(-1.2f, 0f, -1.2f));
+        b.Expand(new Vector3(-1.4f, 0f, -1.4f));
         return b;
+    }
+
+    static void Cleanup(List<RoomModule> built)
+    {
+        foreach (var r in built)
+            if (r != null) Discard(r.gameObject);
+
+        built.Clear();
     }
 
     /// <summary>Works in play mode and in the editor preview, which run the
@@ -236,78 +372,5 @@ public class FloorGenerator : MonoBehaviour
     {
         if (Application.isPlaying) Object.Destroy(go);
         else Object.DestroyImmediate(go);
-    }
-
-    // ====================================================================
-    // A DOOR THAT LEADS NOWHERE IS WORSE THAN NO DOOR
-    //
-    // Every module is authored with openings for every exit it declares, and
-    // the generator only fills some of them - the spine ends somewhere, and a
-    // main whose side room was not rolled still has a side doorway cut into
-    // its wall. Left alone, those are holes onto the skybox: a floor that ends
-    // in a doorway reads as unfinished, and worse, it reads as a route. A
-    // player walks to it, finds nothing, and stops trusting doors.
-    //
-    // A dead end has to LOOK like a dead end. So every exit nothing was
-    // attached to gets its opening filled back in, which also makes Step 5's
-    // "walkable with every exit sealed" rule automatic instead of a thing the
-    // human has to remember.
-    //
-    // Filled rather than never cut, deliberately: the module cannot know
-    // which of its doors a floor will use, so cutting them all and closing the
-    // spares is the only order that lets one prefab serve both.
-    // ====================================================================
-
-    const float DoorWidth = 2f;
-    const float DoorHeight = 2.5f;
-    const float WallThick = 0.5f;
-
-    static void SealUnusedExits(List<RoomModule> rooms)
-    {
-        foreach (var room in rooms)
-        {
-            if (room == null) continue;
-
-            foreach (var exit in RoomExit.ExitsUnder(room.transform))
-            {
-                if (exit == null || exit.used) continue;
-
-                var plug = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                plug.name = "Sealed";
-                plug.transform.SetParent(exit.transform, false);
-
-                // The exit's own frame: +X points out through the opening, so
-                // the plug sits half a wall along it and fills the 2 x 2.5
-                // hole exactly.
-                plug.transform.localPosition =
-                    new Vector3(WallThick * 0.5f, DoorHeight * 0.5f, 0f);
-                plug.transform.localRotation = Quaternion.identity;
-                plug.transform.localScale =
-                    new Vector3(WallThick, DoorHeight, DoorWidth);
-
-                // Matched to whatever the room is made of, so a sealed door
-                // does not announce itself as a different kind of object.
-                var source = room.GetComponentInChildren<MeshRenderer>();
-                if (source != null)
-                    plug.GetComponent<MeshRenderer>().sharedMaterial = source.sharedMaterial;
-            }
-        }
-    }
-
-    static RoomModule Place(System.Func<GameObject, GameObject> spawn,
-                            GameObject prefab, Transform level)
-    {
-        if (prefab == null || spawn == null) return null;
-
-        var go = spawn(prefab);
-        if (go == null) return null;
-
-        // Parented WITHOUT keeping world position - the caller sets local or
-        // world coordinates immediately afterwards, and letting Unity rewrite
-        // them to preserve where the instance happened to appear is the
-        // single most common cause of a room ending up somewhere else.
-        go.transform.SetParent(level, false);
-
-        return go.GetComponent<RoomModule>();
     }
 }

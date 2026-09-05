@@ -3,234 +3,214 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Builds the six room modules as prefabs.
+/// Builds the room set as prefabs, TYPED BY DOOR COUNT.
 ///
 /// ====================================================================
-/// WHY THIS IS A SCRIPT AND NOT A MORNING IN THE EDITOR
+/// THE SET EXISTS TO SERVE THE GRAPH
 ///
-/// Every prefab in this project is built by an editor script, and it has
-/// worked every time. A module is walls, a doorway and a dozen empties at
-/// exact coordinates - the kind of thing hand-placing gets 95% right and then
-/// costs an hour finding the 5%. Re-running this is also how a proportion
-/// gets changed later: edit one constant, rebuild all six, rather than nudge
-/// six prefabs and miss one.
+/// FloorGraph decides a tree in which every node's degree equals its room's
+/// door count. That only works if there is a real room for each count, so the
+/// set is organised by exactly that: 1-door dead ends, 2-door through rooms,
+/// 3-door junctions, 4-door crossroads.
 ///
-/// THE FRAME, restated because everything depends on it:
+/// A 1-door room is not a room with three doors walled up. It is a room built
+/// with one door, whose far end is simply the end of the floor. That
+/// distinction is the whole of "no fake dead ends".
 ///
-///   origin = the module's own doorway, on the floor, centre of the opening
-///   +X     = into the room
-///   +Z     = the room's width
-///   door   = 2 wide, 2.5 tall, matching what Grayboxbuilder already fixed
+/// THE DOOR FRAME
 ///
-/// An exit is that same frame pointing outward, so attaching B to an exit of
-/// A is "put B's origin on the exit and match rotation" - for any A and any
-/// B, with neither knowing about the other.
+///   +X points OUT of the room, through the opening.
 ///
-/// GREYBOX ONLY. Materials, props and lighting are Phase 8. A module that
-/// looks finished before the generator arranges them is a module nobody wants
-/// to change.
+///   front  x=0      yaw 180   (outward -X)
+///   back   x=D      yaw 0     (outward +X)
+///   left   z=-W/2   yaw 90    (outward -Z)
+///   right  z=+W/2   yaw -90   (outward +Z)
+///
+/// The left/right yaws were INVERTED in the previous version - -90 on the -Z
+/// wall points +Z, which is back into the room - so every side branch was
+/// attached facing inward, overlapping its own parent. Worth checking on
+/// paper rather than by eye: yaw t sends +X to (cos t, 0, -sin t), so -Z
+/// needs sin t = 1, which is +90.
+///
+/// GREYBOX ONLY. Materials, props and lighting are Phase 8.
 /// ====================================================================
 ///
-/// Phase 5, Step 5. See PHASE5_SPEC.md.
+/// Phase 5, Steps 5-6. See PHASE5_SPEC.md.
 /// </summary>
 public static class RoomModuleBuilder
 {
     const string OutputDir = "Assets/_Project/Prefabs/Rooms";
     const string GrayboxMat = "Assets/_Project/Materials/M_Graybox.mat";
 
-    // Matching Grayboxbuilder, deliberately - a module that disagrees with the
-    // shaft about how big a door is cannot be attached to it.
     const float DoorWidth = 2f;
     const float DoorHeight = 2.5f;
     const float WallThick = 0.5f;
-
-    // Interior height. Above the door and below the 5m floor pitch, so a
-    // module still fits between two levels of the existing shaft.
     const float Height = 4f;
 
-    [MenuItem("Tools/Rooms/Build Six Modules")]
+    [MenuItem("Tools/Rooms/Build Room Set")]
     public static void BuildAll()
     {
+        if (Directory.Exists(OutputDir))
+            foreach (var old in Directory.GetFiles(OutputDir, "*.prefab"))
+                AssetDatabase.DeleteAsset(old.Replace('\\', '/'));
+
         Directory.CreateDirectory(OutputDir);
         var mat = AssetDatabase.LoadAssetAtPath<Material>(GrayboxMat);
 
-        // 2 landings, 2 mains, 1 side, 1 back. The split is not arbitrary:
-        // landings and mains are what you see on EVERY floor, so they carry
-        // the variety; the side and the back are optional and rarer, so one
-        // of each is enough until ten floors say otherwise.
-        Landing("Room_Landing_Open", mat, pillars: false);
-        Landing("Room_Landing_Pillared", mat, pillars: true);
-        // THREE mains, not two, and the third is not decoration. The
-        // generator guarantees no main repeats on consecutive floors; with
-        // only two modules that guarantee FORCES A,B,A,B, which reads as
-        // generated exactly as loudly as a repeat would. Two of anything
-        // alternates. Three is the smallest set where the sequence can
-        // surprise you - see FloorLayout.MainFor.
-        Main("Room_Main_Hall", mat, variant: 0);
-        Main("Room_Main_Divided", mat, variant: 1);
-        Main("Room_Main_Columns", mat, variant: 2);
-        SideRoom(mat);
-        BackRoom(mat);
+        // ---- 1 DOOR: dead ends. The only way a branch may end. ----
+        End("Room_End_Store", 9f, 6f, mat, survivor: true);
+        End("Room_End_Vault", 13f, 7f, mat, survivor: false);
+
+        // ---- 2 DOORS ----
+        Through("Room_Through_Hall", 16f, 8f, mat);
+        Corner("Room_Corner_Bend", 11f, 9f, mat);
+
+        // ---- 3 DOORS: the junctions. A floor with none is a corridor. ----
+        Tee("Room_Tee_Junction", 15f, 10f, mat);
+        Fork("Room_Fork_Wide", 12f, 12f, mat);
+
+        // ---- 4 DOORS ----
+        Cross("Room_Cross_Atrium", 16f, 14f, mat);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log($"Six room modules written to {OutputDir}.\n" +
-                  "Run Tools > Rooms > Validate Modules In Scene after dropping " +
-                  "any of them into a scene.\n" +
-                  "NOT checked by anything: each one must be walkable with every " +
-                  "socket empty and every exit sealed. Walk them.");
+        Debug.Log("Room set rebuilt in " + OutputDir + "\n" +
+                  "  1 door : Store, Vault        (dead ends)\n" +
+                  "  2 doors: Through, Corner\n" +
+                  "  3 doors: Tee, Fork           (junctions)\n" +
+                  "  4 doors: Cross\n\n" +
+                  "Every door is a connection the generator MUST satisfy. " +
+                  "Nothing here is ever sealed.");
     }
 
     // ------------------------------------------------------------------
-    // THE SIX
-    //
-    // LONG, NOT SQUARE. The first set were 10x12, 7x7, 6x8 - near-square
-    // boxes, and a near-square box has no direction. You walk in, you see the
-    // whole thing, you leave. Ten floors of them read as ten of the same room
-    // whatever the generator does with the order, because there is nothing to
-    // walk ALONG.
-    //
-    // Depth roughly twice width now. A long room has a far end, which means it
-    // has somewhere the light does not reach, somewhere loot is worth the walk,
-    // and somewhere a thing can be between you and the door. None of that
-    // exists in a square.
+    // THE ROOMS
     // ------------------------------------------------------------------
 
-    /// <summary>Where you step out of the lift. Must read as "the way back"
-    /// from anywhere on the floor - a landing you can lose is a landing that
-    /// makes the whole floor frightening for the wrong reason.</summary>
-    static void Landing(string name, Material mat, bool pillars)
+    static void End(string name, float d, float w, Material mat, bool survivor)
     {
-        const float D = 11f, W = 7f;
-        var root = Shell(name, RoomModule.Role.Landing, D, W, mat, backDoor: true);
+        var r = Shell(name, d, w, mat, front: true);
 
-        if (pillars)
-        {
-            // Down the length rather than across it, so they divide the walk
-            // instead of blocking the entrance.
-            for (int i = 0; i < 3; i++)
-                Box($"Pillar_{i}", root, new Vector3(3f + i * 3f, Height * 0.5f, -1.7f),
-                    new Vector3(0.6f, Height, 0.6f), mat);
-        }
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
 
-        Socket(root, "Loot_1", new Vector3(3.5f, 0f, 2.2f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(8f, 0f, -2.2f), RoomSocket.Kind.Loot);
-        Exit(root, "Exit_Main", new Vector3(D, 0f, 0f), 0f);
+        Socket(r, "Loot_1", new Vector3(d * 0.55f, 0f, -w * 0.25f), RoomSocket.Kind.Loot);
+        Socket(r, "Loot_2", new Vector3(d * 0.8f, 0f, w * 0.25f), RoomSocket.Kind.Loot);
 
-        Finish(root);
+        // The best loot is at the far end of a dead end, which is also the
+        // worst place to be caught. Those are the same sentence, and the only
+        // reason a dead end is worth walking into.
+        if (survivor)
+            Socket(r, "Survivor_1", new Vector3(d * 0.85f, 0f, -w * 0.2f),
+                   RoomSocket.Kind.Survivor);
+        else
+            Socket(r, "Puzzle_B", new Vector3(d * 0.85f, 0f, 0f),
+                   RoomSocket.Kind.Puzzle, pairId: "vault");
+
+        Finish(r);
     }
 
-    /// <summary>The room the landing opens into. Longest, most loot, and the
-    /// only module with two ways on - the side room and the back hang off
-    /// it.</summary>
-    static void Main(string name, Material mat, int variant)
+    static void Through(string name, float d, float w, Material mat)
     {
-        const float D = 20f, W = 10f;
-        // THREE WAYS ON, not one. Walking into a room and being offered a
-        // single corridor is not exploring, it is being led - and a crew that
-        // cannot split up has no reason to talk to each other, which is the
-        // mechanic the whole middle of this game is built on.
-        var root = Shell(name, RoomModule.Role.Main, D, W, mat,
-                         backDoor: true, leftDoorX: 10f, rightDoorX: 10f);
+        var r = Shell(name, d, w, mat, front: true, back: true);
 
-        if (variant == 1)
-        {
-            // A spine wall down most of the length with a gap at the far end.
-            // Two routes through one room is what lets a crew split without
-            // leaving the room, which is where the cannibal and the eyeless
-            // get interesting in Phase 6.
-            Box("Partition", root, new Vector3(8f, Height * 0.5f, 1.5f),
-                new Vector3(0.4f, Height, 13f), mat);
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
+        Door(r, "Door_Back", new Vector3(d, 0f, 0f), 0f);
 
-            // Paired half of a two-room mechanism. Nothing reads pairId until
-            // Phase 6 - it is placed now because PUZZLES.md needs the halves
-            // in DIFFERENT rooms, and a generator that cannot express that
-            // cannot build a single puzzle in that document.
-            Socket(root, "Puzzle_A", new Vector3(17f, 0f, 4f),
-                   RoomSocket.Kind.Puzzle, pairId: "main_back");
-        }
+        // A colonnade down the length, so a long room has something to walk
+        // past rather than being a tube.
+        for (int i = 0; i < 6; i++)
+            Box($"Column_{i}", r,
+                new Vector3(3f + (i / 2) * 4.5f, Height * 0.5f, (i % 2 == 0) ? -2.2f : 2.2f),
+                new Vector3(0.7f, Height, 0.7f), mat);
 
-        if (variant == 2)
-        {
-            // A colonnade down the length. Reads completely differently from
-            // the hall and the partition at a glance, which is the whole job -
-            // a player is not auditing the layout, they are deciding whether
-            // they have been here before.
-            for (int i = 0; i < 8; i++)
-            {
-                float px = 3f + (i / 2) * 4.5f;
-                float pz = (i % 2 == 0) ? -2.8f : 2.8f;
-                Box($"Column_{i}", root, new Vector3(px, Height * 0.5f, pz),
-                    new Vector3(0.8f, Height, 0.8f), mat);
-            }
-        }
+        Socket(r, "Loot_1", new Vector3(d * 0.3f, 0f, -w * 0.3f), RoomSocket.Kind.Loot);
+        Socket(r, "Loot_2", new Vector3(d * 0.7f, 0f, w * 0.3f), RoomSocket.Kind.Loot);
+        Socket(r, "Hazard_1", new Vector3(d * 0.5f, 0f, 0f), RoomSocket.Kind.Hazard);
 
-        Socket(root, "Loot_1", new Vector3(4f, 0f, -3.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(11f, 0f, 3.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_3", new Vector3(17f, 0f, -3f), RoomSocket.Kind.Loot);
-        Socket(root, "Hazard_1", new Vector3(14f, 0f, 0f), RoomSocket.Kind.Hazard);
-
-        // Left, right, straight on. Unlabelled now: the generator picks what
-        // goes through each door rather than being told which door leads to
-        // which kind of room, so a side room can be on the left of one floor
-        // and straight ahead on another.
-        Exit(root, "Exit_Ahead", new Vector3(D, 0f, 0f), 0f);
-        Exit(root, "Exit_Left", new Vector3(10f, 0f, -W * 0.5f), -90f);
-        Exit(root, "Exit_Right", new Vector3(10f, 0f, W * 0.5f), 90f);
-
-        Finish(root);
+        Finish(r);
     }
 
-    /// <summary>Off the main, optional. Where a lock or a survivor lives -
-    /// narrow and deep, so it is a place you commit to walking down rather
-    /// than a bulge you can see the end of from the door.</summary>
-    static void SideRoom(Material mat)
+    static void Corner(string name, float d, float w, Material mat)
     {
-        const float D = 10f, W = 5f;
-        var root = Shell("Room_Side_Store", RoomModule.Role.Side, D, W, mat);
+        var r = Shell(name, d, w, mat, front: true, leftX: d * 0.6f);
 
-        Socket(root, "Loot_1", new Vector3(3f, 0f, -1.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(7.5f, 0f, 1.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Lock_1", new Vector3(1f, 0f, 1.8f), RoomSocket.Kind.Lock);
-        Socket(root, "Survivor_1", new Vector3(8.5f, 0f, -1.2f), RoomSocket.Kind.Survivor);
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
+        Door(r, "Door_Left", new Vector3(d * 0.6f, 0f, -w * 0.5f), 90f);
 
-        // No exit. A side room is somewhere you go back out of.
+        Socket(r, "Loot_1", new Vector3(d * 0.3f, 0f, w * 0.25f), RoomSocket.Kind.Loot);
+        Socket(r, "Lock_1", new Vector3(d * 0.85f, 0f, w * 0.3f), RoomSocket.Kind.Lock);
 
-        Finish(root);
+        Finish(r);
     }
 
-    /// <summary>The dead end. Best loot, worst place to be caught - and those
-    /// are the same sentence, which is the only reason it is worth walking
-    /// to.</summary>
-    static void BackRoom(Material mat)
+    static void Tee(string name, float d, float w, Material mat)
     {
-        const float D = 14f, W = 8f;
-        var root = Shell("Room_Back_DeadEnd", RoomModule.Role.Back, D, W, mat);
+        var r = Shell(name, d, w, mat, front: true, back: true, leftX: d * 0.5f);
 
-        Socket(root, "Loot_1", new Vector3(6f, 0f, -2.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_2", new Vector3(11f, 0f, 2.5f), RoomSocket.Kind.Loot);
-        Socket(root, "Loot_3", new Vector3(12.5f, 0f, -2f), RoomSocket.Kind.Loot);
-        Socket(root, "Survivor_1", new Vector3(3f, 0f, 3f), RoomSocket.Kind.Survivor);
-        Socket(root, "Puzzle_B", new Vector3(12f, 0f, 0f),
-               RoomSocket.Kind.Puzzle, pairId: "main_back");
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
+        Door(r, "Door_Back", new Vector3(d, 0f, 0f), 0f);
+        Door(r, "Door_Left", new Vector3(d * 0.5f, 0f, -w * 0.5f), 90f);
 
-        Finish(root);
+        Socket(r, "Loot_1", new Vector3(d * 0.25f, 0f, w * 0.28f), RoomSocket.Kind.Loot);
+        Socket(r, "Loot_2", new Vector3(d * 0.75f, 0f, w * 0.28f), RoomSocket.Kind.Loot);
+        Socket(r, "Hazard_1", new Vector3(d * 0.5f, 0f, w * 0.1f), RoomSocket.Kind.Hazard);
+
+        Finish(r);
+    }
+
+    static void Fork(string name, float d, float w, Material mat)
+    {
+        var r = Shell(name, d, w, mat, front: true,
+                      leftX: d * 0.6f, rightX: d * 0.6f);
+
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
+        Door(r, "Door_Left", new Vector3(d * 0.6f, 0f, -w * 0.5f), 90f);
+        Door(r, "Door_Right", new Vector3(d * 0.6f, 0f, w * 0.5f), -90f);
+
+        Socket(r, "Loot_1", new Vector3(d * 0.3f, 0f, -w * 0.2f), RoomSocket.Kind.Loot);
+        Socket(r, "Loot_2", new Vector3(d * 0.85f, 0f, 0f), RoomSocket.Kind.Loot);
+        Socket(r, "Puzzle_A", new Vector3(d * 0.85f, 0f, w * 0.25f),
+               RoomSocket.Kind.Puzzle, pairId: "vault");
+
+        Finish(r);
+    }
+
+    static void Cross(string name, float d, float w, Material mat)
+    {
+        var r = Shell(name, d, w, mat, front: true, back: true,
+                      leftX: d * 0.5f, rightX: d * 0.5f);
+
+        Door(r, "Door_Front", new Vector3(0f, 0f, 0f), 180f);
+        Door(r, "Door_Back", new Vector3(d, 0f, 0f), 0f);
+        Door(r, "Door_Left", new Vector3(d * 0.5f, 0f, -w * 0.5f), 90f);
+        Door(r, "Door_Right", new Vector3(d * 0.5f, 0f, w * 0.5f), -90f);
+
+        // Four columns around the middle, so a crossroads reads as a place
+        // rather than as an intersection of corridors.
+        for (int i = 0; i < 4; i++)
+            Box($"Column_{i}", r,
+                new Vector3(d * 0.5f + ((i % 2 == 0) ? -3f : 3f), Height * 0.5f,
+                            (i / 2 == 0) ? -3f : 3f),
+                new Vector3(0.9f, Height, 0.9f), mat);
+
+        Socket(r, "Loot_1", new Vector3(d * 0.25f, 0f, -w * 0.3f), RoomSocket.Kind.Loot);
+        Socket(r, "Loot_2", new Vector3(d * 0.75f, 0f, w * 0.3f), RoomSocket.Kind.Loot);
+        Socket(r, "Hazard_1", new Vector3(d * 0.5f, 0f, 0f), RoomSocket.Kind.Hazard);
+
+        Finish(r);
     }
 
     // ------------------------------------------------------------------
-    // THE SHELL: floor, ceiling, four walls, one doorway at the origin
+    // SHELL - walls with an opening wherever a door goes, and nowhere else
     // ------------------------------------------------------------------
 
-    static Transform Shell(string name, RoomModule.Role role,
-                           float depth, float width, Material mat,
-                           bool backDoor = false, float leftDoorX = float.NaN,
-                           float rightDoorX = float.NaN)
+    static Transform Shell(string name, float depth, float width, Material mat,
+                           bool front = false, bool back = false,
+                           float leftX = float.NaN, float rightX = float.NaN)
     {
         var go = new GameObject(name);
-        var module = go.AddComponent<RoomModule>();
-        module.role = role;
-        module.label = name;
+        go.AddComponent<RoomModule>().label = name;
 
         Transform t = go.transform;
         float halfW = width * 0.5f;
@@ -242,51 +222,23 @@ public static class RoomModuleBuilder
         Box("Ceiling", t, new Vector3(midX, Height + WallThick * 0.5f, 0f),
             new Vector3(depth, WallThick, width), mat);
 
-        // ---- EVERY WALL IS SEGMENTED, AND EVERY EXIT GETS A HOLE ----
-        //
-        // The first version of this built four solid walls and cut a doorway
-        // only at the front, because the front is the one opening every module
-        // has. The main room's two exits then pointed straight into concrete -
-        // an exit is a promise that you can walk through it, and nothing in
-        // the code was keeping that promise.
-        //
-        // So the openings are passed in and the walls are built around them.
-        // A module cannot now declare an exit the shell does not know about
-        // without it being visible the moment you walk into the room.
+        Wall("Wall_Front", t, true, -WallThick * 0.5f, 0f, width,
+             front ? new[] { 0f } : new float[0], mat);
 
-        // Front: the module's own entrance, always, at z = 0.
-        Wall("Wall_Front", t, alongZ: true, fixedCoord: -WallThick * 0.5f,
-             spanCenter: 0f, spanLength: width, doors: new[] { 0f }, mat: mat);
+        Wall("Wall_Back", t, true, depth + WallThick * 0.5f, 0f, width,
+             back ? new[] { 0f } : new float[0], mat);
 
-        Wall("Wall_Back", t, alongZ: true, fixedCoord: depth + WallThick * 0.5f,
-             spanCenter: 0f, spanLength: width,
-             doors: backDoor ? new[] { 0f } : new float[0], mat: mat);
+        Wall("Wall_Left", t, false, -halfW - WallThick * 0.5f, midX, depth,
+             float.IsNaN(leftX) ? new float[0] : new[] { leftX }, mat);
 
-        Wall("Wall_Left", t, alongZ: false, fixedCoord: -halfW - WallThick * 0.5f,
-             spanCenter: midX, spanLength: depth,
-             doors: float.IsNaN(leftDoorX) ? new float[0] : new[] { leftDoorX },
-             mat: mat);
-
-        Wall("Wall_Right", t, alongZ: false, fixedCoord: halfW + WallThick * 0.5f,
-             spanCenter: midX, spanLength: depth,
-             doors: float.IsNaN(rightDoorX) ? new float[0] : new[] { rightDoorX },
-             mat: mat);
+        Wall("Wall_Right", t, false, halfW + WallThick * 0.5f, midX, depth,
+             float.IsNaN(rightX) ? new float[0] : new[] { rightX }, mat);
 
         return t;
     }
 
-    /// <summary>
-    /// One wall, built as segments with a gap and a lintel at each doorway.
-    ///
-    /// alongZ means the wall RUNS along Z and therefore faces X - the front
-    /// and back walls. The others run along X. Doors are given as positions on
-    /// whichever axis the wall runs along.
-    ///
-    /// Primitives rather than a mesh with a hole in it, for the reason the
-    /// rest of the graybox uses them: a primitive arrives with a collider that
-    /// is already correct, and a room you cannot walk through is worse than a
-    /// room that looks blocky.
-    /// </summary>
+    /// <summary>One wall, as segments with a gap and a lintel at each doorway.
+    /// alongZ means the wall RUNS along Z and faces X.</summary>
     static void Wall(string name, Transform t, bool alongZ, float fixedCoord,
                      float spanCenter, float spanLength, float[] doors, Material mat)
     {
@@ -303,16 +255,10 @@ public static class RoomModuleBuilder
         {
             float lo = d - DoorWidth * 0.5f;
             float hi = d + DoorWidth * 0.5f;
-
-            // A doorway that falls outside the wall is a module authored
-            // wrong. Skipped rather than clamped: clamping would slide the
-            // door somewhere nobody asked for and the exit would still not
-            // line up with it.
             if (hi <= min || lo >= max) continue;
 
             if (lo > cursor)
-                Segment($"{name}_{piece++}", t, alongZ, fixedCoord,
-                        cursor, lo, 0f, Height, mat);
+                Segment($"{name}_{piece++}", t, alongZ, fixedCoord, cursor, lo, 0f, Height, mat);
 
             Segment($"{name}_Lintel{piece}", t, alongZ, fixedCoord,
                     Mathf.Max(lo, min), Mathf.Min(hi, max),
@@ -322,11 +268,9 @@ public static class RoomModuleBuilder
         }
 
         if (cursor < max)
-            Segment($"{name}_{piece}", t, alongZ, fixedCoord,
-                    cursor, max, 0f, Height, mat);
+            Segment($"{name}_{piece}", t, alongZ, fixedCoord, cursor, max, 0f, Height, mat);
     }
 
-    /// <summary>One box of wall, from a to b along the wall's own axis.</summary>
     static void Segment(string name, Transform t, bool alongZ, float fixedCoord,
                         float a, float b, float yBase, float height, Material mat)
     {
@@ -338,7 +282,6 @@ public static class RoomModuleBuilder
 
         Vector3 pos = alongZ ? new Vector3(fixedCoord, y, centre)
                              : new Vector3(centre, y, fixedCoord);
-
         Vector3 scale = alongZ ? new Vector3(WallThick, height, length)
                                : new Vector3(length, height, WallThick);
 
@@ -346,6 +289,15 @@ public static class RoomModuleBuilder
     }
 
     // ------------------------------------------------------------------
+
+    static void Door(Transform parent, string name, Vector3 pos, float yaw)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+        go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        go.AddComponent<RoomExit>();
+    }
 
     static void Socket(Transform parent, string name, Vector3 pos,
                        RoomSocket.Kind kind, string pairId = "")
@@ -359,27 +311,11 @@ public static class RoomModuleBuilder
         s.pairId = pairId;
     }
 
-    /// <summary>An exit, turned so its +X points the way you would travel
-    /// through it. yaw 0 is straight on; -90 turns it to the room's left.</summary>
-    static void Exit(Transform parent, string name, Vector3 pos, float yaw,
-                     string label = "")
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = pos;
-        go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-
-        go.AddComponent<RoomExit>().label = label;
-    }
-
     static GameObject Box(string name, Transform parent, Vector3 localPos,
                           Vector3 scale, Material mat)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = name;
-
-        // 'false' means do NOT keep world position - without it Unity rewrites
-        // localPosition to compensate and silently discards what we set next.
         go.transform.SetParent(parent, false);
         go.transform.localPosition = localPos;
         go.transform.localScale = scale;
@@ -388,14 +324,6 @@ public static class RoomModuleBuilder
         return go;
     }
 
-    /// <summary>
-    /// Write the finished module and remove the copy used to build it.
-    ///
-    /// Once, at the end, with the hierarchy complete - saving as we went would
-    /// have written the prefab six times per module and left the scene holding
-    /// the originals, which is how a "build" menu item quietly starts adding
-    /// six rooms to whatever scene happened to be open.
-    /// </summary>
     static void Finish(Transform root)
     {
         var go = root.gameObject;

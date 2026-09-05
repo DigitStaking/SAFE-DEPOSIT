@@ -37,10 +37,9 @@ public static class RoomModuleValidator
         {
             sb.AppendLine("No RoomModule in the scene.");
             sb.AppendLine();
-            sb.AppendLine("That is the expected answer until Step 5 builds the six");
-            sb.AppendLine("modules. The twenty Level_NN floors standing today are");
-            sb.AppendLine("Grayboxbuilder output with no module component, and");
-            sb.AppendLine("LootSpawner falls back to its hardcoded slots for them.");
+            sb.AppendLine("Expected unless a room prefab is open in the scene.");
+            sb.AppendLine("This checks PREFABS; use Tools > Rooms > Validate Twenty");
+            sb.AppendLine("Seeds to check generated FLOORS.");
         }
 
         int problems = 0;
@@ -50,7 +49,7 @@ public static class RoomModuleValidator
             var bad = m.Problems();
             problems += bad.Count;
 
-            sb.AppendLine($"{m.name}   role={m.role}" +
+            sb.AppendLine($"{m.name}   {m.DoorCount} door(s)" +
                           (string.IsNullOrWhiteSpace(m.label) ? "" : $"   \"{m.label}\""));
 
             foreach (RoomSocket.Kind k in System.Enum.GetValues(typeof(RoomSocket.Kind)))
@@ -79,6 +78,9 @@ public static class RoomModuleValidator
             sb.AppendLine();
         }
 
+        sb.AppendLine("A room's door count is what the generator files it under,");
+        sb.AppendLine("and every one of those doors must end up connected.");
+        sb.AppendLine();
         sb.AppendLine("NOT CHECKED, and on you:");
         sb.AppendLine("  \"navigable with every socket empty\". It is a claim about");
         sb.AppendLine("  pathing; a validator guessing at it would be wrong in both");

@@ -32,36 +32,22 @@ using UnityEngine;
 /// </summary>
 public class RoomModule : MonoBehaviour
 {
-    /// <summary>
-    /// Landing to main to side to back is the fixed shape of a floor, so a
-    /// module says which of those it can be. It is a slot in a sequence, not
-    /// a description of the room's contents.
-    /// </summary>
-    public enum Role
-    {
-        /// <summary>Where you step out of the lift. Must read as "the way
-        /// back" from anywhere on the floor.</summary>
-        Landing,
-
-        /// <summary>What the landing opens into. Largest, most loot.</summary>
-        Main,
-
-        /// <summary>Off the main, optional. Locks and survivors live here.</summary>
-        Side,
-
-        /// <summary>The dead end. Best loot, worst place to be caught.</summary>
-        Back
-    }
-
-    [Tooltip("Which position in the landing -> main -> side -> back sequence " +
-             "this module can occupy. The generator picks BY role, so a module " +
-             "that could serve as either should be duplicated rather than made " +
-             "clever.")]
-    public Role role = Role.Main;
-
-    [Tooltip("Only for reading logs and the validator's output. Never matched " +
-             "on - two modules may share a label without consequence.")]
+    [Tooltip("Only for reading logs and validator output. Never matched on - " +
+             "what a room IS, as far as generation is concerned, is how many " +
+             "doors it has.")]
     public string label = "";
+
+    /// <summary>
+    /// How many doors this room has, which is how many connections the
+    /// generator owes it.
+    ///
+    /// Counted rather than declared, so a prefab cannot claim three doors and
+    /// carry two. FloorGraph builds a tree whose node degrees equal these
+    /// numbers, and a room that disagreed with its own count would break that
+    /// invariant silently - which is the whole class of bug this rewrite is
+    /// about.
+    /// </summary>
+    public int DoorCount => RoomExit.DoorsUnder(transform).Length;
 
     // ------------------------------------------------------------------
     // SOCKETS
@@ -141,32 +127,31 @@ public class RoomModule : MonoBehaviour
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// What is wrong with this module, in plain sentences. Empty means it
-    /// honours the contract.
+    /// What is wrong with this module as a PREFAB, before any floor uses it.
+    /// Empty means it honours the contract.
     ///
-    /// Rule 3 - navigable with every socket empty - is deliberately NOT
-    /// checked here. It is a claim about pathing, a validator that guessed at
-    /// it would be wrong in both directions, and a rule you cannot check is
-    /// better stated honestly than approximated. It is on the human, and it
-    /// is written down in this file so the human knows.
+    /// Rule: "navigable with every socket empty" is deliberately not checked.
+    /// It is a claim about pathing, a validator guessing at it would be wrong
+    /// in both directions, and a rule you cannot check is better stated
+    /// honestly than approximated. It is on the human.
     /// </summary>
     public List<string> Problems()
     {
         var bad = new List<string>();
-        var sockets = AllSockets();
 
-        if (sockets.Length == 0)
-            bad.Add("no sockets at all - a module with nothing in it can still " +
-                    "be placed, but it will never hold loot, a lock or a survivor");
+        int doors = DoorCount;
 
-        // A paired socket with no partner ANYWHERE is a puzzle half that can
-        // never be completed. Its partner living in another module is the
-        // normal case and is fine - that separation is the point - so this
-        // only reports ids that appear twice INSIDE one module, which is the
-        // error: both halves in the same room is not a puzzle.
+        if (doors == 0)
+            bad.Add("no doors - a room nothing can connect to can never be placed");
+
+        if (doors > 4)
+            bad.Add($"{doors} doors - the graph only builds degrees 1 to 4");
+
+        // Both halves of a two-room mechanism inside one room is not a puzzle,
+        // it is a button next to a door. PUZZLES.md needs them separated.
         var seen = new Dictionary<string, int>();
 
-        foreach (var s in sockets)
+        foreach (var s in AllSockets())
         {
             if (s == null || !s.IsPaired) continue;
             seen.TryGetValue(s.pairId, out int n);
@@ -175,9 +160,7 @@ public class RoomModule : MonoBehaviour
 
         foreach (var kv in seen)
             if (kv.Value > 1)
-                bad.Add($"pairId '{kv.Key}' appears {kv.Value} times in this one " +
-                        "module - a two-room mechanism with both halves in the " +
-                        "same room is not a puzzle, it is a button next to a door");
+                bad.Add($"pairId '{kv.Key}' appears {kv.Value} times in one module");
 
         return bad;
     }

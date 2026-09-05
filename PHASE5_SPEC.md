@@ -327,7 +327,35 @@ Deterministic from a seed, and the seed is **published by the host** exactly
 as `LootSpawner`'s roster is, so every machine builds the same building
 without sending geometry.
 
-**Done when:** ten floors in a row, and you can tell them apart from memory.
+**Done when:** ten floors in a row, and you can tell them apart from memory,
+**and every door on every floor is a real connection.**
+
+> **Rewritten 5 Sep 2026 — topology first.** The previous generator grew
+> geometry room by room and, when something would not fit, **sealed the door**.
+> A four-door crossroads quietly became a corridor with two walls in it, and
+> there was no graph anywhere for anything to check against. Every seal was a
+> failure being hidden rather than retried.
+>
+> **Doors are not decoration. Doors define the connections.**
+>
+> The order is now: `FloorGraph` decides a tree as pure numbers → the
+> generator places it door-socket onto door-socket → `FloorValidator` checks it
+> → on failure a new seed and a full retry. Nothing seals, blocks, closes or
+> shortens; a floor is either right or it does not exist.
+>
+> Rooms are typed by **door count** — 1-door dead ends, 2-door through rooms,
+> 3-door junctions, 4-door crossroads — and a node's degree in the graph
+> *equals* its room's door count by construction. "No exits" is therefore not
+> a rule enforced afterwards: growth can only stop by placing a 1-door room,
+> and a 1-door room has nothing left to lead anywhere.
+>
+> A real bug found while re-deriving the frames: the previous left/right exits
+> had **inverted yaw** (−90 on the −Z wall points +Z), so every side branch was
+> attached facing *into* its own parent. Yaw *t* sends +X to (cos t, 0, −sin t),
+> so −Z needs +90 — worth doing on paper rather than by eye.
+>
+> `Tools → Rooms → Validate Twenty Seeds` checks the rules across twenty
+> layouts without keeping the geometry.
 
 > **Built 5 Sep 2026.** `FloorLayout` (pure function) + `FloorGenerator`
 > (walks exits) + `Tools → Rooms → Preview Ten Floors`.

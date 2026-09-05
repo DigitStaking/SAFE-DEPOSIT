@@ -59,12 +59,14 @@ public class PlayerMotor : MonoBehaviour
     public float airAcceleration = 8f;
 
     [Header("Being shoved")]
-    [Tooltip("How hard the motor is allowed to fight a shove while one is " +
-             "landing, in m/s^2. " +
-             "The distance a shove throws you is roughly speed squared over " +
-             "twice this - so at 8, a 5 m/s shove travels about 1.6m. Raise it " +
-             "to recover faster, lower it to slide further.")]
-    public float shoveControl = 8f;
+    [Tooltip("How hard the motor is allowed to fight a shove, in m/s^2. " +
+             "This was 8, the same as airAcceleration, so a thrown player " +
+             "braked their own momentum away WHILE STILL IN THE AIR and a " +
+             "shove that should have carried 4m carried 1m. At 2 they are " +
+             "essentially along for the ride until they land. Raise it to " +
+             "give them more control mid-flight, lower it for a longer " +
+             "throw.")]
+    public float shoveControl = 2f;
 
     float shovedUntil;
 

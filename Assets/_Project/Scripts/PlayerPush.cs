@@ -82,30 +82,31 @@ public class PlayerPush : NetworkBehaviour
     [Tooltip("Impulse used against PEOPLE, in newton-seconds. Deliberately much " +
              "larger than the one above: a crate is resisted only by friction, " +
              "a person by their own motor. " +
-             "Divided by mass, so 280 on a 70kg crewmate is 4 m/s. With the " +
-             "upward lift below and shoveRecovery, that throws them about " +
-             "2.0m. 300 gives 2.25m, 260 gives 1.86m - most of the distance " +
-             "is covered while they are off the ground and unbraked.")]
-    public float playerImpulse = 280f;
+             "Divided by mass, so 450 on a 70kg crewmate is 6.4 m/s. With the " +
+             "lift below and shoveControl at 2, that throws them about 4.5m. " +
+             "400 gives 3.7m, 500 gives 5.1m - almost all of it covered " +
+             "while they are off the ground.")]
+    public float playerImpulse = 450f;
 
     [Tooltip("Upward impulse on a shoved person, in newton-seconds. This is " +
              "what turns a slide into a shove - they leave the ground briefly, " +
              "travel, and land. " +
-             "Divided by mass, so 140 on 70kg is 2 m/s up: a 0.20m hop and " +
-             "0.41s in the air. It also sets the DISTANCE, because the throw " +
-             "happens mostly while airborne - raise this and they travel " +
-             "further as well as higher. Deliberately far short of a jump.")]
-    public float playerUpward = 140f;
+             "Divided by mass, so 280 on 70kg is 4 m/s up: a 0.82m hop and " +
+             "0.71s in the air - clearly off the ground, just under a jump " +
+             "(1.1m). It also sets the DISTANCE, because almost all the " +
+             "travel happens while airborne, so raising this throws them " +
+             "further as well as higher.")]
+    public float playerUpward = 280f;
 
     [Tooltip("Seconds the shoved player's motor stops fighting the push. Too " +
              "short and they brake almost instantly; too long and they feel " +
              "like they have lost control of their own legs.")]
-    public float shoveRecovery = 0.5f;
+    public float shoveRecovery = 0.75f;
 
     // Apply is static - the RPC path has no instance to hand - so the tuned
     // value is mirrored here once in Awake rather than duplicated as a second
     // constant somebody would forget to keep in step.
-    static float ShoveRecovery = 0.5f;
+    static float ShoveRecovery = 0.75f;
 
     [Tooltip("How much of the shove goes upward, 0 to 1. A little lifts them " +
              "off the floor so friction does not eat the push immediately. Too " +

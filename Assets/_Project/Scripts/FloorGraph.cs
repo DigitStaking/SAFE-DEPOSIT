@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 /// <summary>
 /// The floor as a GRAPH, decided before a single wall exists.
@@ -48,7 +49,22 @@ public class FloorGraph
         public readonly List<int> children = new List<int>();
 
         public bool IsLeaf => doors == 1;
-        public int Degree => (parent >= 0 ? 1 : 0) + children.Count;
+
+        /// <summary>
+        /// Connections this room has, which must equal its door count.
+        ///
+        /// Always children + 1, and the +1 is the point: for an ordinary room
+        /// it is the door spent reaching its parent, and for the ROOT it is
+        /// the entrance - the one opening to the outside on the whole floor.
+        ///
+        /// The first version counted the root as children only, treating the
+        /// entrance as free. So the graph asked a 4-door start room for four
+        /// children AND an entrance, wanted five doors from a prefab with
+        /// four, and every floor failed with "room 0 ran out of doors". The
+        /// entrance is a connection like any other; it just happens to lead
+        /// out of the floor rather than into another room.
+        /// </summary>
+        public int Degree => children.Count + 1;
     }
 
     public readonly List<Node> nodes = new List<Node>();
@@ -141,11 +157,11 @@ public class FloorGraph
         int rootDoors = Widest(available, 4);
         g.nodes.Add(new Node { doors = rootDoors });
 
-        // Open slots: (node, how many children it still owes). The root owes
-        // one child per door; every other room owes doors-1, having spent one
-        // on its parent.
+        // Open slots: which node still owes a child. EVERY room owes
+        // doors-1, including the root - it spends its remaining door on the
+        // entrance exactly as the others spend one on their parent.
         var open = new List<int>();
-        for (int i = 0; i < rootDoors; i++) open.Add(0);
+        for (int i = 1; i < rootDoors; i++) open.Add(0);
 
         while (open.Count > 0)
         {
@@ -159,13 +175,28 @@ public class FloorGraph
 
             // ---- WHEN TO STOP GROWING ----
             //
-            // If finishing every remaining slot with leaves would already
-            // reach the cap, then leaves are all we can afford. This is what
-            // makes termination certain: a 1-door room adds no new slots, so
-            // the open list can only shrink from here.
-            bool mustClose = g.Count + open.Count + 1 >= maxRooms;
+            // Every open slot will become at least one room, so the floor is
+            // already committed to g.Count + open.Count. A room with d doors
+            // adds itself plus d-1 more slots, so it costs at least d rooms -
+            // which is what caps the choice here rather than merely nudging
+            // it.
+            //
+            // Checking only "one more room fits" was not enough: a 4-door room
+            // opens three slots at once, so floors overshot a cap of 14 and
+            // came out at 16. A soft cap that is quietly ignored is worse than
+            // no cap, because the setting reads as a promise.
+            //
+            // Termination is certain either way: a 1-door room adds no slots,
+            // so once the budget forces leaves the open list only shrinks.
+            int roomsLeft = maxRooms - (g.Count + open.Count);
 
-            int doors = mustClose ? 1 : PickDoors(rng, available, g.Count, minRooms);
+            int doors = roomsLeft <= 1
+                ? 1
+                : Mathf.Min(PickDoors(rng, available, g.Count, minRooms), roomsLeft);
+
+            // Clamped down to something the module set actually has, so the
+            // cap can never ask for a door count with no room behind it.
+            while (doors > 1 && !available.Contains(doors)) doors--;
 
             int id = g.Count;
             g.nodes.Add(new Node { doors = doors, parent = parent });

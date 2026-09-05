@@ -523,8 +523,30 @@ public class PlayerPush : NetworkBehaviour
     /// range the cast is blind to. Same detection, one owner, no second
     /// raycast system.
     /// </summary>
+    /// <summary>Somebody, as opposed to something.</summary>
+    static bool IsPerson(Rigidbody rb) =>
+        rb != null && rb.GetComponent<PlayerMotor>() != null;
+
     Rigidbody FindTarget(Transform eye)
     {
+        // ---- A PERSON BEATS SCENERY, EVEN WHEN SCENERY IS NEARER ----
+        //
+        // The spherecast returns the FIRST thing along the sweep, which is the
+        // right answer for a shove aimed at the world and the wrong one for a
+        // shove aimed at a friend: any bit of geometry between you and them
+        // wins on distance alone and eats the swing.
+        //
+        // The elevator was the case that made this visible - see Pushable.
+        // Refusing the lift fixes the lift, and does nothing for a doorframe, a
+        // railing or a crate standing where your friend is. So the rule is
+        // stated once, generally: if a person is in the volume, the person is
+        // the target. Scenery is what you get when nobody is there.
+        //
+        // Cheap, because the overlap pass below already exists and already
+        // walks the same set - this only asks it first, and only for people.
+        Rigidbody person = FindPerson(eye);
+        if (person != null) return person;
+
         // 1. THE REACH. A swept sphere down the look direction, as before.
         if (Physics.SphereCast(eye.position, radius, eye.forward,
                                out RaycastHit hit, range, mask,
@@ -560,6 +582,47 @@ public class PlayerPush : NetworkBehaviour
             // Within about 70 degrees of where you are looking. Wide enough
             // that you do not have to aim at a ribcage, narrow enough that it
             // is still a shove rather than an area attack.
+            if (Vector3.Dot(toward.normalized, forward) < pushCone) continue;
+
+            best = rb;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The nearest shovable PERSON in front of the eye, or null.
+    ///
+    /// Same volume, same cone and same Usable filter as the general search -
+    /// deliberately, so "a person is in reach" can never disagree with "that
+    /// person is a legal target". Two probes with two shapes is the split this
+    /// file has already had to undo once.
+    /// </summary>
+    Rigidbody FindPerson(Transform eye)
+    {
+        Vector3 forward = eye.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) return null;
+        forward.Normalize();
+
+        int found = Physics.OverlapSphereNonAlloc(eye.position, range, nearby,
+                                                  mask, QueryTriggerInteraction.Ignore);
+
+        Rigidbody best = null;
+        float bestDistance = float.MaxValue;
+
+        for (int i = 0; i < found; i++)
+        {
+            var rb = nearby[i] != null ? nearby[i].attachedRigidbody : null;
+            if (!IsPerson(rb) || !Usable(rb)) continue;
+
+            Vector3 toward = rb.transform.position - eye.position;
+            toward.y = 0f;
+
+            float distance = toward.sqrMagnitude;
+            if (distance < 1e-6f || distance >= bestDistance) continue;
+
             if (Vector3.Dot(toward.normalized, forward) < pushCone) continue;
 
             best = rb;

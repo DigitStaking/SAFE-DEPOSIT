@@ -72,6 +72,23 @@ public class Pushable : MonoBehaviour
         var p = hit.GetComponentInParent<Pushable>();
         if (p != null) return p.canBePushed;
 
+        // ---- THE LIFT IS NOT FURNITURE ----
+        //
+        // The rule below is "pushable unless it is loot", which quietly made
+        // the elevator a legal target: it has a rigidbody, no Carryable and no
+        // Pushable, so it fell straight through to true. Standing in the car,
+        // the shove's spherecast reaches the floor or a wall before it reaches
+        // the person in front of you, and the lift absorbed the swing.
+        //
+        // That is the whole of "sometimes I cannot push my friend". Outside the
+        // car it worked; inside it never did, and nine of twelve logged swings
+        // named ELEVATOR as the thing they hit.
+        //
+        // Refused by what it IS rather than by a flag on a prefab, so it cannot
+        // be undone by somebody rebuilding the elevator - and so it covers the
+        // shaft, the deck and the doors without each needing to remember.
+        if (hit.GetComponentInParent<Elevator>() != null) return false;
+
         var carry = hit.GetComponentInParent<Carryable>();
         return carry == null || carry.IsPerson;
     }

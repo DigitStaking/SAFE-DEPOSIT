@@ -14,7 +14,7 @@ using UnityEngine;
 /// </summary>
 public static class FloorPreview
 {
-    const string RoomDir = "Assets/_Project/Prefabs/Rooms";
+    const string RoomDir = "Assets/_Project/Resources/Rooms";
     const string PreviewRoot = "FLOOR_PREVIEW";
 
     const int MinRooms = 7;

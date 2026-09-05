@@ -83,6 +83,21 @@ public class PlayerMotor : MonoBehaviour
         shovedUntil = Mathf.Max(shovedUntil, Time.time + Mathf.Max(0f, seconds));
     }
 
+    /// <summary>
+    /// Being thrown right now.
+    ///
+    /// Read by the animation, because a shove that only changes WHERE the body
+    /// goes still looks like walking. Every locomotion system here derives
+    /// itself from speed - PlayerAnimatorDriver reads the rigidbody's velocity
+    /// for Speed/MoveX/MoveZ, and ProceduralLegs measures speed from the
+    /// position delta and steps accordingly - so a body travelling at 6 m/s
+    /// gets a full run out of both of them, whether it chose to move or not.
+    ///
+    /// That is why a shove read as "he started walking in the direction I
+    /// pushed": the physics was right and the pose was of somebody jogging.
+    /// </summary>
+    public bool BeingShoved => Time.time < shovedUntil;
+
     [Header("Jump")]
     [Tooltip("Peak height of a standing jump, in metres. Launch velocity is " +
              "calculated from this and gravity, so the number means what it says.")]

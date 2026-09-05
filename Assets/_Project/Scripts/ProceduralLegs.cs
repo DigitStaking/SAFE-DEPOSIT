@@ -109,6 +109,12 @@ public class ProceduralLegs : MonoBehaviour
              "directly below the hips.")]
     public float stanceForward = 0f;
 
+    // Kept, rather than fetched once and discarded, because the legs need to
+    // ask every frame whether this body is being thrown. Speed measured from a
+    // position delta cannot tell a run from a shove - both are just the body
+    // moving - so the legs walked somebody across the room after a push.
+    PlayerMotor motor;
+
     [Header("Stride - scaled by measured speed")]
     [Tooltip("How far the foot may be dragged from where it wants to be before " +
              "it steps, while standing still. Small: a stationary character " +
@@ -323,7 +329,7 @@ public class ProceduralLegs : MonoBehaviour
         foreach (var leg in GetComponents<ProceduralLegs>())
             if (leg != this) { partner = leg; break; }
 
-        var motor = GetComponent<PlayerMotor>();
+        motor = GetComponent<PlayerMotor>();
         if (motor != null) groundMask = motor.groundMask;
     }
 
@@ -364,6 +370,24 @@ public class ProceduralLegs : MonoBehaviour
         if (dt <= 0f) return;
 
         Measure(dt);
+
+        // ---- A THROWN BODY IS NOT TAKING STEPS ----
+        //
+        // Measure() gets speed from the position delta, which cannot tell a
+        // run from a shove - both are just the body moving. So a player thrown
+        // at 6 m/s got a full stride cadence out of it and walked themselves
+        // across the room, which is what "he starts walking in the direction I
+        // pushed" was.
+        //
+        // Measure still runs, so the speed and the planted feet stay honest
+        // and the first step after landing is not taken from stale data. Only
+        // the DECISION to step is held.
+        if (motor != null && motor.BeingShoved)
+        {
+            ShowMarkers();
+            return;
+        }
+
         Advance(dt);
         ShowMarkers();
     }

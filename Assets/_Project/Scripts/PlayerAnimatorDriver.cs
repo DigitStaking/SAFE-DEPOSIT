@@ -163,9 +163,21 @@ public class PlayerAnimatorDriver : MonoBehaviour
                                       : walkSpeed;
         float unit = Mathf.Max(0.75f, capable);
 
-        animator.SetFloat(MoveXId, local.x / unit, moveDamp, dt);
-        animator.SetFloat(MoveZId, local.z / unit, moveDamp, dt);
-        animator.SetFloat(SpeedId, speed, moveDamp, dt);
+        // ---- A THROWN BODY IS NOT WALKING ----
+        //
+        // These three are derived from the rigidbody's velocity, which is
+        // exactly right when the velocity came from the legs and exactly wrong
+        // when it came from somebody else's shove. At 6 m/s the blend tree
+        // gives a full run, so a shove looked like the victim helpfully jogging
+        // away in the direction they were pushed.
+        //
+        // Reported as standing still while it lasts. The airborne state takes
+        // over from Grounded a frame later and does the rest.
+        bool thrown = motor != null && motor.BeingShoved;
+
+        animator.SetFloat(MoveXId, thrown ? 0f : local.x / unit, moveDamp, dt);
+        animator.SetFloat(MoveZId, thrown ? 0f : local.z / unit, moveDamp, dt);
+        animator.SetFloat(SpeedId, thrown ? 0f : speed, moveDamp, dt);
 
         // ---------------------------------------------------------------
         // GROUND AND JUMP

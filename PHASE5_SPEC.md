@@ -242,6 +242,29 @@ Design that in now; building it is Phase 6.
 **Done when:** a module can be dropped into the scene, and a script can list
 its sockets without knowing what module it is.
 
+> **Built 5 Sep 2026, not yet compiled.** `RoomSocket` (kind + `pairId`) and
+> `RoomModule` (role, socket queries, `Problems()`), plus
+> `RoomModule.SocketsUnder(Transform, Kind)` — which takes a plain `Transform`
+> on purpose, so the twenty `Level_NN` floors standing today answer "no
+> sockets" rather than needing a null check at every call site.
+>
+> `LootSpawner` now asks the room first and falls back to its hardcoded
+> `Slots` array when the room says nothing. **Both paths are permanent for
+> now, deliberately** — a migration that requires every floor to be converted
+> before anything runs is one that gets abandoned halfway. When Steps 5 and 6
+> build the modules, the same call starts answering and `LootSpawner` does not
+> change.
+>
+> `pairId` is spent early on purpose. Nothing reads it until Phase 6, but every
+> puzzle in `PUZZLES.md` is split across two rooms, and retrofitting pairing
+> into a socket system that already has rooms authored against it is the
+> expensive version of this decision.
+>
+> **Rule 3 is not validated and will not be.** "Navigable with every socket
+> empty" is a claim about pathing; a validator guessing at it would be wrong
+> in both directions. `Tools → Rooms → Validate Modules In Scene` reports what
+> it can and says plainly that this one is on the human.
+
 ---
 
 ### Step 5 · Six modules

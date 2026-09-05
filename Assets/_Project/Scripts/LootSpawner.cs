@@ -428,7 +428,13 @@ public class LootSpawner : MonoBehaviour
     int FillFloor(Transform level, float budget)
     {
         int spawned = 0;
-        int slots = Mathf.Min(itemsPerFloor, Slots.Length);
+
+        // A module's own LootAnchors if it has any, the hardcoded slots if it
+        // does not. See SpawnItem for why both paths exist at once.
+        var anchors = RoomModule.SocketsUnder(level, RoomSocket.Kind.Loot);
+        int available = anchors.Count > 0 ? anchors.Count : Slots.Length;
+
+        int slots = Mathf.Min(itemsPerFloor, available);
 
         for (int slot = 0; slot < slots; slot++)
         {
@@ -477,17 +483,63 @@ public class LootSpawner : MonoBehaviour
         // CENTRE. The room floor's top surface is local y = 0.
         float y = t.prefab != null ? 0.05f : t.size * 0.5f + 0.05f;
 
-        Vector2 sl = Slots[slot];
-        Vector3 local = new Vector3(
-            sl.x + Random.Range(-slotJitter, slotJitter),
-            y,
-            sl.y + Random.Range(-slotJitter, slotJitter));
+        // ================================================================
+        // WHERE IT GOES: A SOCKET IF THE ROOM DECLARES ONE, THE OLD SLOTS
+        // OTHERWISE.
+        //
+        // Both paths exist on purpose and the fallback is not temporary
+        // scaffolding. The twenty floors standing today are Level_NN objects
+        // built by Grayboxbuilder with no module component and no sockets, and
+        // they have to keep working while Steps 5 and 6 build the modules that
+        // replace them. A migration that requires every floor to be converted
+        // before anything runs is a migration that gets abandoned halfway.
+        //
+        // So this asks the room, and the room usually says nothing yet. When
+        // the modules arrive, the same call starts answering and nothing here
+        // changes.
+        //
+        // The hardcoded Slots array is what Step 4 exists to retire: three
+        // positions in a static readonly Vector2[], correct only for a room
+        // shaped exactly like the one Phase 1 built, and invisible to anybody
+        // arranging a floor.
+        // ================================================================
 
-        // Random spin about the level's own up, so items look dropped rather
-        // than placed - but built on the LEVEL's rotation, so a rotated floor
-        // does not tip its loot over.
-        Vector3 world = level.TransformPoint(local);
-        Quaternion spin = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        var anchors = RoomModule.SocketsUnder(level, RoomSocket.Kind.Loot);
+
+        Vector3 world;
+        Quaternion spin;
+
+        if (anchors.Count > 0)
+        {
+            var socket = anchors[slot % anchors.Count];
+
+            // Jitter still applies, in the SOCKET's own frame, so a room that
+            // places three anchors in a line still looks arranged rather than
+            // laid out on a grid. The y comes from the item, not the socket,
+            // for the same reason as below: the socket says where on the
+            // floor, the prefab says how it sits on it.
+            Vector3 offset = new Vector3(
+                Random.Range(-slotJitter, slotJitter),
+                0f,
+                Random.Range(-slotJitter, slotJitter));
+
+            world = socket.Position + socket.Rotation * offset + Vector3.up * y;
+            spin = socket.Rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        }
+        else
+        {
+            Vector2 sl = Slots[slot % Slots.Length];
+            Vector3 local = new Vector3(
+                sl.x + Random.Range(-slotJitter, slotJitter),
+                y,
+                sl.y + Random.Range(-slotJitter, slotJitter));
+
+            // Random spin about the level's own up, so items look dropped
+            // rather than placed - but built on the LEVEL's rotation, so a
+            // rotated floor does not tip its loot over.
+            world = level.TransformPoint(local);
+            spin = level.rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        }
 
         BuildItem(tierIndex, value, mass, name, world, spin);
     }

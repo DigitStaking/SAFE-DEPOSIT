@@ -68,7 +68,7 @@ things that fill it, then the thing that arranges them.
 
 ---
 
-### Step 1 · Q — put it down
+### Step 1 · Q — put it down ✅ DONE
 
 **E is for taking. Q is for giving up.** Separating them fixes something that
 has always been slightly wrong: one key doing both means a mistimed press
@@ -92,7 +92,7 @@ when the doors close.
 
 ---
 
-### Step 2 · Q — hold to throw
+### Step 2 · Q — hold to throw ✅ DONE
 
 Hold Q to wind up, release to throw. **The heavier it is, the longer the
 wind-up and the shorter the throw.** A can crosses a room; a crate goes about
@@ -152,7 +152,7 @@ vending machine cannot be thrown at all.
 
 ---
 
-### Step 3 · Make the shove reliable
+### Step 3 · Make the shove reliable ◀ IN PROGRESS
 
 Carried from Phase 4's KNOWN ISSUES. Push works and then occasionally does
 not, from what looks like the same position. Four faults have already been
@@ -170,6 +170,21 @@ Three things have never been checked:
    victim's body is kinematic there and driven by `NetworkTransform`.
 
 **Done when:** twenty shoves from twenty positions all connect.
+
+> **Instrumented first, 5 Sep 2026.** One `[PUSH]` line per swing, naming what
+> was in front of the eye at the keypress and at contact, and — when those
+> disagree — the distance, the cone dot, how far the target moved in between,
+> and whether `Pushable.Allows` refused it.
+>
+> Worth stating before reading any of it: contact firing 0.341s after the
+> keypress is **deliberate**, and `PlayerPush` carries a comment saying so —
+> *"somebody who steps out of the way during the wind-up actually gets away
+> with it."* A moving target escaping is the feature. The question this log
+> answers is whether the reported misses are that, or something else wearing
+> the same clothes.
+>
+> Two bugs earlier today were each settled by one log line after several rounds
+> of reading source had settled nothing. That is why this step starts here.
 
 ---
 

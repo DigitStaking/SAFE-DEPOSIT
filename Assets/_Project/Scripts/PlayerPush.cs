@@ -362,7 +362,74 @@ public class PlayerPush : NetworkBehaviour
         // exactly the sort of split this project keeps having to undo.
         Rigidbody body = FindTarget(eye);
 
+        // TEMPORARY (Phase 5 Step 3). Kept so contact can say what changed
+        // between the press and the hands arriving - which is the whole
+        // question. No behaviour depends on these.
+        pressTarget = body;
+        pressTargetAt = body != null ? body.transform.position : Vector3.zero;
+
         return body != null ? Pushable.For(body) : null;
+    }
+
+    // ====================================================================
+    // TEMPORARY INSTRUMENTATION - PHASE 5 STEP 3
+    //
+    // Four faults have already been found under "the shove sometimes misses",
+    // and every one of them looked like the answer while it was being fixed.
+    // PHASE5_SPEC says instrument before changing anything, and two bugs
+    // earlier today were settled in one log line each after several rounds of
+    // reading source had not settled them at all.
+    //
+    // Contact fires 0.341s after the keypress - contactAt 0.341 of a 1s
+    // armTime, both serialised on the prefab - and the probe is deliberately
+    // repeated at that moment so somebody who steps aside during the wind-up
+    // gets away with it. That is a design decision, not a bug, which is
+    // exactly why it needs measuring rather than assuming: the question is
+    // whether the misses are targets legitimately escaping, or something else
+    // wearing the same clothes.
+    //
+    // One line per swing, and it separates all three open leads:
+    //
+    //   pressed=X contact=X            landed. If the victim did not move,
+    //                                  the loss is network-side (lead 3).
+    //   pressed=X contact=none         the target left the volume. dist, dot
+    //                                  and movedSincePress say which way and
+    //                                  whether it was reach or arc (lead 1).
+    //   pressed=none contact=none      never had it. Aim or reach.
+    //   usable=False                   Pushable.Allows refused it (lead 2).
+    //
+    // Delete once the shove is signed off.
+    // ====================================================================
+
+    Rigidbody pressTarget;
+    Vector3 pressTargetAt;
+
+    void LogSwing(Transform eye, Rigidbody contact)
+    {
+        string pressed = pressTarget != null ? pressTarget.name : "none";
+        string hit = contact != null ? contact.name : "none";
+        string why = "";
+
+        if (contact == null && pressTarget != null)
+        {
+            Vector3 toward = pressTarget.transform.position - eye.position;
+            toward.y = 0f;
+            float dist = toward.magnitude;
+
+            Vector3 fwd = eye.forward;
+            fwd.y = 0f;
+
+            float dot = (dist > 1e-3f && fwd.sqrMagnitude > 1e-6f)
+                ? Vector3.Dot(toward / dist, fwd.normalized)
+                : 0f;
+
+            float moved = Vector3.Distance(pressTarget.transform.position, pressTargetAt);
+
+            why = $"  | dist={dist:0.00}m (range {range})  dot={dot:0.00} (cone {pushCone})" +
+                  $"  movedSincePress={moved:0.00}m  usable={Usable(pressTarget)}";
+        }
+
+        Debug.Log($"[PUSH] pressed={pressed}  contact={hit}{why}");
     }
 
     /// <summary>
@@ -384,6 +451,9 @@ public class PlayerPush : NetworkBehaviour
         // that misses because you were looking at somebody's belt reads as
         // broken rather than as inaccurate.
         Rigidbody body = FindTarget(eye);
+
+        LogSwing(eye, body);        // TEMPORARY - Phase 5 Step 3
+
         if (body == null) return;
 
         // Pushable.Allows is asked inside FindTarget now, so anything that

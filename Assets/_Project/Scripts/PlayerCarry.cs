@@ -745,22 +745,6 @@ public class PlayerCarry : MonoBehaviour
             ? dir * Mathf.Sqrt(g * range * range / denom)
             : dir * 6f;
 
-        // ---- TEMPORARY INSTRUMENTATION, PHASE 5 STEP 2 ----
-        //
-        // Three rounds of "the gauge says X and it does Y" have now been spent
-        // arguing from the source, and the source has been right every time -
-        // which means the thing worth knowing is what the RUNNING build has in
-        // its hands, and no amount of reading solves that. One line to the
-        // editor log answers all of it at once: which assembly is live, what
-        // the item actually weighs, and whether the charge ever reached 1.
-        //
-        // Delete once the throw is signed off.
-        Debug.Log($"[THROW] build=renamed  light={throwDistanceLight:0.0}" +
-                  $"  heavy={throwDistanceHeavy:0.0}  item={item.name}  mass={item.Mass:0.0}kg" +
-                  $"  class={item.Weight}  charge={charge:0.00}" +
-                  $"  maxRange={ThrowRange(item):0.00}m  asked={range:0.00}m" +
-                  $"  speed={velocity.magnitude:0.00}  angle={throwAngle:0}deg");
-
         Quaternion rot = item.transform.rotation;
 
         held = null;

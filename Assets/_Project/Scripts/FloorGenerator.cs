@@ -101,14 +101,39 @@ public class FloorGenerator : MonoBehaviour
             return null;
         }
 
-        // Several attempts, each with its own seed. A rejection is cheap and a
-        // wrong floor is not, so retrying is always the better trade.
-        for (int attempt = 0; attempt < 12; attempt++)
+        // ====================================================================
+        // RETRY, AND ASK FOR LESS AS YOU GO
+        //
+        // A rejection is cheap and a wrong floor is not, so retrying is always
+        // the better trade. But retrying the SAME SIZE is not enough: the graph
+        // almost always asks for the full room budget, and fourteen rooms of
+        // nine to sixteen metres do not always pack around a shaft without
+        // overlapping. Two floors in ten used to exhaust every attempt and fall
+        // back to the fixed graybox room.
+        //
+        // So later attempts ask for a smaller floor. The constraint is never
+        // relaxed - minRooms, minJunctions and every door still hold - it is
+        // only the ceiling that comes down, so a floor that cannot be fourteen
+        // rooms becomes nine rather than becoming nothing.
+        //
+        // Shrinking beats loosening. Sealing a door or letting rooms overlap to
+        // fit would be the other way to make fourteen work, and both are
+        // exactly what this generator exists to refuse.
+        // ====================================================================
+
+        const int attempts = 24;
+
+        for (int attempt = 0; attempt < attempts; attempt++)
         {
             int seed = FloorLayout.SeedFor(runNumber, floor, attempt);
             var rng = new System.Random(seed);
 
-            var g = FloorGraph.Build(rng, minRooms, maxRooms, minJunctions, available);
+            // Full size for the first third, then step the ceiling down toward
+            // the floor's minimum over the remaining attempts.
+            float easing = Mathf.Clamp01((attempt - attempts / 3f) / (attempts * 0.67f));
+            int roomCeiling = Mathf.RoundToInt(Mathf.Lerp(maxRooms, minRooms, easing));
+
+            var g = FloorGraph.Build(rng, minRooms, roomCeiling, minJunctions, available);
 
             var graphFaults = g.Problems(minRooms, minJunctions);
             if (graphFaults.Count > 0)
@@ -122,6 +147,18 @@ public class FloorGenerator : MonoBehaviour
 
             if (rooms != null)
             {
+                // ---- THE LOCK GOES ON LAST ----
+                //
+                // It needs the finished tree: which side of every connection
+                // is nearer the lift, and therefore where a key may safely
+                // live. Trying to decide that while rooms are still being
+                // placed would mean guessing at a shape that is not settled.
+                //
+                // A floor that cannot take a lock is not a failure. Small
+                // floors have nowhere to put one, and a floor without a
+                // locked door is simply a floor without a locked door.
+                FloorLocks.Install(rooms, rng);
+
                 graph = g;
                 failure = null;
                 return rooms;

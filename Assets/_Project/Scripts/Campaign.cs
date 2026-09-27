@@ -584,6 +584,11 @@ public static class Campaign
 
     static int    localMoney = StartingMoney;
     static float  localCable = StartingCable;
+
+    // Rolled at static init as well as in Reset, so the FIRST game after
+    // launching the app is a new building too - not just the ones after a
+    // loss. A client overwrites this the moment it reads the host's value.
+    static int    localLayout = FreshLayoutSeed();
     static int    localRun = 1;
     static int    localCapacity;
     static int    localCableBought;
@@ -611,6 +616,34 @@ public static class Campaign
     {
         get => Net != null ? Net.RunNumber.Value : localRun;
         set { if (Net != null) Net.RunNumber.Value = value; else localRun = value; }
+    }
+
+    // ====================================================================
+    // WHICH BUILDING THIS GAME IS LOOTING
+    //
+    // Floors are generated deterministically from a seed, so the same seed
+    // gives the same building - which is what makes "leave floor 3 and come
+    // back" show the same rooms, on every machine, with no geometry sent.
+    //
+    // RunNumber was doing that job and it was the WRONG NUMBER. Reset() sets
+    // it back to 1 for a new campaign, so game one and game two both started
+    // at 1 and generated an identical building. Reported directly: "each time
+    // i start a new game the floors need to be different".
+    //
+    // This is a different question - "which GAME is this", not "which round" -
+    // and RunNumber provably cannot answer it, because it resets. So it gets
+    // its own number: rolled once in Reset, host-owned, replicated like the
+    // money, and constant for the whole campaign.
+    //
+    // Same run + same floor + same LayoutSeed -> the same rooms, always.
+    // New game -> new LayoutSeed -> the seven room types mix into a different
+    // building.
+    // ====================================================================
+
+    public static int LayoutSeed
+    {
+        get => Net != null ? Net.Layout.Value : localLayout;
+        set { if (Net != null) Net.Layout.Value = value; else localLayout = value; }
     }
 
     public static int CapacityUpgrades
@@ -665,6 +698,7 @@ public static class Campaign
     public static void PushLocalStateToNetwork()
     {
         if (Net == null) return;
+        Net.Layout.Value = localLayout;
         Net.Money.Value = localMoney;
         Net.Cable.Value = localCable;
         Net.RunNumber.Value = localRun;
@@ -675,6 +709,7 @@ public static class Campaign
         Net.Strain.Value = localStrain;
         Net.Seeded.Value = localSeeded;
         Net.Sealed.Value = SealedMask();
+        Net.Cleared.Value = ClearedMask();
         PublishLostCrew();
         Net.Epitaph.Value = new Unity.Collections.FixedString128Bytes(localEpitaph ?? "");
     }
@@ -686,6 +721,7 @@ public static class Campaign
     public static void PullNetworkStateToLocal()
     {
         if (Net == null) return;
+        localLayout = Net.Layout.Value;
         localMoney = Net.Money.Value;
         localCable = Net.Cable.Value;
         localRun = Net.RunNumber.Value;
@@ -696,11 +732,31 @@ public static class Campaign
         localStrain = Net.Strain.Value;
         localSeeded = Net.Seeded.Value;
         ApplySealedMask(Net.Sealed.Value);
+        ApplyClearedMask(Net.Cleared.Value);
         localEpitaph = Net.Epitaph.Value.ToString();
     }
 
     /// <summary>1-based room indices sealed forever (rubble, not deleted geometry).</summary>
     public static readonly HashSet<int> DestroyedRooms = new HashSet<int>();
+
+    /// <summary>
+    /// Floors the crew has stripped BARE and banked - taped shut, finished.
+    ///
+    /// Different from DestroyedRooms in the one way that matters: a sealed
+    /// floor was taken from you, a cleared floor was beaten. The tape is a
+    /// receipt, not a loss.
+    ///
+    /// A floor joins this set only when it was actually stocked and now holds
+    /// nothing. "Holds nothing" alone is not enough - a floor still waiting on
+    /// PendingLootBudget also holds nothing, and taping that one would lock
+    /// the crew out of loot the building still owes them.
+    ///
+    /// It earns its keep twice. It tells the player a floor is done, and it
+    /// means the floor is never generated again - which is the cheaper the
+    /// more detailed rooms become, since the whole cost of a floor is the
+    /// rooms in it.
+    /// </summary>
+    public static readonly HashSet<int> ClearedRooms = new HashSet<int>();
 
     // ---- THE BUILDING REMEMBERS ----
     //
@@ -731,6 +787,25 @@ public static class Campaign
     }
 
     public static readonly List<LootRecord> LootRoster = new List<LootRecord>();
+
+    /// <summary>
+    /// Floors that have been ALLOTTED loot but have nowhere to put it yet,
+    /// as floor number -> the money that floor is owed.
+    ///
+    /// The building is stocked once per campaign, but floors are built one at
+    /// a time as the cable reaches them. A floor beyond the cable therefore
+    /// gets its share of the budget long before it has a single shelf to
+    /// stand a crate on, and that share has to wait somewhere.
+    ///
+    /// It lives HERE rather than on LootSpawner because it has to outlive the
+    /// scene. RunManager.ReloadScene destroys the component between rounds,
+    /// and a floor first unlocked in round six must still be owed exactly what
+    /// round one set aside for it. Kept beside LootRoster because it is the
+    /// same fact in two states: the roster is loot that exists, this is loot
+    /// that is owed.
+    /// </summary>
+    public static readonly Dictionary<int, float> PendingLootBudget =
+        new Dictionary<int, float>();
 
     /// <summary>
     /// Distinguishes "the building has been stocked and then stripped bare"
@@ -916,6 +991,13 @@ public static class Campaign
 
     public static bool CableIsUseless => LiveRoomsInReach <= 0;
 
+    /// <summary>
+    /// A number that differs from the last one. Nothing has to be able to
+    /// reproduce it - it is the source of newness, and everything after it is
+    /// deterministic.
+    /// </summary>
+    static int FreshLayoutSeed() => System.DateTime.UtcNow.Ticks.GetHashCode();
+
     public static void Reset()
     {
         Abandoned = 0;
@@ -928,6 +1010,18 @@ public static class Campaign
         Money = StartingMoney;
         CableLength = StartingCable;
         RunNumber = 1;
+
+        // ---- A NEW GAME IS A NEW BUILDING ----
+        //
+        // Rolled from the clock, because the ONLY requirement is that it
+        // differs from last time - nothing needs to reproduce it. Everything
+        // downstream is deterministic from this one number, so this is the
+        // single point where newness enters the whole generator.
+        //
+        // Host only: Reset has already returned for a client above, so this
+        // is set once and replicated, and every machine builds the same
+        // building from it.
+        LayoutSeed = FreshLayoutSeed();
         CapacityUpgrades = 0;
         CableBoughtThisRound = 0;
         CapacityBoughtThisRound = 0;
@@ -940,7 +1034,9 @@ public static class Campaign
         CampaignOver = false;
         EpitaphReason = "";
         DestroyedRooms.Clear();
+        ClearedRooms.Clear();
         LootRoster.Clear();
+        PendingLootBudget.Clear();
         LootSeeded = false;
     }
 
@@ -1013,6 +1109,32 @@ public static class Campaign
         DestroyedRooms.Clear();
         for (int r = 1; r <= 32; r++)
             if ((m & (1u << (r - 1))) != 0u) DestroyedRooms.Add(r);
+    }
+
+    /// <summary>The taped-shut floors as one number, same shape as SealedMask.</summary>
+    public static uint ClearedMask()
+    {
+        uint m = 0u;
+        foreach (int r in ClearedRooms)
+            if (r >= 1 && r <= 32) m |= 1u << (r - 1);
+        return m;
+    }
+
+    /// <summary>Adopt the host's finished floors wholesale.</summary>
+    public static void ApplyClearedMask(uint m)
+    {
+        ClearedRooms.Clear();
+        for (int r = 1; r <= 32; r++)
+            if ((m & (1u << (r - 1))) != 0u) ClearedRooms.Add(r);
+    }
+
+    /// <summary>
+    /// Called by the host after any change to ClearedRooms. Only the host
+    /// decides a floor is finished - it is the machine that owns the roster.
+    /// </summary>
+    public static void PublishClearedRooms()
+    {
+        if (Net != null && Net.IsServer) Net.Cleared.Value = ClearedMask();
     }
 
     /// <summary>

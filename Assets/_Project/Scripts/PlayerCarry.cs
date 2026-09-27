@@ -348,6 +348,18 @@ public class PlayerCarry : MonoBehaviour
             return;
         }
 
+        // ---- A DOOR IS THE ONE THING E DOES THAT IS NOT TAKING ----
+        //
+        // Hands full of a KEY is the exception. Everything else about holding
+        // something means E has nothing to do, but a key exists to be used at
+        // a door, and asking a player to put it down first to press E would be
+        // absurd.
+        //
+        // Checked before the "hands full" rule below, and only when what you
+        // are holding is actually a key - so a crate in your arms still means
+        // E does nothing at all.
+        if (DoorKey.HeldBy(this) != null && TryOpenDoor()) return;
+
         // ---- E IS FOR TAKING. Q IS FOR GIVING UP. ----
         //
         // This used to be DropHeld(), so one key did both jobs. The failure is
@@ -362,6 +374,36 @@ public class PlayerCarry : MonoBehaviour
         // The downed branch above KEEPS its drop, deliberately: that one is
         // not a convenience, it is the reason the load gauge cannot end up
         // charging the crew for a box nobody can reach.
+    }
+
+    /// <summary>
+    /// Open a locked door in front of me, if I am holding its key.
+    ///
+    /// Returns true when a door actually opened, so the caller knows E was
+    /// used and should not fall through to anything else.
+    ///
+    /// Its own spherecast rather than FindTarget's, because FindTarget looks
+    /// for a Carryable on the loot layer and a door is neither - reusing it
+    /// would mean widening what "pick up" means, and this project has already
+    /// paid for one key doing two jobs.
+    /// </summary>
+    bool TryOpenDoor()
+    {
+        var cam = Eye;
+        if (cam == null) return false;
+
+        var key = DoorKey.HeldBy(this);
+        if (key == null) return false;
+
+        if (!Physics.SphereCast(cam.position, pickupRadius, cam.forward,
+                                out RaycastHit hit, pickupRange,
+                                ~0, QueryTriggerInteraction.Ignore))
+            return false;
+
+        var door = hit.collider.GetComponentInParent<RoomDoor>();
+        if (door == null) return false;
+
+        return door.TryUnlock(key);
     }
 
     Carryable FindTarget()

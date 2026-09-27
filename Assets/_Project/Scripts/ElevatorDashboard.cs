@@ -442,6 +442,15 @@ public class ElevatorDashboard : MonoBehaviour
         if (floor == elevator.CurrentFloor) { Reject($"ALREADY ON {floor:00}"); return; }
 
         if (floor > 0 && Campaign.DestroyedRooms.Contains(floor)) { Reject($"{floor:00} SEALED"); return; }
+
+        // A cleared floor is NOT refused here. The lift goes; the doorway is
+        // taped instead (RoomTape). Asked for that way directly: "even if you
+        // click floor 1 in elevator it can go but you can't go inside".
+        //
+        // It is also the better of the two. Refusing at the panel hides your
+        // own progress behind a text string; riding down and looking at a
+        // taped doorway shows it to you, and costs nothing extra because the
+        // floor behind it is never generated either way.
         if (floor > 0 && floor > Campaign.DeepestReachableFloor) { Reject($"{floor:00} BEYOND CABLE"); return; }
         if (RejectIfOverloaded()) return;
 

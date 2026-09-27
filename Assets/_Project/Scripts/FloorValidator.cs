@@ -182,7 +182,245 @@ public static class FloorValidator
                 bad.Add($"{stranded} room(s) cannot be walked to from the entrance");
         }
 
+        CheckTheWayIn(rooms, bad);
+        CheckItActuallyBranches(rooms, minJunctions, bad);
+        CheckLocksAreSolvable(rooms, bad);
+
         return bad;
+    }
+
+    // ====================================================================
+    // THE WAY OUT OF THE LIFT IS A HARD CONSTRAINT
+    //
+    // "No room overlaps the shaft" is not the same promise as "a player can
+    // walk out of the car". The start room can satisfy every keep-out rule and
+    // still stand a column, a partition or its own wall squarely in the
+    // doorway - and the first thing anybody does on a floor is step forward.
+    //
+    // So this measures the corridor a player actually walks through: from just
+    // past the doorway wall, straight into the room, at CHEST HEIGHT.
+    //
+    // The height band is the whole trick. Every room has a floor renderer and
+    // a ceiling renderer whose bounds span the entire interior, so a test box
+    // that reached the ground would report every room as blocked by its own
+    // floor. Sampling from 0.4m to 2.0m clears the floor slab (top at y 0) and
+    // the ceiling (bottom at y 4) and still catches anything a person would
+    // walk into.
+    // ====================================================================
+
+    /// <summary>Depth of clear corridor required in front of the entrance.</summary>
+    const float WayInDepth = 3f;
+
+    /// <summary>Door is 2m wide; 1.8 leaves a little either side so a wall
+    /// that merely touches the frame is not called an obstruction.</summary>
+    const float WayInWidth = 1.8f;
+
+    const float WayInLow = 0.4f;
+    const float WayInHigh = 2f;
+
+    static void CheckTheWayIn(List<RoomModule> rooms, List<string> bad)
+    {
+        RoomExit entrance = null;
+
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+            foreach (var d in RoomExit.DoorsUnder(room.transform))
+                if (d != null && d.isEntrance) { entrance = d; break; }
+            if (entrance != null) break;
+        }
+
+        if (entrance == null) return;    // already reported as a fault above
+
+        // The entrance faces OUT of the floor, so walking in is -Outward.
+        Vector3 inward = -entrance.Outward;
+        inward.y = 0f;
+        if (inward.sqrMagnitude < 0.0001f) return;
+        inward.Normalize();
+
+        // Start past the doorway wall itself, so the wall the door is cut
+        // through is not mistaken for something blocking the door.
+        Vector3 from = entrance.Position + inward * 0.6f;
+        Vector3 to = entrance.Position + inward * (0.6f + WayInDepth);
+
+        var corridor = new Bounds((from + to) * 0.5f, Vector3.zero);
+        corridor.Encapsulate(from);
+        corridor.Encapsulate(to);
+
+        // Widen across the door and set the height band.
+        Vector3 across = Vector3.Cross(Vector3.up, inward).normalized * (WayInWidth * 0.5f);
+        corridor.Encapsulate(from + across);
+        corridor.Encapsulate(from - across);
+        corridor.Encapsulate(to + across);
+        corridor.Encapsulate(to - across);
+
+        var size = corridor.size;
+        size.y = WayInHigh - WayInLow;
+
+        corridor = new Bounds(
+            new Vector3(corridor.center.x, (WayInLow + WayInHigh) * 0.5f, corridor.center.z),
+            size);
+
+        int blockers = 0;
+
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+
+            foreach (var r in room.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (r == null) continue;
+
+                // Floors and ceilings span the room and are excluded by the
+                // height band, not by name - a rename cannot break this.
+                if (r.bounds.max.y <= WayInLow || r.bounds.min.y >= WayInHigh) continue;
+
+                if (r.bounds.Intersects(corridor)) blockers++;
+            }
+        }
+
+        if (blockers > 0)
+            bad.Add($"{blockers} piece(s) of geometry stand in the {WayInDepth}m " +
+                    "of corridor in front of the lift doorway - a player would " +
+                    "walk out of the car into a wall");
+    }
+
+    // ====================================================================
+    // BRANCHING, MEASURED ON WHAT WAS BUILT
+    //
+    // Counting rooms with three or more DOORS says the prefab has three doors.
+    // It does not say three rooms were attached to it. Those are the same
+    // number only while placement never fails - which is exactly the case this
+    // is here to catch.
+    //
+    // So this walks the real partner links and counts CONNECTED neighbours.
+    // A floor where nothing exceeds two neighbours is a corridor made of
+    // rooms, however many junction prefabs it contains.
+    // ====================================================================
+
+    static void CheckItActuallyBranches(List<RoomModule> rooms, int minJunctions,
+                                        List<string> bad)
+    {
+        int realJunctions = 0;
+        int widest = 0;
+
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+
+            int neighbours = 0;
+
+            foreach (var d in RoomExit.DoorsUnder(room.transform))
+            {
+                if (d == null || d.isEntrance) continue;
+                if (d.partner == null) continue;
+
+                var other = d.partner.GetComponentInParent<RoomModule>();
+                if (other != null && other != room) neighbours++;
+            }
+
+            if (neighbours > widest) widest = neighbours;
+            if (neighbours >= 3) realJunctions++;
+        }
+
+        if (widest <= 2)
+            bad.Add("no room has more than two connected neighbours - this floor " +
+                    "is a corridor made of rooms, whatever its door counts say");
+
+        if (realJunctions < minJunctions)
+            bad.Add($"only {realJunctions} room(s) actually have 3+ rooms attached " +
+                    $"(wanted {minJunctions}) - door counts are not connections");
+    }
+
+    // ====================================================================
+    // A LOCKED DOOR MUST NOT LOCK AWAY ITS OWN KEY
+    //
+    // The floor is a tree, so a locked connection puts the whole subtree
+    // beyond it out of reach. If the key is in that subtree the round cannot
+    // be finished, and nothing about the floor LOOKS wrong - every door
+    // connects, nothing overlaps, every room is reachable on paper.
+    //
+    // FloorLocks already places the key outside the locked subtree. This
+    // checks it independently, because a rule enforced only by the code that
+    // implements it has exactly one witness.
+    // ====================================================================
+
+    static void CheckLocksAreSolvable(List<RoomModule> rooms, List<string> bad)
+    {
+        var doors = new List<RoomDoor>();
+
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+            doors.AddRange(room.GetComponentsInChildren<RoomDoor>());
+        }
+
+        if (doors.Count == 0) return;      // a floor with no lock is fine
+
+        // Which rooms can be reached from the entrance WITHOUT opening
+        // anything - walked through the real door links, refusing to cross a
+        // locked one.
+        RoomModule start = null;
+
+        foreach (var room in rooms)
+        {
+            if (room == null) continue;
+            foreach (var d in RoomExit.DoorsUnder(room.transform))
+                if (d != null && d.isEntrance) { start = room; break; }
+            if (start != null) break;
+        }
+
+        if (start == null) return;         // already reported
+
+        var reachable = new HashSet<RoomModule>();
+        var stack = new Stack<RoomModule>();
+        stack.Push(start);
+
+        while (stack.Count > 0)
+        {
+            var room = stack.Pop();
+            if (!reachable.Add(room)) continue;
+
+            foreach (var d in RoomExit.DoorsUnder(room.transform))
+            {
+                if (d == null || d.partner == null) continue;
+                if (Blocked(d, doors)) continue;
+
+                var other = d.partner.GetComponentInParent<RoomModule>();
+                if (other != null) stack.Push(other);
+            }
+        }
+
+        foreach (var door in doors)
+        {
+            if (door == null || !door.IsLocked) continue;
+
+            bool keyInReach = false;
+
+            foreach (var key in Object.FindObjectsByType<DoorKey>(FindObjectsSortMode.None))
+            {
+                if (key == null || key.keyId != door.keyId) continue;
+
+                var where = key.GetComponentInParent<RoomModule>();
+                if (where != null && reachable.Contains(where)) { keyInReach = true; break; }
+            }
+
+            if (!keyInReach)
+                bad.Add($"the key for door '{door.keyId}' is behind that same door - " +
+                        "the floor has locked itself and cannot be finished");
+        }
+    }
+
+    /// <summary>Is this doorway shut by a locked door?</summary>
+    static bool Blocked(RoomExit door, List<RoomDoor> doors)
+    {
+        foreach (var d in doors)
+        {
+            if (d == null || !d.IsLocked) continue;
+            if (d.sideA == door || d.sideB == door) return true;
+        }
+
+        return false;
     }
 
     static Bounds Footprint(RoomModule room)

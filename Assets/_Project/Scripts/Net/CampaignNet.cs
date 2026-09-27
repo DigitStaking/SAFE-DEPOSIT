@@ -77,6 +77,17 @@ public class CampaignNet : NetworkBehaviour
     public readonly NetworkVariable<int>   Money      = new NetworkVariable<int>(Campaign.StartingMoney, default, Host);
     public readonly NetworkVariable<float> Cable      = new NetworkVariable<float>(Campaign.StartingCable, default, Host);
     public readonly NetworkVariable<int>   RunNumber  = new NetworkVariable<int>(1, default, Host);
+
+    /// <summary>
+    /// Which BUILDING this campaign is looting. Rolled once when a new game
+    /// starts and never again, so every floor of that game is deterministic
+    /// while a different game gets a different building.
+    ///
+    /// RunNumber cannot do this job: Campaign.Reset sets it back to 1, so two
+    /// separate games both start at 1 and generate identical floors. That was
+    /// the bug this exists to fix.
+    /// </summary>
+    public readonly NetworkVariable<int>   Layout     = new NetworkVariable<int>(0, default, Host);
     public readonly NetworkVariable<int>   Capacity   = new NetworkVariable<int>(0, default, Host);
     public readonly NetworkVariable<int>   CableBought    = new NetworkVariable<int>(0, default, Host);
     public readonly NetworkVariable<int>   CapacityBought = new NetworkVariable<int>(0, default, Host);
@@ -101,6 +112,9 @@ public class CampaignNet : NetworkBehaviour
     /// standing in a doorway the other saw as sealed.
     /// </summary>
     public readonly NetworkVariable<uint>  Sealed     = new NetworkVariable<uint>(0u, default, Host);
+
+    /// <summary>Floors stripped bare and taped shut. Same bitmask shape as Sealed.</summary>
+    public readonly NetworkVariable<uint>  Cleared    = new NetworkVariable<uint>(0u, default, Host);
 
     /// <summary>
     /// The room currently counting down to being sealed. Host picks it,
@@ -211,6 +225,12 @@ public class CampaignNet : NetworkBehaviour
             Sealed.OnValueChanged += OnSealedChanged;
             if (Sealed.Value != 0u) OnSealedChanged(0u, Sealed.Value);
 
+            // No geometry to rebuild, unlike Sealed - a cleared floor is one
+            // that never gets built at all, so adopting the number is the
+            // whole job.
+            Cleared.OnValueChanged += OnClearedChanged;
+            if (Cleared.Value != 0u) OnClearedChanged(0u, Cleared.Value);
+
             Lost.OnListChanged += OnLostChanged;
             Campaign.ApplyLostCrew(Lost);
         }
@@ -220,6 +240,18 @@ public class CampaignNet : NetworkBehaviour
     }
 
     void OnLostChanged(NetworkListEvent<LostRec> _) => Campaign.ApplyLostCrew(Lost);
+
+    void OnClearedChanged(uint _, uint now)
+    {
+        Campaign.ApplyClearedMask(now);
+
+        // Unlike Sealed there is no floor to tear down - a cleared floor was
+        // never built. But the tape still has to appear, and on a client this
+        // is the only moment it can: the floor became finished on somebody
+        // else's machine.
+        var run = SceneRefs.Run;
+        if (run != null) run.RebuildTapeFromCampaign();
+    }
 
     void OnSealedChanged(uint _, uint now)
     {
@@ -234,6 +266,7 @@ public class CampaignNet : NetworkBehaviour
         if (!IsServer)
         {
             Sealed.OnValueChanged -= OnSealedChanged;
+            Cleared.OnValueChanged -= OnClearedChanged;
             Lost.OnListChanged -= OnLostChanged;
         }
 

@@ -22,24 +22,16 @@ public static class FloorPreview
     const int MinJunctions = 2;
     const int MinDeadEnds = 2;
 
-    // The same volume FloorDirector protects at runtime. The preview has to
-    // test what the game tests, or it is checking a different generator.
-    const float ShaftKeepOut = 7.6f;
-
-    /// <summary>The shaft, in world space, built from the level's own frame so
-    /// it turns with the floor.</summary>
-    static Bounds KeepOut(Transform level)
-    {
-        var b = new Bounds(level.TransformPoint(Vector3.up * 3f), Vector3.zero);
-
-        for (int i = 0; i < 8; i++)
-            b.Encapsulate(level.TransformPoint(new Vector3(
-                (i & 1) == 0 ? -ShaftKeepOut : ShaftKeepOut,
-                (i & 2) == 0 ? -2f : 8f,
-                (i & 4) == 0 ? -ShaftKeepOut : ShaftKeepOut)));
-
-        return b;
-    }
+    // ---- THE PREVIEW USES THE GAME'S NUMBERS, NOT ITS OWN ----
+    //
+    // This file used to carry a copy of the keep-out size AND pass
+    // Vector3.zero as the entrance. The second one planted every start room in
+    // the middle of the shaft, so all ten floors were rejected with "the start
+    // room would sit inside the shaft" - a completely correct rejection of a
+    // building the game would never have built.
+    //
+    // The generator was never wrong. The preview was describing somewhere
+    // else. Both values now come from FloorDirector, which owns them.
 
     [MenuItem("Tools/Rooms/Preview Ten Floors")]
     public static void PreviewTen()
@@ -74,10 +66,10 @@ public static class FloorPreview
             level.transform.localPosition = new Vector3(0f, 0f, floor * 140f);
 
             var rooms = FloorGenerator.Build(
-                level.transform, run, floor, cat, Vector3.zero,
+                level.transform, run, floor, cat, FloorDirector.ShaftDoorwayLocal,
                 MinRooms, MaxRooms, MinJunctions,
                 p => (GameObject)PrefabUtility.InstantiatePrefab(p),
-                out FloorGraph graph, out string failure, KeepOut(level.transform));
+                out FloorGraph graph, out string failure, FloorDirector.ShaftKeepOutFor(level.transform));
 
             if (rooms == null)
             {
@@ -87,7 +79,7 @@ public static class FloorPreview
             }
 
             var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions,
-                                              MinDeadEnds, KeepOut(level.transform));
+                                              MinDeadEnds, FloorDirector.ShaftKeepOutFor(level.transform));
 
             int dead = 0, junc = 0;
             foreach (var r in rooms)
@@ -158,10 +150,10 @@ public static class FloorPreview
             level.transform.localPosition = new Vector3(0f, 0f, seed * 140f);
 
             var rooms = FloorGenerator.Build(
-                level.transform, seed, seed, cat, Vector3.zero,
+                level.transform, seed, seed, cat, FloorDirector.ShaftDoorwayLocal,
                 MinRooms, MaxRooms, MinJunctions,
                 p => (GameObject)PrefabUtility.InstantiatePrefab(p),
-                out FloorGraph graph, out string failure, KeepOut(level.transform));
+                out FloorGraph graph, out string failure, FloorDirector.ShaftKeepOutFor(level.transform));
 
             if (rooms == null)
             {
@@ -171,7 +163,7 @@ public static class FloorPreview
             }
 
             var faults = FloorValidator.Check(rooms, MinRooms, MinJunctions,
-                                              MinDeadEnds, KeepOut(level.transform));
+                                              MinDeadEnds, FloorDirector.ShaftKeepOutFor(level.transform));
 
             foreach (var r in rooms)
             {

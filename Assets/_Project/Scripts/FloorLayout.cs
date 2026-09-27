@@ -25,6 +25,16 @@ using UnityEngine;
 /// order - which nobody can maintain, and which fails silently and rarely.
 /// Determinism that depends on call order is not determinism.
 ///
+/// THE CAMPAIGN SEED
+///
+/// Campaign.LayoutSeed is rolled once when a new game starts and replicated
+/// from the host. It is mixed in here rather than passed through every call,
+/// so nothing above this line had to change - and there is exactly one place
+/// where "which building" enters the generator.
+///
+/// It exists because RunNumber could not answer the question. Reset() puts
+/// RunNumber back to 1, so two separate games generated the same building.
+///
 /// THE ATTEMPT NUMBER
 ///
 /// The generator rejects a floor it cannot place correctly and tries again.
@@ -44,7 +54,8 @@ public static class FloorLayout
     /// third run even though no single floor looks wrong.
     /// </summary>
     public static int SeedFor(int runNumber, int floor, int attempt = 0) =>
-        unchecked(runNumber * 73856093)
+        unchecked(Campaign.LayoutSeed * 668265263)
+        ^ unchecked(runNumber * 73856093)
         ^ unchecked((floor + 1) * 19349663)
         ^ unchecked((attempt + 1) * 83492791);
 }

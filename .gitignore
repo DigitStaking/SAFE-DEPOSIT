@@ -79,3 +79,7 @@ crashlytics-build.properties
 # Keep raw/unreduced .glb exports out of the repo; commit the reduced .fbx instead.
 Assets/_Project/Prefabs/Untitled.glb
 Assets/_Project/Prefabs/Untitled.glb.meta
+
+# Private Claude Code configuration - never commit.
+# Local development memory, workflow rules and skills.
+.claude/

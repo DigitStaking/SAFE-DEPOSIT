@@ -224,12 +224,14 @@ public class LootSpawner : MonoBehaviour
         // full of food whether or not your cable is long enough yet, and a
         // floor you finally reach in round 8 should have something in it.
         var levels = new List<Transform>();
+        var numbers = new List<int>();
         for (int floor = 1; floor <= 99; floor++)
         {
             var level = shaft.transform.Find($"Level_{floor:00}");
             if (level == null) break;                                  // ran out of floors
             if (Campaign.DestroyedRooms.Contains(floor)) continue;     // sealed - stays stripped
             levels.Add(level);
+            numbers.Add(floor);
         }
 
         if (levels.Count == 0) return;
@@ -241,12 +243,47 @@ public class LootSpawner : MonoBehaviour
         int reachable = Mathf.Max(1, Campaign.DeepestReachableFloor);
         float perFloor = Campaign.Income * spawnMultiplier / reachable;
 
-        int total = 0;
-        foreach (var level in levels)
-            total += FillFloor(level, perFloor * Random.Range(1f - floorVariance, 1f + floorVariance));
+        // ================================================================
+        // ALLOT NOW, PLACE WHEN THERE IS SOMEWHERE TO PLACE IT.
+        //
+        // Every Start() runs before the first Update(), and FloorDirector
+        // builds floors in Update - so at this moment not one floor has a
+        // room in it, and asking a bare Level_NN platform where its shelves
+        // are gets no answer at all.
+        //
+        // This used to fill all of them here anyway. SpawnItem asked for the
+        // room's loot sockets, got none, and fell through to the hardcoded
+        // Slots grid - three positions correct only for the room Phase 1
+        // built. Then FloorDirector generated the real rooms ON TOP, and the
+        // crates were inside walls. The fallback was doing exactly what it
+        // was written to do; it was simply being asked a frame too early.
+        //
+        // So the budget is decided here, where the economy's numbers are, and
+        // the placing waits for StockFloorIfPending. Rolling the variance now
+        // rather than later matters: a floor's worth is settled when the
+        // building is stocked, not when the crew finally reaches it.
+        // ================================================================
 
-        Debug.Log($"[Loot] round {Campaign.RunNumber}: {total} items across " +
-                  $"{levels.Count} floors, ~${perFloor:0} per floor. " +
+        int total = 0;
+        for (int i = 0; i < levels.Count; i++)
+        {
+            Campaign.PendingLootBudget[numbers[i]] =
+                perFloor * Random.Range(1f - floorVariance, 1f + floorVariance);
+
+            // Almost always zero on the first frame. Not guaranteed: a floor
+            // already standing (the graybox levels, or a floor built before
+            // this component woke) is stocked immediately rather than waiting
+            // for a rebuild that will never come.
+            total += StockFloorIfPending(levels[i], numbers[i]);
+        }
+
+        // Says ALLOTTED, not placed. It used to report the number placed, and
+        // that number is now almost always 0 - nothing can be placed at Start
+        // because no floor has been generated yet. A line reading "0 items
+        // across 20 floors" is true and reads like a failure.
+        Debug.Log($"[Loot] round {Campaign.RunNumber}: allotted " +
+                  $"{Campaign.PendingLootBudget.Count} floors ~${perFloor:0} each " +
+                  $"({total} placed now - the rest fill as their floors are built). " +
                   $"Cable reaches floor {Campaign.DeepestReachableFloor}, lifts ~${Campaign.Income}.");
 
         Campaign.LootSeeded = true;
@@ -273,6 +310,84 @@ public class LootSpawner : MonoBehaviour
     /// safe only because this runs during the join, before anyone has had a
     /// chance to pick anything up.
     /// </summary>
+    /// <summary>
+    /// Place the loot this floor is owed, if it is owed any and can now hold
+    /// it. Returns how many items were spawned.
+    ///
+    /// Called by FloorDirector the moment a floor's rooms exist. Safe to call
+    /// on any floor at any time: a floor that owes nothing, or that still has
+    /// no sockets, is left alone and stays owed.
+    ///
+    /// This is the ONLY thing that spends PendingLootBudget, so a floor
+    /// cannot be stocked twice - the entry is removed as it is paid out.
+    /// </summary>
+    public int StockFloorIfPending(Transform level, int floor)
+    {
+        if (level == null) return 0;
+
+        // ================================================================
+        // NEVER AFTER THE RUN HAS BANKED
+        //
+        // Campaign.LootRoster is captured the moment a run banks. Anything
+        // stocked after that moment is never written to it - so it dies with
+        // the between-round scene reload, while its budget has already been
+        // spent. The floor is then empty FOREVER: it owes nothing, so it is
+        // never stocked again.
+        //
+        // This is not a corner case. Buying cable on the results screen
+        // raises DeepestReachableFloor, FloorDirector generates the newly
+        // reachable floors right there, and this used to stock them into a
+        // scene that was about to be destroyed.
+        //
+        // Reported 10 Sep: "in round 2 i didnt find any loot in floor 4 after
+        // i open it". Editor.log had it in black and white - "floor 1
+        // stripped bare and banked" (extraction), then "floor 4 built -
+        // placed 3 items", then "round 2: restored 5 items". Three of those
+        // items were on floor 4 and none of them survived.
+        //
+        // Staying owed is exactly the right outcome. The floor is generated
+        // again next round and stocked then, with the money it was always
+        // due, in a scene that is going to live long enough to keep it.
+        // ================================================================
+        var run = SceneRefs.Run;
+        if (run != null && run.State != RunManager.RunState.Active) return 0;
+
+        if (!Campaign.PendingLootBudget.TryGetValue(floor, out float budget)) return 0;
+
+        // No sockets means no rooms yet. Stay owed rather than falling back to
+        // the Slots grid - that fallback is what put crates inside walls.
+        if (RoomModule.SocketsUnder(level, RoomSocket.Kind.Loot).Count == 0) return 0;
+
+        Campaign.PendingLootBudget.Remove(floor);
+
+        // ================================================================
+        // THE ROOMS ARE THERE. PHYSICS DOES NOT KNOW IT YET.
+        //
+        // FloorGenerator instantiates each room and then MOVES it into place
+        // by writing its transform. Unity does not push transform changes
+        // into the physics scene until the next physics step, so for the rest
+        // of this frame every room's collider is still wherever the prefab
+        // was instantiated - not where the room now visibly is.
+        //
+        // We are called from FloorDirector in that same frame, one line after
+        // the floor was built. So a crate can be dropped onto a floor that is
+        // plainly on screen and fall straight through it, because the only
+        // collider it could have hit is somewhere else entirely.
+        //
+        // Symptom on 10 Sep: one crate of nine fell 5.55m, dead vertical,
+        // zero lateral - the signature of spawning into thin air rather than
+        // rolling off an edge. One call fixes it, and this is exactly what
+        // the call is for.
+        // ================================================================
+        Physics.SyncTransforms();
+
+        int spawned = FillFloor(level, budget);
+        Debug.Log($"[Loot] floor {floor} built - placed {spawned} items on its " +
+                  $"real sockets, ~${budget:0} of budget it was owed.");
+
+        return spawned;
+    }
+
     public void ClearAndRebuild()
     {
         int removed = 0;
@@ -353,6 +468,66 @@ public class LootSpawner : MonoBehaviour
                 rotation = item.transform.rotation,
             });
         }
+
+        // The roster is now exactly what the building still holds, which is
+        // the only moment this can be worked out.
+        MarkClearedFloors();
+    }
+
+    // ====================================================================
+    // A FLOOR YOU EMPTIED STAYS EMPTIED, AND SAYS SO
+    //
+    // Take everything off a floor and bank it, and that floor is finished:
+    // taped shut, refused by the lift, never generated again. Leave one sack
+    // of flour behind and it stays open, because it is not finished.
+    //
+    // "Has no loot left" is NOT sufficient on its own, and getting this wrong
+    // would be invisible and permanent:
+    //
+    //   - a floor still owed its loot (PendingLootBudget) has none yet
+    //     because it has never been built, not because you cleared it
+    //   - a sealed floor has none because the demolition ate it
+    //
+    // Taping either one would lock the crew out of loot the building still
+    // owes them, with no way back and no error. So both are excluded, and a
+    // floor must have been STOCKED and then EMPTIED to count.
+    // ====================================================================
+
+    static void MarkClearedFloors()
+    {
+        var lift = SceneRefs.Lift;
+        if (lift == null) return;      // no lift, no floor heights, no answer
+
+        // Which floors still hold something. Worked out from height, the same
+        // way FloorDirector decides who is standing where - the levels are
+        // stacked at a fixed pitch, so height is the one fact that is true on
+        // every machine without being sent.
+        var stillHolds = new HashSet<int>();
+
+        foreach (var r in Campaign.LootRoster)
+        {
+            int floor = Mathf.RoundToInt((lift.surfaceY - r.position.y)
+                                         / Mathf.Max(0.01f, lift.floorHeight));
+            stillHolds.Add(floor);
+        }
+
+        int taped = 0;
+
+        for (int floor = 1; floor <= Campaign.TotalFloors; floor++)
+        {
+            if (Campaign.ClearedRooms.Contains(floor)) continue;      // already done
+            if (Campaign.DestroyedRooms.Contains(floor)) continue;    // taken, not beaten
+            if (Campaign.PendingLootBudget.ContainsKey(floor)) continue;  // never stocked
+            if (stillHolds.Contains(floor)) continue;                 // something left
+
+            Campaign.ClearedRooms.Add(floor);
+            taped++;
+
+            Debug.Log($"[Loot] floor {floor} stripped bare and banked - taped " +
+                      "shut. It will not be generated again.");
+        }
+
+        if (taped > 0) Campaign.PublishClearedRooms();
     }
 
     IEnumerator Audit()
@@ -525,6 +700,30 @@ public class LootSpawner : MonoBehaviour
 
             world = socket.Position + socket.Rotation * offset + Vector3.up * y;
             spin = socket.Rotation * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+            // ---- IS THERE ACTUALLY A FLOOR UNDER THIS? ----
+            //
+            // Cheap, and it answers in one line what the placement audit can
+            // only answer as "1 of 9 moved". The audit reports the crime four
+            // seconds later and cannot say which socket did it; this names the
+            // room and the socket at the moment of the drop.
+            //
+            // Kept rather than removed once the bug is fixed: room modules are
+            // authored by hand in RoomModuleBuilder, and a socket typed one
+            // digit wrong puts loot inside geometry with no other symptom.
+            if (!Physics.Raycast(world + Vector3.up * 0.6f, Vector3.down,
+                                 out RaycastHit ground, 4f,
+                                 ~0, QueryTriggerInteraction.Ignore))
+            {
+                var room = socket.GetComponentInParent<RoomModule>();
+
+                Debug.LogError(
+                    $"[Loot] NOTHING UNDER socket '{socket.name}' of " +
+                    $"'{(room != null ? room.label : "unknown room")}' at " +
+                    $"{world:F2}. {name} will fall. Either the socket sits off " +
+                    "its room's floor slab, or the room's collider is not " +
+                    "where the room is.");
+            }
         }
         else
         {

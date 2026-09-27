@@ -44,12 +44,16 @@ public static class SceneRefs
     static RunManager run;
     static Elevator lift;
     static SceneAtmosphere atmosphere;
+    static LootSpawner loot;
 
     public static RunManager Run =>
         run != null ? run : (run = Object.FindFirstObjectByType<RunManager>());
 
     public static Elevator Lift =>
         lift != null ? lift : (lift = Object.FindFirstObjectByType<Elevator>());
+
+    public static LootSpawner Loot =>
+        loot != null ? loot : (loot = Object.FindFirstObjectByType<LootSpawner>());
 
     public static SceneAtmosphere Atmosphere =>
         atmosphere != null

@@ -331,7 +331,38 @@ public static class RoomModuleBuilder
     static void Finish(Transform root)
     {
         var go = root.gameObject;
+
+        // ---- ROOMS MUST BE ON THE ENVIRONMENT LAYER ----
+        //
+        // PlayerMotor's groundMask is layer 9 (Environment) ONLY - m_Bits 512
+        // on the player prefab. A room left on Default still collides, so you
+        // do not fall through it; but the ground CHECK never hits it, grounded
+        // stays false, and Jump() returns early.
+        //
+        // That was the symptom: "I cannot jump in these rooms". Standing on a
+        // floor the ground check cannot see is indistinguishable from falling.
+        //
+        // Grayboxbuilder already does this to the whole shaft. The generated
+        // rooms replace that geometry, so they inherit the same requirement -
+        // and anything else that reads the world by layer (fall damage, the
+        // procedural legs, the animator's grounded flag) is fixed by the same
+        // line.
+        int env = LayerMask.NameToLayer("Environment");
+
+        if (env >= 0) SetLayerRecursive(go, env);
+        else Debug.LogWarning("[Rooms] Layer 'Environment' is missing. Rooms " +
+                              "will be on Default and the player will not be " +
+                              "able to jump on them.");
+
         PrefabUtility.SaveAsPrefabAsset(go, $"{OutputDir}/{go.name}.prefab");
         Object.DestroyImmediate(go);
+    }
+
+    static void SetLayerRecursive(GameObject go, int layer)
+    {
+        go.layer = layer;
+
+        foreach (Transform child in go.transform)
+            SetLayerRecursive(child.gameObject, layer);
     }
 }

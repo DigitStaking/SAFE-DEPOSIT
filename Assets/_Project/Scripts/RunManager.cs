@@ -222,6 +222,7 @@ public class RunManager : MonoBehaviour
         }
 
         RebuildRubbleFromCampaign();
+        RebuildTapeFromCampaign();
 
         if (Campaign.CableIsUseless)
             Announce("your cable only reaches rooms that are already gone");
@@ -241,6 +242,33 @@ public class RunManager : MonoBehaviour
     {
         foreach (int room in Campaign.DestroyedRooms)
             SealRoomIndex(room, killOccupants: false);
+    }
+
+    /// <summary>
+    /// Tape the doorway of every floor the crew has stripped bare.
+    ///
+    /// The same contract as RebuildRubbleFromCampaign and for the same reason:
+    /// a client learns a floor is finished as a number arriving on the wire,
+    /// long after this scene was built, so something has to be able to say
+    /// "the building changed, look again". Safe to call repeatedly -
+    /// RoomTape.TapeDoorway returns early on a doorway it has already taped.
+    ///
+    /// The lift is NOT stopped from travelling here. Only the doorway is shut.
+    /// </summary>
+    public void RebuildTapeFromCampaign()
+    {
+        foreach (int room in Campaign.ClearedRooms)
+        {
+            int idx = room - 1;
+            if (idx < 0 || idx >= levels.Count) continue;
+
+            // A floor that got demolished after it was cleared is rubble, not
+            // tape. Rubble is the more useful thing to see, and two barriers
+            // in one doorway would fight.
+            if (Campaign.DestroyedRooms.Contains(room)) continue;
+
+            RoomTape.TapeDoorway(levels[idx]);
+        }
     }
 
     void CacheRubbleMaterial()
@@ -726,6 +754,11 @@ public class RunManager : MonoBehaviour
         if (idx < 0 || idx >= levels.Count) return false;
         var level = levels[idx];
         if (level == null) return false;
+
+        // Rubble replaces tape. A floor finished and THEN demolished shows
+        // the demolition - it is the more useful thing to know, and two
+        // barriers in one doorway would sit inside each other.
+        RoomTape.Untape(level);
 
         if (level.Find("RubbleSeal") == null)
             RoomSeal.SealDoorway(level, rubbleMat);
